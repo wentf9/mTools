@@ -2,6 +2,7 @@ package utils
 
 import (
 	// "fmt"
+	"fmt"
 	"net"
 	"os/user"
 	"strconv"
@@ -33,7 +34,7 @@ func ParsePort(input string) uint16 {
 	}
 	port64, err := strconv.ParseUint(input, 10, 16)
 	if err != nil {
-		Logger.Error("解析端口失败: %v", err)
+		Logger.Error(fmt.Sprintf("解析端口失败: %v", err))
 		return 0
 	}
 	return uint16(port64)
@@ -49,7 +50,7 @@ func IsValidIPv4(ipStr string) bool {
 func GetCurrentUser() string {
 	currentUser, err := user.Current()
 	if err != nil {
-		Logger.Error("获取当前系统用户失败: %v", err)
+		Logger.Error(fmt.Sprintf("获取当前系统用户失败: %v", err))
 		return ""
 	}
 	return currentUser.Username

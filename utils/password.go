@@ -17,8 +17,8 @@ import (
 )
 
 const (
-	passwordFileName = ".demo_passwords.json"
-	keyFileName      = ".demo_key"
+	passwordFileName = ".mtool_passwords.json"
+	keyFileName      = ".mtool_key"
 )
 
 // EncryptedPassword 存储加密后的密码和用于解密的随机向量

@@ -43,7 +43,12 @@ var (
 var execCmd = &cobra.Command{
 	Use:   "exec",
 	Short: "对多台主机执行命令",
-	Long:  `一条命令在多台主机执行`,
+	Long: `一条命令在多台主机执行
+	用法：
+	mtool exec -u user -i ip -c command
+	如果未通过-p选项显式提供密码,将会从终端输入或通过保存的密码文件读取密码
+	成功登录过的用户和ip组合的密码将会保存到密码文件中
+	密码采用对称加密算法加密保存,密码文件位置为~/.mtool_passwords.json`,
 	Run: func(cmd *cobra.Command, args []string) {
 		var hosts []string
 		var csvHosts []hostInfo
@@ -186,7 +191,7 @@ func ExecuteConcurrently(hosts []string, csvHosts []hostInfo, cmd string, concur
 	currentOsUser := ""
 	if u := utils.GetCurrentUser(); u != "" {
 		currentOsUser = u
-		utils.Logger.Debug("当前系统用户: %s", currentOsUser)
+		utils.Logger.Debug(fmt.Sprintf("当前系统用户: %s", currentOsUser))
 	}
 	passwords, err := utils.LoadPasswords()
 	if err != nil {
@@ -248,7 +253,7 @@ func ExecuteConcurrently(hosts []string, csvHosts []hostInfo, cmd string, concur
 		result, err := c.Run(command)
 		if err != nil {
 			fmt.Printf("[ERROR] %s\n------------\n", h)
-			fmt.Fprintf(os.Stderr, "执行命令失败: %v\n", err)
+			fmt.Fprintf(os.Stderr, "执行命令失败: %v\n%s", err, result)
 		} else {
 			fmt.Printf("[SUCCESS] %s\n------------\n%s", h, result)
 		}
@@ -327,9 +332,9 @@ func init() {
 	execCmd.PersistentFlags().StringVarP(&password, "passwd", "p", "", "ssh密码")
 	execCmd.PersistentFlags().StringVarP(&hostFile, "ifile", "I", "", "记录需要执行命令的主机的文件的路径,每个ip一行")
 	execCmd.PersistentFlags().StringVarP(&csvFile, "csv", "", "", "CSV文件路径,包含主机IP,用户名,密码,每行一条记录")
-	execCmd.PersistentFlags().StringVarP(&cmdFile, "cfile", "C", "", "记录需要执行的命令的文件的路径")
-	execCmd.PersistentFlags().StringVarP(&shellFile, "shell", "s", "", "需要执行的脚本文件的位置")
-	execCmd.PersistentFlags().BoolVarP(&sudo, "sudo", "S", false, "是否需要sudo执行,不要在命令中加入sudo")
+	execCmd.Flags().StringVarP(&cmdFile, "cfile", "C", "", "记录需要执行的命令的文件的路径")
+	execCmd.Flags().StringVarP(&shellFile, "shell", "s", "", "需要执行的脚本文件的位置")
+	execCmd.Flags().BoolVarP(&sudo, "sudo", "S", false, "是否需要sudo执行,不要在命令中加入sudo")
 
 	execCmd.MarkFlagsOneRequired("ip", "ifile", "csv")
 	execCmd.MarkFlagsMutuallyExclusive("ip", "ifile", "csv")

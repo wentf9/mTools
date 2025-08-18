@@ -21,18 +21,17 @@ var scpCmd = &cobra.Command{
 	Use:   "scp",
 	Short: "在本地和远程主机之间传输文件",
 	Long: `在本地和远程主机之间传输文件，支持多台主机并行传输。
-用法类似于Linux scp命令:
+	用法类似于Linux scp命令:
+	从本地复制到远程：
+	mtool scp [-r] 本地路径 用户@主机:远程路径
+	mtool scp [-r] --src 本地路径 -u 用户 -i "主机1,主机2" --dest 远程路径
 
-从本地复制到远程：
-mtool scp [-r] 本地路径 用户@主机:远程路径
-mtool scp [-r] --src 本地路径 -u 用户 -i "主机1,主机2" --dest 远程路径
-
-从远程复制到本地：
-mtool scp [-r] 用户@主机:远程路径 本地路径
-mtool scp [-r] -u 用户 -i "主机1,主机2" --src 远程路径 --dest 本地路径
-
--r: 递归复制目录
---progress: 显示传输进度`,
+	从远程复制到本地：
+	mtool scp [-r] 用户@主机:远程路径 本地路径
+	mtool scp [-r] -u 用户 -i "主机1,主机2" --src 远程路径 --dest 本地路径
+	远程路径不要使用~符号,相对路径默认就是家目录
+	-r: 递归复制目录
+	--progress: 显示传输进度`,
 	Run: func(cmd *cobra.Command, args []string) {
 		var hosts []string
 		var csvHosts []hostInfo

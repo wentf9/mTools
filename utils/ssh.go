@@ -93,6 +93,62 @@ func (c *SSHCli) InteractiveSession(session *ssh.Session) error {
 	if err := session.Shell(); err != nil {
 		return fmt.Errorf("无法启动shell: %v", err)
 	}
+	// if c.Sudo {
+	// 	// 创建一个缓冲区来存储输出
+	// 	var output bytes.Buffer
+	// 	// 创建通道来同步操作
+	// 	passwordSent := make(chan struct{})
+	// 	sudoSent := make(chan struct{})
+	// 	// 监控输出并处理所有提示
+	// 	buffer := make([]byte, 1024)
+	// 	passwordPrompts := []string{
+	// 		"[sudo] password for",
+	// 		"Password:",
+	// 		"密码：",
+	// 	}
+	// 	for {
+	// 		n, err := session.Stdin.Read(buffer)
+	// 		if err != nil {
+	// 			if err != io.EOF {
+	// 				fmt.Fprintf(os.Stderr, "读取输出错误: %v\n", err)
+	// 			}
+	// 			break // 读取错误或EOF时退出循环
+	// 		}
+	// 		output.Write(buffer[:n])
+	// 		currentOutput := string(buffer[:n])
+
+	// 		select {
+	// 		case <-sudoSent:
+	// 			// 检查是否需要输入密码
+	// 			select {
+	// 			case <-passwordSent: // 如果已经发送过密码，不再发送
+	// 				continue
+	// 			default:
+	// 				for _, prompt := range passwordPrompts {
+	// 					if strings.Contains(currentOutput, prompt) {
+	// 						if c.Pwd == "" {
+	// 							session.Close()
+	// 							return fmt.Errorf("需要sudo密码但未提供")
+	// 						}
+	// 						session.Stdout.Write([]byte(c.Pwd + "\n"))
+	// 						close(passwordSent)
+	// 						break
+	// 					}
+	// 				}
+	// 			}
+	// 		default:
+	// 			if strings.Contains(currentOutput, "#") {
+	// 				Logger.Warn("已经是root环境")
+	// 				break
+	// 			}
+	// 			if strings.Contains(currentOutput, "$") {
+	// 				fmt.Fprint(session.Stdout, "sudo -S -i\n")
+	// 				close(sudoSent)
+	// 				continue
+	// 			}
+	// 		}
+	// 	}
+	// }
 
 	// 等待会话结束
 	return session.Wait()
@@ -122,7 +178,7 @@ func (c SSHCli) Run(shell string) (string, error) {
 	if c.Sudo {
 		buf, err = c.execWithSudo(session, shell)
 	} else {
-		bufBytes, err = session.CombinedOutput(shell)
+		bufBytes, err = session.CombinedOutput("source /etc/profile && " + shell)
 		buf = string(bufBytes)
 	}
 	c.LastResult = string(buf)
@@ -171,6 +227,7 @@ func (c SSHCli) execWithSudo(session *ssh.Session, cmd string) (string, error) {
 	buffer := make([]byte, 1024)
 	passwordPrompts := []string{
 		"[sudo] password for",
+		"[sudo]",
 		"Password:",
 		"密码：",
 	}
@@ -178,8 +235,9 @@ func (c SSHCli) execWithSudo(session *ssh.Session, cmd string) (string, error) {
 		"root@",
 		"#",
 	}
-Loop:
+
 	for {
+	reloadRead:
 		n, err := pr.Read(buffer)
 		if err != nil {
 			if err != io.EOF {
@@ -192,36 +250,33 @@ Loop:
 		currentOutput := string(buffer[:n])
 
 		// 检查是否需要输入密码
-		for _, prompt := range passwordPrompts {
-			if strings.Contains(currentOutput, prompt) {
-				select {
-				case <-passwordSent: // 如果已经发送过密码，不再发送
-					continue
-				default:
+		select {
+		case <-passwordSent: // 如果已经发送过密码，不再发送
+			goto commandCheck
+		default:
+			for _, prompt := range passwordPrompts {
+				if strings.Contains(currentOutput, prompt) {
 					if c.Pwd != "" {
 						stdin.Write([]byte(c.Pwd + "\n"))
 						close(passwordSent)
+						goto reloadRead
 					} else {
 						session.Close()
 						return "", fmt.Errorf("需要sudo密码但未提供")
 					}
-				}
-				break
-			}
-		}
 
+				}
+			}
+
+		}
+	commandCheck:
 		// 如果命令已发送且检测到新的提示符，说明命令执行完成
 		select {
 		case <-commandSent:
 			for _, prompt := range rootPrompts {
 				// 检查是否进入root环境
 				if strings.Contains(currentOutput, prompt) {
-					// 发送退出命令
-					// stdin.Write([]byte("exit\n"))
-					// stdin.Write([]byte("exit\n"))
-					// pw.Close() // 关闭输出管道，结束会话
-					// pr.Close() // 关闭会话
-					break Loop // 退出循环
+					goto breakLoop // 退出循环
 				}
 			}
 		default:
@@ -230,11 +285,12 @@ Loop:
 					// 发送实际命令
 					stdin.Write([]byte(cmd + "\n"))
 					close(commandSent)
-					break
+					goto reloadRead
 				}
 			}
 		}
 	}
+breakLoop:
 	// 获取完整输出
 	outputStr := output.String()
 	if strings.Contains(strings.ToLower(outputStr), "incorrect password") {
@@ -244,7 +300,7 @@ Loop:
 		return outputStr, fmt.Errorf("用户没有sudo权限")
 	}
 	// 清理输出中的提示信息
-	regex := regexp.MustCompile(`(\[sudo\] password for.+|Password:.*|密码.*|root@.*|.*#\s*)`)
+	regex := regexp.MustCompile(`(\[sudo\].+|Password:.*|密码.*|root@.*|.*#\s*)`)
 	// regex := regexp.MustCompile(`.*#.*`)
 	outputStr = regex.ReplaceAllString(outputStr, "")
 

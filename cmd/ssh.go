@@ -11,7 +11,16 @@ import (
 var sshCmd = &cobra.Command{
 	Use:   "ssh",
 	Short: "SSH连接到指定主机",
-	Long:  `建立SSH连接并提供交互式终端`,
+	Long: `建立SSH连接并提供交互式终端
+	用法：
+	mtool ssh user@ip[:port]
+	mtool ssh user ip [port]
+	mtool -i ip -u user
+	用户和ip为必选参数,端口默认为22,一般不需要修改
+	通过flags提供ip和用户信息时会忽略参数提供的信息
+	如果未通过-p选项显式提供密码,将会从终端输入或通过保存的密码文件读取密码
+	成功登录过的用户和ip组合的密码将会保存到密码文件中
+	密码采用对称加密算法加密保存,密码文件位置为~/.mtool_passwords.json`,
 	Run: func(cmd *cobra.Command, args []string) {
 		// 检查必需的参数
 		if ip == "" {
@@ -55,7 +64,7 @@ var sshCmd = &cobra.Command{
 		}
 		if user == "" {
 			if u := utils.GetCurrentUser(); u != "" {
-				utils.Logger.Debug("当前系统用户: %s", u)
+				utils.Logger.Debug(fmt.Sprintf("当前系统用户: %s", u))
 				user = u
 			} else {
 				fmt.Fprintf(os.Stderr, "错误: 未指定用户,且当前系统用户无法获取\n")
@@ -93,6 +102,7 @@ var sshCmd = &cobra.Command{
 			Port: port,
 			User: user,
 			Pwd:  hostPassword,
+			Sudo: sudo,
 		}
 
 		// 建立连接
@@ -127,6 +137,6 @@ func init() {
 	sshCmd.PersistentFlags().Uint16Var(&port, "port", 22, "SSH端口")
 	sshCmd.PersistentFlags().StringVarP(&user, "user", "u", "", "SSH用户名")
 	sshCmd.PersistentFlags().StringVarP(&password, "passwd", "p", "", "SSH密码")
-
-	sshCmd.MarkFlagRequired("ip")
+	sshCmd.Flags().BoolVarP(&sudo, "sudo", "S", false, "是否启动sudo环境(Todo)")
+	// sshCmd.MarkFlagRequired("ip")
 }
