@@ -46,12 +46,12 @@ func (c *SCPClient) createScpSession() (*ssh.Session, string, error) {
 
 	Logger.Debug("检查远程主机上的scp命令")
 	scpCmd := "which scp 2>/dev/null || command -v scp 2>/dev/null || type -p scp 2>/dev/null"
-	scpPath, err := c.Run(scpCmd)
+	scpPath, err := c.Run(CommandOptions{Sudo: 0, Content: scpCmd, IsCli: true})
 	if err != nil || scpPath == "" {
 		// 尝试常见的scp路径
 		paths := []string{"/usr/bin/scp", "/bin/scp", "/usr/local/bin/scp"}
 		for _, path := range paths {
-			if _, err := c.Run(fmt.Sprintf("test -x '%s'", path)); err == nil {
+			if _, err := c.Run(CommandOptions{Sudo: 0, Content: fmt.Sprintf("test -x '%s'", path), IsCli: true}); err == nil {
 				scpPath = path
 				break
 			}
@@ -114,7 +114,7 @@ func (c *SCPClient) Download(remotePath, localPath string, recursive bool) error
 	defer session.Close()
 
 	// 检查远程文件是否为目录
-	if output, err := c.Run(fmt.Sprintf("test -d '%s' && echo 'DIR' || echo 'FILE'", remotePath)); err != nil {
+	if output, err := c.Run(CommandOptions{Sudo: 0, Content: fmt.Sprintf("test -d '%s' && echo 'DIR' || echo 'FILE'", remotePath), IsCli: true}); err != nil {
 		return fmt.Errorf("检查远程路径失败: %v", err)
 	} else if output == "DIR\n" {
 		if !recursive {
@@ -140,7 +140,7 @@ func (c *SCPClient) uploadFile(localPath, remotePath string) error {
 		return fmt.Errorf("获取文件信息失败: %v", err)
 	}
 
-	if _, err := c.Run(fmt.Sprintf("test -f '%s'", filepath.ToSlash(remotePath))); err == nil {
+	if _, err := c.Run(CommandOptions{Sudo: 0, Content: fmt.Sprintf("test -f '%s'", filepath.ToSlash(remotePath)), IsCli: true}); err == nil {
 		if !c.Force {
 			// fmt.Printf("远程文件已存在,是否覆盖? (y/n): ")
 			// var response string
@@ -150,12 +150,12 @@ func (c *SCPClient) uploadFile(localPath, remotePath string) error {
 			// }
 			return fmt.Errorf("远程文件已存在")
 		}
-	} else if _, err := c.Run(fmt.Sprintf("test -d '%s'", filepath.ToSlash(remotePath))); err == nil {
+	} else if _, err := c.Run(CommandOptions{Sudo: 0, Content: fmt.Sprintf("test -d '%s'", filepath.ToSlash(remotePath)), IsCli: true}); err == nil {
 		// 如果远程路径是目录，则将文件上传到该目录
 		remotePath = filepath.Join(remotePath, fileInfo.Name())
 		remotePath = filepath.ToSlash(remotePath) // 确保使用正斜杠
 		if !c.Force {
-			if _, err := c.Run(fmt.Sprintf("test -f '%s'", remotePath)); err == nil {
+			if _, err := c.Run(CommandOptions{Sudo: 0, Content: fmt.Sprintf("test -f '%s'", remotePath), IsCli: true}); err == nil {
 				// fmt.Printf("远程文件已存在,是否覆盖? (y/n): ")
 				// var response string
 				// fmt.Scanln(&response)
@@ -168,10 +168,14 @@ func (c *SCPClient) uploadFile(localPath, remotePath string) error {
 	} else {
 		// 如果远程路径不存在
 		if remotePath[len(remotePath)-1] == '/' {
-			return fmt.Errorf("远程路径 '%s' 是目录，但不存在", remotePath)
+			return fmt.Errorf("远程路径 '%s' 是目录，但不存在: %v", remotePath, err)
 		}
-		if _, err := c.Run(fmt.Sprintf("test -d '%s'", filepath.ToSlash(filepath.Dir(remotePath)))); err != nil {
-			return fmt.Errorf("远程路径 '%s' 的父目录不存在", remotePath)
+		if res, err := c.Run(CommandOptions{Sudo: 0, Content: fmt.Sprintf("test -d '%s'", filepath.ToSlash(filepath.Dir(remotePath))), IsCli: true}); err != nil {
+			return fmt.Errorf("远程路径 '%s' 的父目录不存在: %v\n%s", remotePath, err, res)
+		}
+		Logger.Debug(fmt.Sprintf("远程文件 '%s' 不存在,将创建新文件", remotePath))
+		if res, err := c.Run(CommandOptions{Sudo: 0, Content: fmt.Sprintf("touch '%s'", filepath.ToSlash(remotePath)), IsCli: true}); err != nil {
+			return fmt.Errorf("远程文件 '%s' 创建失败: %v\n%s", remotePath, err, res)
 		}
 	}
 
@@ -333,7 +337,7 @@ func (c *SCPClient) uploadFile(localPath, remotePath string) error {
 
 func (c *SCPClient) downloadFile(remotePath, localPath string) error {
 
-	if _, err := c.Run(fmt.Sprintf("test -f '%s'", filepath.ToSlash(remotePath))); err != nil {
+	if _, err := c.Run(CommandOptions{Sudo: 0, Content: fmt.Sprintf("test -f '%s'", filepath.ToSlash(remotePath)), IsCli: true}); err != nil {
 		return fmt.Errorf("远程文件<%s>不存在", remotePath)
 	}
 
@@ -513,7 +517,7 @@ func (c *SCPClient) downloadFile(remotePath, localPath string) error {
 
 func (c *SCPClient) uploadDirectory(localPath, remotePath string) error {
 	// 创建远程目录
-	if _, err := c.Run(fmt.Sprintf("mkdir -p '%s'", remotePath)); err != nil {
+	if _, err := c.Run(CommandOptions{Sudo: 0, Content: fmt.Sprintf("mkdir -p '%s'", remotePath), IsCli: true}); err != nil {
 		return fmt.Errorf("创建远程目录失败: %v", err)
 	}
 
@@ -533,7 +537,7 @@ func (c *SCPClient) uploadDirectory(localPath, remotePath string) error {
 
 		if info.IsDir() {
 			// 创建远程目录
-			if _, err := c.Run(fmt.Sprintf("mkdir -p '%s'", remoteFilePath)); err != nil {
+			if _, err := c.Run(CommandOptions{Sudo: 0, Content: fmt.Sprintf("mkdir -p '%s'", remoteFilePath), IsCli: true}); err != nil {
 				return fmt.Errorf("创建远程目录失败: %v", err)
 			}
 		} else {
@@ -554,7 +558,7 @@ func (c *SCPClient) downloadDirectory(remotePath, localPath string) error {
 	}
 
 	// 获取远程文件列表
-	output, err := c.Run(fmt.Sprintf("find '%s' -type f", remotePath))
+	output, err := c.Run(CommandOptions{Sudo: 0, Content: fmt.Sprintf("find '%s' -type f", remotePath), IsCli: true})
 	if err != nil {
 		return fmt.Errorf("获取远程文件列表失败: %v", err)
 	}

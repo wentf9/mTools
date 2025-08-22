@@ -6,6 +6,7 @@ package cmd
 import (
 	"fmt"
 	"os"
+
 	"regexp"
 
 	"example.com/MikuTools/utils"
@@ -35,7 +36,8 @@ var (
 	cmdFile   string
 	shellFile string
 	csvFile   string
-	sudo      bool
+	sudo      uint8
+	suPwd     string
 	// keyFile string
 )
 
@@ -50,6 +52,39 @@ var execCmd = &cobra.Command{
 	成功登录过的用户和ip组合的密码将会保存到密码文件中
 	密码采用对称加密算法加密保存,密码文件位置为~/.mtool_passwords.json`,
 	Run: func(cmd *cobra.Command, args []string) {
+		isCli := true
+		issu, _ := cmd.Flags().GetBool("su")
+		issudo, _ := cmd.Flags().GetBool("sudo")
+		if issu || issudo {
+			if issu {
+				sudo = 2
+			} else {
+				sudo = 1
+			}
+		} else {
+			sudo = 0
+		}
+		if shellFile != "" {
+			if file, err := os.Open(shellFile); err == nil {
+				// 读取shell脚本内容
+				shellContent, err := io.ReadAll(file)
+				if err != nil {
+					fmt.Fprintf(os.Stderr, "读取shell脚本失败: %v\n", err)
+					os.Exit(1)
+				}
+				command = string(shellContent)
+				file.Close()
+			} else {
+				fmt.Fprintf(os.Stderr, "打开shell脚本失败: %v\n", err)
+				os.Exit(1)
+			}
+			isCli = false
+		}
+		commandOptions := utils.CommandOptions{
+			Sudo:    sudo,
+			Content: command,
+			IsCli:   isCli,
+		}
 		var hosts []string
 		var csvHosts []hostInfo
 
@@ -79,7 +114,7 @@ var execCmd = &cobra.Command{
 		if csvFile != "" {
 			concurrency = len(csvHosts)
 		}
-		ExecuteConcurrently(hosts, csvHosts, command, concurrency)
+		ExecuteConcurrently(hosts, csvHosts, commandOptions, concurrency)
 	},
 }
 
@@ -119,73 +154,7 @@ func bufferedReadIpFile(path string) []string {
 	return hosts
 }
 
-func readCSVFile(path string) ([]hostInfo, error) {
-	var hosts []hostInfo
-	file, err := os.Open(path)
-	if err != nil {
-		return nil, fmt.Errorf("无法打开CSV文件: %v", err)
-	}
-	defer file.Close()
-
-	reader := bufio.NewReader(file)
-	firstLine := true
-
-	for {
-		line, err := reader.ReadString('\n')
-		if err != nil && err != io.EOF {
-			return nil, fmt.Errorf("读取CSV文件失败: %v", err)
-		}
-
-		line = strings.TrimSpace(line)
-		if line == "" {
-			if err == io.EOF {
-				break
-			}
-			continue
-		}
-
-		// 跳过CSV头行
-		if firstLine {
-			firstLine = false
-			if strings.Contains(strings.ToLower(line), "ip") {
-				continue
-			}
-		}
-
-		// 分割CSV行
-		fields := strings.Split(line, ",")
-		if len(fields) < 3 {
-			return nil, fmt.Errorf("CSV格式错误,每行需要包含: IP,用户名,密码")
-		}
-
-		// 移除字段中的引号和空白
-		ip := strings.Trim(strings.TrimSpace(fields[0]), "\"'")
-		user := strings.Trim(strings.TrimSpace(fields[1]), "\"'")
-		password := strings.Trim(strings.TrimSpace(fields[2]), "\"'")
-
-		if !utils.IsValidIPv4(ip) {
-			return nil, fmt.Errorf("无效的IP地址: %s", ip)
-		}
-
-		hosts = append(hosts, hostInfo{
-			ip:       ip,
-			user:     user,
-			password: password,
-		})
-
-		if err == io.EOF {
-			break
-		}
-	}
-
-	if len(hosts) == 0 {
-		return nil, fmt.Errorf("CSV文件中没有找到有效的主机信息")
-	}
-
-	return hosts, nil
-}
-
-func ExecuteConcurrently(hosts []string, csvHosts []hostInfo, cmd string, concurrency int) {
+func ExecuteConcurrently(hosts []string, csvHosts []hostInfo, cmd utils.CommandOptions, concurrency int) {
 	sem := make(chan struct{}, concurrency)
 	wg := sync.WaitGroup{}
 	currentOsUser := ""
@@ -196,9 +165,9 @@ func ExecuteConcurrently(hosts []string, csvHosts []hostInfo, cmd string, concur
 	passwords, err := utils.LoadPasswords()
 	if err != nil {
 		fmt.Fprintf(os.Stderr, "could not load passwords: %v\n", err)
-		passwords = make(utils.PasswordStore)
+		passwords = utils.NewPasswordStore()
 	}
-	var mu sync.Mutex
+
 	passwordModified := false
 
 	executeHost := func(h string, u string, p string) {
@@ -208,8 +177,8 @@ func ExecuteConcurrently(hosts []string, csvHosts []hostInfo, cmd string, concur
 
 		hostPassword := p
 		if hostPassword == "" {
-			mu.Lock()
-			if storedPass, ok := passwords.Get(u, h); ok {
+
+			if storedPass, ok := passwords.GetPass(u, h); ok {
 				hostPassword = storedPass
 			} else {
 				// 如果没有保存的密码，从终端读取
@@ -219,15 +188,19 @@ func ExecuteConcurrently(hosts []string, csvHosts []hostInfo, cmd string, concur
 					fmt.Fprintf(os.Stderr, "读取密码失败: %v\n", err)
 				}
 			}
-			mu.Unlock()
-		}
 
+		}
+		if cmd.Sudo == 2 {
+			if suPwd == "" {
+				suPwd = hostPassword
+			}
+		}
 		c := utils.SSHCli{
-			Ip:   h,
-			Port: port,
-			User: u,
-			Pwd:  hostPassword,
-			Sudo: sudo,
+			Ip:    h,
+			Port:  port,
+			User:  u,
+			Pwd:   hostPassword,
+			SuPwd: suPwd,
 		}
 		_, err := c.Connect()
 		if err != nil {
@@ -239,18 +212,10 @@ func ExecuteConcurrently(hosts []string, csvHosts []hostInfo, cmd string, concur
 
 		// 如果有密码并且是新密码，保存它
 		if hostPassword != "" {
-			mu.Lock()
-			if storedPass, ok := passwords.Get(u, h); !ok || storedPass != hostPassword {
-				if err := passwords.Set(u, h, hostPassword); err == nil {
-					passwordModified = true
-				} else {
-					fmt.Fprintf(os.Stderr, "保存密码失败: %v\n", err)
-				}
-			}
-			mu.Unlock()
+			passwordModified = passwords.SaveOrUpdate(u, h, hostPassword)
 		}
 
-		result, err := c.Run(command)
+		result, err := c.Run(cmd)
 		if err != nil {
 			fmt.Printf("[ERROR] %s\n------------\n", h)
 			fmt.Fprintf(os.Stderr, "执行命令失败: %v\n%s", err, result)
@@ -283,8 +248,10 @@ func ExecuteConcurrently(hosts []string, csvHosts []hostInfo, cmd string, concur
 	wg.Wait()
 
 	if passwordModified {
-		if err := passwords.Save(); err != nil {
-			fmt.Fprintf(os.Stderr, "failed to save passwords: %v", err)
+		if err := passwords.Save2File(); err != nil {
+			fmt.Fprintf(os.Stderr, "保存密码到文件失败: %v", err)
+		} else {
+			utils.Logger.Info(fmt.Sprintf("密码已保存到文件: %s@%s", user, ip))
 		}
 	}
 }
@@ -332,14 +299,16 @@ func init() {
 	execCmd.PersistentFlags().StringVarP(&password, "passwd", "p", "", "ssh密码")
 	execCmd.PersistentFlags().StringVarP(&hostFile, "ifile", "I", "", "记录需要执行命令的主机的文件的路径,每个ip一行")
 	execCmd.PersistentFlags().StringVarP(&csvFile, "csv", "", "", "CSV文件路径,包含主机IP,用户名,密码,每行一条记录")
-	execCmd.Flags().StringVarP(&cmdFile, "cfile", "C", "", "记录需要执行的命令的文件的路径")
+	execCmd.Flags().StringVarP(&cmdFile, "cfile", "C", "", "记录需要执行的脚本文件的路径")
 	execCmd.Flags().StringVarP(&shellFile, "shell", "s", "", "需要执行的脚本文件的位置")
-	execCmd.Flags().BoolVarP(&sudo, "sudo", "S", false, "是否需要sudo执行,不要在命令中加入sudo")
-
+	execCmd.Flags().BoolP("sudo", "S", false, "是否需要使用sudo切换到root执行,不要在命令中加入sudo")
+	execCmd.Flags().Bool("su", false, "是否需要使用su切换到root用户再执行,不要在命令中加入sudo")
+	execCmd.Flags().StringVar(&suPwd, "suPwd", "", "切换到root用户的密码")
 	execCmd.MarkFlagsOneRequired("ip", "ifile", "csv")
 	execCmd.MarkFlagsMutuallyExclusive("ip", "ifile", "csv")
 	execCmd.MarkFlagsOneRequired("cmd", "cfile", "shell")
 	execCmd.MarkFlagsMutuallyExclusive("cmd", "cfile", "shell")
+	execCmd.MarkFlagsMutuallyExclusive("sudo", "su")
 
 	// Cobra supports local flags which will only run when this command
 	// is called directly, e.g.:

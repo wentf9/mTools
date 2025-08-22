@@ -120,10 +120,9 @@ var scpCmd = &cobra.Command{
 		passwords, err := utils.LoadPasswords()
 		if err != nil {
 			fmt.Fprintf(os.Stderr, "无法加载密码存储: %v\n", err)
-			passwords = make(utils.PasswordStore)
+			passwords = utils.NewPasswordStore()
 		}
 
-		var mu sync.Mutex
 		passwordModified := false
 
 		// 创建文件传输通道
@@ -142,8 +141,7 @@ var scpCmd = &cobra.Command{
 
 			hostPassword := p
 			if hostPassword == "" {
-				mu.Lock()
-				if storedPass, ok := passwords.Get(u, h); ok {
+				if storedPass, ok := passwords.GetPass(u, h); ok {
 					hostPassword = storedPass
 				} else {
 					if newPass, err := utils.ReadPasswordFromTerminal(fmt.Sprintf("请输入 %s@%s 的密码: ", u, h)); err == nil {
@@ -153,7 +151,7 @@ var scpCmd = &cobra.Command{
 						return
 					}
 				}
-				mu.Unlock()
+
 			}
 			showProgress, _ := cmd.Flags().GetBool("progress")
 			force, _ := cmd.Flags().GetBool("force")
@@ -181,13 +179,9 @@ var scpCmd = &cobra.Command{
 			}
 
 			// 保存新密码
-			mu.Lock()
-			if storedPass, ok := passwords.Get(u, h); !ok || storedPass != hostPassword {
-				if err := passwords.Set(u, h, hostPassword); err == nil {
-					passwordModified = true
-				}
+			if hostPassword != "" {
+				passwordModified = passwords.SaveOrUpdate(u, h, hostPassword)
 			}
-			mu.Unlock()
 
 			fmt.Printf("[%s] 传输完成\n", h)
 		}
@@ -207,8 +201,10 @@ var scpCmd = &cobra.Command{
 		wg.Wait()
 
 		if passwordModified {
-			if err := passwords.Save(); err != nil {
-				fmt.Fprintf(os.Stderr, "保存密码失败: %v\n", err)
+			if err := passwords.Save2File(); err != nil {
+				fmt.Fprintf(os.Stderr, "保存密码到文件失败: %v", err)
+			} else {
+				utils.Logger.Info(fmt.Sprintf("密码已保存到文件: %s@%s", user, ip))
 			}
 		}
 	},

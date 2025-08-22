@@ -13,6 +13,8 @@ import (
 	"golang.org/x/term"
 )
 
+const SHELL_TMP string = "/tmp/mtool_shell_tmp.sh"
+
 // 连接信息
 type SSHCli struct {
 	User       string
@@ -22,7 +24,14 @@ type SSHCli struct {
 	Client     *ssh.Client
 	Session    *ssh.Session
 	LastResult string
-	Sudo       bool
+	SuPwd      string
+}
+
+// CommandOptions 定义命令选项
+type CommandOptions struct {
+	Sudo    uint8  // 0: 不使用sudo, 1: 使用sudo, 2: 使用su
+	Content string // 命令内容
+	IsCli   bool   // 是否是命令行 true: 是命令行 false: 是shell脚本
 }
 
 func (c *SSHCli) Addr() string {
@@ -155,7 +164,7 @@ func (c *SSHCli) InteractiveSession(session *ssh.Session) error {
 }
 
 // 执行shell
-func (c SSHCli) Run(shell string) (string, error) {
+func (c SSHCli) Run(shell CommandOptions) (string, error) {
 	var session *ssh.Session
 	var err error
 
@@ -175,10 +184,22 @@ func (c SSHCli) Run(shell string) (string, error) {
 	defer session.Close()
 	var buf string
 	var bufBytes []byte
-	if c.Sudo {
+	if !shell.IsCli {
+		Logger.Debug("当前命令是shell脚本,开始将脚本内容写入远程主机临时文件")
+		if err := session.Run(fmt.Sprintf("cat > %s <<- 'EOF'\n%s\nEOF", SHELL_TMP, shell.Content)); err != nil {
+			return "", fmt.Errorf("写入临时文件失败: %v", err)
+		}
+		Logger.Debug(fmt.Sprintf("已写入临时文件: %s@%s:%s", c.User, c.Ip, SHELL_TMP))
+		session.Close()
+		if session, err = c.Client.NewSession(); err != nil {
+			return "", fmt.Errorf("创建新会话失败: %v", err)
+		}
+		shell.Content = fmt.Sprintf("bash %s", SHELL_TMP)
+	}
+	if shell.Sudo != 0 {
 		buf, err = c.execWithSudo(session, shell)
 	} else {
-		bufBytes, err = session.CombinedOutput("source /etc/profile && " + shell)
+		bufBytes, err = session.CombinedOutput("source /etc/profile && " + shell.Content)
 		buf = string(bufBytes)
 	}
 	c.LastResult = string(buf)
@@ -186,7 +207,7 @@ func (c SSHCli) Run(shell string) (string, error) {
 }
 
 // sudo模式执行命令
-func (c SSHCli) execWithSudo(session *ssh.Session, cmd string) (string, error) {
+func (c SSHCli) execWithSudo(session *ssh.Session, cmd CommandOptions) (string, error) {
 	// 请求伪终端
 	modes := ssh.TerminalModes{
 		ssh.ECHO:          0,     // 禁用回显
@@ -209,9 +230,18 @@ func (c SSHCli) execWithSudo(session *ssh.Session, cmd string) (string, error) {
 	session.Stderr = pw
 	defer pw.Close()
 	defer pr.Close()
+	var sucmd string
+	switch cmd.Sudo {
+	case 1:
+		sucmd = "sudo -S -i"
+	case 2:
+		sucmd = "su -"
+	case 0:
+		return "", fmt.Errorf("不需要sudo或su")
+	}
 	// 准备命令
 	// 首先切换到root环境，然后执行实际命令，最后退出
-	if err := session.Start("sudo -S -i"); err != nil {
+	if err := session.Start(sucmd); err != nil {
 		return "", fmt.Errorf("启动sudo会话失败: %v", err)
 	}
 
@@ -235,31 +265,56 @@ func (c SSHCli) execWithSudo(session *ssh.Session, cmd string) (string, error) {
 		"root@",
 		"#",
 	}
-
+	Logger.Debug("开始处理sudo交互")
+Loop:
 	for {
-	reloadRead:
+		Logger.Debug("开始读取输出")
 		n, err := pr.Read(buffer)
 		if err != nil {
 			if err != io.EOF {
 				fmt.Fprintf(os.Stderr, "读取输出错误: %v\n", err)
 			}
-			break // 读取错误或EOF时退出循环
+			Logger.Debug("读取到EOF,退出循环")
+			break Loop // 读取错误或EOF时退出循环
 		}
 
 		output.Write(buffer[:n])
 		currentOutput := string(buffer[:n])
-
+		Logger.Debug(fmt.Sprintf("当前输出 -> %s", currentOutput))
 		// 检查是否需要输入密码
 		select {
 		case <-passwordSent: // 如果已经发送过密码，不再发送
 			goto commandCheck
 		default:
+			for _, prompt := range rootPrompts {
+				if strings.Contains(currentOutput, prompt) {
+					Logger.Debug("已是root用户,无需提权")
+					// 发送实际命令
+					stdin.Write([]byte(cmd.Content + "\n"))
+					Logger.Debug(fmt.Sprintf("已发送命令 -> %s", cmd.Content))
+					close(commandSent)
+					close(passwordSent)
+					continue Loop
+				}
+			}
 			for _, prompt := range passwordPrompts {
 				if strings.Contains(currentOutput, prompt) {
+					if cmd.Sudo == 2 {
+						if c.SuPwd != "" {
+							stdin.Write([]byte(c.SuPwd + "\n"))
+							Logger.Debug("已发送su密码")
+							close(passwordSent)
+							continue Loop
+						} else {
+							session.Close()
+							return "", fmt.Errorf("需要su密码但未提供")
+						}
+					}
 					if c.Pwd != "" {
 						stdin.Write([]byte(c.Pwd + "\n"))
+						Logger.Debug("已发送sudo密码")
 						close(passwordSent)
-						goto reloadRead
+						continue Loop
 					} else {
 						session.Close()
 						return "", fmt.Errorf("需要sudo密码但未提供")
@@ -267,7 +322,7 @@ func (c SSHCli) execWithSudo(session *ssh.Session, cmd string) (string, error) {
 
 				}
 			}
-
+			continue Loop
 		}
 	commandCheck:
 		// 如果命令已发送且检测到新的提示符，说明命令执行完成
@@ -276,21 +331,27 @@ func (c SSHCli) execWithSudo(session *ssh.Session, cmd string) (string, error) {
 			for _, prompt := range rootPrompts {
 				// 检查是否进入root环境
 				if strings.Contains(currentOutput, prompt) {
-					goto breakLoop // 退出循环
+					Logger.Debug("命令执行完成")
+					break Loop // 退出循环
 				}
 			}
 		default:
 			for _, prompt := range rootPrompts {
 				if strings.Contains(currentOutput, prompt) {
+					Logger.Debug("已进入root环境")
 					// 发送实际命令
-					stdin.Write([]byte(cmd + "\n"))
+					stdin.Write([]byte(cmd.Content + "\n"))
+					Logger.Debug(fmt.Sprintf("已发送命令 -> %s", cmd.Content))
 					close(commandSent)
-					goto reloadRead
+					continue Loop
 				}
+			}
+			if strings.Contains(currentOutput, "$") {
+				return "", fmt.Errorf("未检测到root环境,可能是用户不支持sudo,输出为:%s", output.String())
 			}
 		}
 	}
-breakLoop:
+
 	// 获取完整输出
 	outputStr := output.String()
 	if strings.Contains(strings.ToLower(outputStr), "incorrect password") {

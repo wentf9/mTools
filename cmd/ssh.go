@@ -77,13 +77,13 @@ var sshCmd = &cobra.Command{
 		if err != nil {
 			utils.Logger.Warn(fmt.Sprintf("无法加载已保存的密码: %v\n", err))
 			utils.Logger.Warn("将创建一个新的密码存储")
-			passwords = make(utils.PasswordStore)
+			passwords = utils.NewPasswordStore()
 		}
 
 		// 如果没有提供密码，尝试使用保存的密码
 		hostPassword := password
 		if hostPassword == "" {
-			if storedPass, ok := passwords.Get(user, ip); ok {
+			if storedPass, ok := passwords.GetPass(user, ip); ok {
 				hostPassword = storedPass
 			} else {
 				// 如果没有保存的密码，从终端读取
@@ -102,7 +102,6 @@ var sshCmd = &cobra.Command{
 			Port: port,
 			User: user,
 			Pwd:  hostPassword,
-			Sudo: sudo,
 		}
 
 		// 建立连接
@@ -114,11 +113,11 @@ var sshCmd = &cobra.Command{
 		defer c.Client.Close()
 
 		// 如果连接成功且密码是新的，保存密码
-		if storedPass, ok := passwords.Get(user, ip); !ok || storedPass != hostPassword {
-			if err := passwords.Set(user, ip, hostPassword); err != nil {
-				fmt.Fprintf(os.Stderr, "保存密码失败: %v\n", err)
-			} else if err := passwords.Save(); err != nil {
-				fmt.Fprintf(os.Stderr, "保存密码文件失败: %v\n", err)
+		if passwords.SaveOrUpdate(user, ip, hostPassword) {
+			if err := passwords.Save2File(); err != nil {
+				utils.Logger.Error(fmt.Sprintf("保存密码到文件失败: %v\n", err))
+			} else {
+				utils.Logger.Info(fmt.Sprintf("密码已保存到文件: %s@%s", user, ip))
 			}
 		}
 
@@ -137,6 +136,6 @@ func init() {
 	sshCmd.PersistentFlags().Uint16Var(&port, "port", 22, "SSH端口")
 	sshCmd.PersistentFlags().StringVarP(&user, "user", "u", "", "SSH用户名")
 	sshCmd.PersistentFlags().StringVarP(&password, "passwd", "p", "", "SSH密码")
-	sshCmd.Flags().BoolVarP(&sudo, "sudo", "S", false, "是否启动sudo环境(Todo)")
+	// sshCmd.Flags().BoolVarP(&sudo, "sudo", "S", false, "是否启动sudo环境(Todo)")
 	// sshCmd.MarkFlagRequired("ip")
 }

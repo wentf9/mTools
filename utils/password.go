@@ -27,7 +27,9 @@ type EncryptedPassword struct {
 	IV         string `json:"iv"`
 }
 
-type PasswordStore map[string]EncryptedPassword
+type PasswordStore struct {
+	*RWMap[string, EncryptedPassword]
+}
 
 // 获取或生成加密密钥
 func getEncryptionKey() ([]byte, error) {
@@ -161,35 +163,40 @@ func getPasswordFilePath() (string, error) {
 func LoadPasswords() (PasswordStore, error) {
 	path, err := getPasswordFilePath()
 	if err != nil {
-		return nil, err
+		return PasswordStore{NewRWMap[string, EncryptedPassword](0)}, err
 	}
 
 	if _, err := os.Stat(path); os.IsNotExist(err) {
-		return make(PasswordStore), nil
+		return PasswordStore{NewRWMap[string, EncryptedPassword](0)}, nil
 	}
 
 	data, err := os.ReadFile(path)
 	if err != nil {
-		return nil, err
+		return PasswordStore{NewRWMap[string, EncryptedPassword](0)}, err
 	}
 	if len(data) == 0 {
-		return make(PasswordStore), nil
+		return PasswordStore{NewRWMap[string, EncryptedPassword](0)}, nil
 	}
 
-	var store PasswordStore
+	var store map[string]EncryptedPassword
 	if err := json.Unmarshal(data, &store); err != nil {
-		return nil, err
+		return PasswordStore{NewRWMap[string, EncryptedPassword](0)}, err
 	}
-	return store, nil
+	return PasswordStore{NewRWMapFromMap(store)}, nil
 }
 
-func (ps PasswordStore) Save() error {
+func NewPasswordStore() PasswordStore {
+	return PasswordStore{NewRWMap[string, EncryptedPassword](0)}
+}
+
+// Save2File 将密码保存到文件
+func (ps PasswordStore) Save2File() error {
 	path, err := getPasswordFilePath()
 	if err != nil {
 		return err
 	}
 
-	data, err := json.MarshalIndent(ps, "", "  ")
+	data, err := json.MarshalIndent(ps.GetMap(), "", "  ")
 	if err != nil {
 		return err
 	}
@@ -197,9 +204,9 @@ func (ps PasswordStore) Save() error {
 	return os.WriteFile(path, data, 0600)
 }
 
-func (ps PasswordStore) Get(user, ip string) (string, bool) {
+func (ps PasswordStore) GetPass(user, ip string) (string, bool) {
 	key := fmt.Sprintf("%s@%s", user, ip)
-	encPass, ok := ps[key]
+	encPass, ok := ps.Get(key)
 	if !ok {
 		return "", false
 	}
@@ -210,14 +217,28 @@ func (ps PasswordStore) Get(user, ip string) (string, bool) {
 	return pass, true
 }
 
-func (ps PasswordStore) Set(user, ip, password string) error {
+func (ps PasswordStore) SetPass(user, ip, password string) error {
 	key := fmt.Sprintf("%s@%s", user, ip)
 	encPass, err := encryptPassword(password)
 	if err != nil {
 		return fmt.Errorf("加密密码失败: %v", err)
 	}
-	ps[key] = encPass
+	ps.Set(key, encPass)
 	return nil
+}
+
+// SaveOrUpdate 保存或更新密码到map,返回是否有数据更新
+func (ps PasswordStore) SaveOrUpdate(user, ip, password string) bool {
+	if storedPass, ok := ps.GetPass(user, ip); !ok || storedPass != password {
+		if err := ps.SetPass(user, ip, password); err != nil {
+			Logger.Error(fmt.Sprintf("更新密码失败:  %s@%s %v\n", user, ip, err))
+			return false
+		}
+		Logger.Info(fmt.Sprintf("密码已更新: %s@%s", user, ip))
+		return true
+	}
+	Logger.Info(fmt.Sprintf("密码未更改: %s@%s", user, ip))
+	return false
 }
 
 // ReadPasswordFromTerminal 从终端安全地读取密码
