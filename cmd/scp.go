@@ -18,7 +18,7 @@ var (
 
 // scpCmd represents the scp command
 var scpCmd = &cobra.Command{
-	Use:   "scp",
+	Use:   "scp localpath user@host:remotepath",
 	Short: "在本地和远程主机之间传输文件",
 	Long: `在本地和远程主机之间传输文件，支持多台主机并行传输。
 	用法类似于Linux scp命令:

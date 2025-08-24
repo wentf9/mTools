@@ -5,6 +5,7 @@ import (
 	"fmt"
 	"net"
 	"os/user"
+	"runtime"
 	"strconv"
 	"strings"
 	"sync"
@@ -53,6 +54,13 @@ func ParsePort(input string) uint16 {
 func IsValidIPv4(ipStr string) bool {
 	ip := net.ParseIP(ipStr)
 	return ip != nil && ip.To4() != nil
+}
+
+// IsValidCIDR 检查给定的字符串是否是有效的CIDR表示法
+// 返回true表示是有效的CIDR，false表示无效
+func IsValidCIDR(cidrStr string) bool {
+	_, _, err := net.ParseCIDR(cidrStr)
+	return err == nil
 }
 
 func GetCurrentUser() string {
@@ -164,4 +172,19 @@ func (m *RWMap[KEY, VALUE]) Each(f func(k KEY, v VALUE) bool) {
 			return
 		}
 	}
+}
+
+// IsWindows 检查当前操作系统是否是Windows
+func IsWindows() bool {
+	return runtime.GOOS == "windows"
+}
+
+// IsLinux 检查当前操作系统是否是Linux
+func IsLinux() bool {
+	return runtime.GOOS == "linux"
+}
+
+// IsMacOS 检查当前操作系统是否是macOS
+func IsMacOS() bool {
+	return runtime.GOOS == "darwin"
 }

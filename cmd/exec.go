@@ -43,7 +43,7 @@ var (
 
 // execCmd represents the exec command
 var execCmd = &cobra.Command{
-	Use:   "exec",
+	Use:   "exec [-u user] -i ip -c command [-p password] [-S]",
 	Short: "对多台主机执行命令",
 	Long: `一条命令在多台主机执行
 	用法：
@@ -85,31 +85,11 @@ var execCmd = &cobra.Command{
 			Content: command,
 			IsCli:   isCli,
 		}
-		var hosts []string
-		var csvHosts []hostInfo
-
-		if csvFile != "" {
-			var err error
-			csvHosts, err = readCSVFile(csvFile)
-			if err != nil {
-				fmt.Fprintf(os.Stderr, "读取CSV文件失败: %v\n", err)
-				os.Exit(1)
-			}
-		} else {
-			if ip != "" {
-				hosts = strings.Split(ip, ",")
-			} else if hostFile != "" {
-				hosts = bufferedReadIpFile(hostFile)
-			}
-
-			for _, host := range hosts {
-				if !utils.IsValidIPv4(host) {
-					fmt.Println("错误:非法的ip地址:" + host)
-					os.Exit(1)
-				}
-			}
+		hosts, csvHosts, err := parseHosts(ip, hostFile, csvFile)
+		if err != nil {
+			fmt.Fprintf(os.Stderr, "解析主机列表失败: %v\n", err)
+			os.Exit(1)
 		}
-
 		concurrency := len(hosts)
 		if csvFile != "" {
 			concurrency = len(csvHosts)
@@ -152,6 +132,31 @@ func bufferedReadIpFile(path string) []string {
 		}
 	}
 	return hosts
+}
+
+func parseHosts(ip, hostFile, csvFile string) ([]string, []hostInfo, error) {
+	var hosts []string
+	var csvHosts []hostInfo
+	// 解析主机列表
+	if csvFile != "" {
+		var err error
+		csvHosts, err = readCSVFile(csvFile)
+		if err != nil {
+			return nil, nil, fmt.Errorf("读取CSV文件失败: %v", err)
+		}
+	} else {
+		if ip != "" {
+			hosts = strings.Split(ip, ",")
+		} else if hostFile != "" {
+			hosts = bufferedReadIpFile(hostFile)
+		}
+		for _, host := range hosts {
+			if !utils.IsValidIPv4(host) {
+				return nil, nil, fmt.Errorf("非法的ip地址: %s", host)
+			}
+		}
+	}
+	return hosts, csvHosts, nil
 }
 
 func ExecuteConcurrently(hosts []string, csvHosts []hostInfo, cmd utils.CommandOptions, concurrency int) {

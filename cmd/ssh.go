@@ -9,7 +9,7 @@ import (
 )
 
 var sshCmd = &cobra.Command{
-	Use:   "ssh",
+	Use:   "ssh [user@]ip[:port]",
 	Short: "SSH连接到指定主机",
 	Long: `建立SSH连接并提供交互式终端
 	用法：

@@ -12,7 +12,7 @@ import (
 
 // rootCmd represents the base command when called without any subcommands
 var rootCmd = &cobra.Command{
-	Use:   "mtool",
+	Use:   "mtool [command] [flags]",
 	Short: "mtool(Miku Tools)是一个命令行工具集,用于日常运维和开发工作",
 	Long: `mtool(Miku Tools)是一个命令行工具集,
 提供了多种实用的命令行工具,旨在提高日常运维和开发工作的效率。

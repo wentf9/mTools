@@ -281,6 +281,23 @@ Loop:
 		output.Write(buffer[:n])
 		currentOutput := string(buffer[:n])
 		Logger.Debug(fmt.Sprintf("当前输出 -> %s", currentOutput))
+		if strings.Contains(currentOutput, "Sorry, try again") {
+			Logger.Error("sudo密码错误")
+			return "", fmt.Errorf("sudo密码错误")
+		}
+		if strings.Contains(currentOutput, "not in the sudoers file") {
+			Logger.Error("用户没有sudo权限")
+			return "", fmt.Errorf("用户没有sudo权限")
+		}
+		if strings.Contains(currentOutput, "Permission denied") {
+			Logger.Error("权限被拒绝")
+			return "", fmt.Errorf("权限被拒绝")
+		}
+		if strings.Contains(currentOutput, "logout") || strings.Contains(currentOutput, "Connection to") ||
+			strings.Contains(currentOutput, "Connection closed") {
+			Logger.Debug("会话已关闭或连接已断开")
+			break Loop // 会话已关闭或连接已断开，退出循环
+		}
 		// 检查是否需要输入密码
 		select {
 		case <-passwordSent: // 如果已经发送过密码，不再发送
