@@ -20,7 +20,7 @@ var (
 	firewallCheckCommand string = "command -v firewall-cmd >/dev/null 2>&1 || { echo '错误: firewall-cmd 未安装'; exit 1; }; " +
 		"systemctl is-active --quiet firewalld || { echo '错误: firewalld 服务未运行'; exit 1; }; "
 	firewallReload        bool
-	firewallReloadCommand string = "firewall-cmd --reload >/dev/null 2>&1 || { echo '错误: 防火墙配置重载失败'; exit 1; }; "
+	firewallReloadCommand string = "firewall-cmd --reload ;"
 	firewallLocalMode     bool   = false // 是否本地模式,如果为true则不使用SSH连接,直接在本地执行命令
 
 )
@@ -259,40 +259,53 @@ var serviceCmd = &cobra.Command{
 
 // ruleCmd represents the rule command
 var ruleCmd = &cobra.Command{
-	Use:   "rule <端口号1,端口号2,...> <源IP1,源IP2,...> [-r|--remove] [--tcp|--udp] [--reload] [--not-permanent] [--accept|--reject|--drop]",
+	Use:   "rule [端口号1,端口号2,...] <源IP1,源IP2,...> [-r|--remove] [--tcp|--udp] [--reload] [--not-permanent] [--accept|--reject|--drop]",
 	Short: "添加/删除富规则",
 	Long: `添加/删除主机的防火墙富规则。基于firewall-cmd实现。支持同时对多台主机进行防火墙规则管理。
-	用法：
-	  mtool firewall rule 端口号1,端口号2,... 源IP1,源IP2,... [-r|--remove] [--tcp|--udp] [--reload] [--accept|--reject|--drop]
-	  源ip支持ipv4格式的单个ip或cidr格式(10.0.0.0/24)的网段`,
+用法：
+  mtool firewall rule [端口号1,端口号2,...] 源IP1,源IP2,... [-r|--remove] [--tcp|--udp] [--reload] [--accept|--reject|--drop]
+  目的端口支持单个端口号和端口范围(如:80-443),源ip支持ipv4格式的单个ip或cidr格式(如:10.0.0.0/24)的网段
+  只有一个参数的情况下必须是ip,管理源ip的全部请求,两个参数时端口在前,ip在后,管理源ip对目的端口的请求`,
 	Args: func(cmd *cobra.Command, args []string) error {
-		if len(args) < 2 {
-			return fmt.Errorf("错误: 必须指定目标端口和源ip")
+		if len(args) < 1 {
+			return fmt.Errorf("错误:至少要有一个参数")
 		}
-		if args[0] == "" || args[1] == "" {
-			return fmt.Errorf("错误: 必须指定目标端口和源ip")
+		if len(args) > 2 {
+			return fmt.Errorf("错误:参数过多(最多两个)")
 		}
 		return nil
 	},
 	Run: func(cmd *cobra.Command, args []string) {
-		portStrs := strings.Split(args[0], ",")
-		sourceIPs := strings.Split(args[1], ",")
-		if len(portStrs) == 0 || len(sourceIPs) == 0 {
-			fmt.Fprintf(os.Stderr, "错误: 未从参数中解析到有效的端口或源IP\n")
-			os.Exit(1)
+		var portStrs []string = []string{}
+
+		var sourceIPs []string
+		if len(args) == 1 {
+			sourceIPs = strings.Split(args[0], ",")
+		} else {
+			portStrs = strings.Split(args[0], ",")
+			sourceIPs = strings.Split(args[1], ",")
 		}
-		var ports []uint16
+		var ports []string = []string{}
 		for _, portStr := range portStrs {
+			if strings.Contains(portStr, "-") {
+				// 处理端口范围
+				head, tail, _ := strings.Cut(portStr, "-")
+				for _, port := range []string{head, tail} {
+					p := utils.ParsePort(port)
+					if p == 0 {
+						fmt.Fprintf(os.Stderr, "错误: 无效的端口号: %s\n", port)
+						os.Exit(1)
+					}
+				}
+				ports = append(ports, portStr)
+				continue
+			}
 			p := utils.ParsePort(portStr)
 			if p == 0 {
 				fmt.Fprintf(os.Stderr, "错误: 无效的端口号: %s\n", portStr)
 				os.Exit(1)
 			}
-			ports = append(ports, p)
-		}
-		if len(ports) == 0 {
-			fmt.Fprintf(os.Stderr, "错误: 未从参数中解析到有效的端口号\n")
-			os.Exit(1)
+			ports = append(ports, portStr)
 		}
 		for _, sourceIP := range sourceIPs {
 			if utils.IsValidIPv4(sourceIP) || utils.IsValidCIDR(sourceIP) {
@@ -319,25 +332,32 @@ var ruleCmd = &cobra.Command{
 		} else {
 			action = "--add-rich-rule"
 		}
-		command := firewallCheckCommand + "firewall-cmd"
+		rule := "firewall-cmd"
 		if !firewallNotPermanent {
-			command += " --permanent"
+			rule += " --permanent"
 		}
 		if firewallZone != "" {
-			command = fmt.Sprintf("%s --zone=%s", command, firewallZone)
+			rule = fmt.Sprintf("%s --zone=%s", rule, firewallZone)
 		}
 		portRule := fmt.Sprintf("port protocol=\"%s\"", firewallProtocol)
 		sourceRule := "rule family=\"ipv4\""
+		command := firewallCheckCommand
 		// 构建富规则
-		for _, port := range ports {
-			portRule += fmt.Sprintf(" port=\"%d\"", port)
+		if len(ports) < 1 {
+			for _, sourceIP := range sourceIPs {
+				command += fmt.Sprintf("%s %s='%s source address=\"%s\" %s';",
+					rule, action, sourceRule, sourceIP, firewallAction)
+			}
+		} else {
+			for _, port := range ports {
+				for _, sourceIP := range sourceIPs {
+					command += fmt.Sprintf("%s %s='%s source address=\"%s\" %s port=\"%s\" %s';",
+						rule, action, sourceRule, sourceIP, portRule, port, firewallAction)
+				}
+			}
 		}
-		for _, sourceIP := range sourceIPs {
-			sourceRule += fmt.Sprintf(" source address=\"%s\"", sourceIP)
-		}
-		command = fmt.Sprintf("%s %s='%s %s %s'", command, action, sourceRule, portRule, firewallAction)
 		if firewallReload {
-			command += ";" + firewallReloadCommand
+			command += firewallReloadCommand
 		}
 		startFirewallCmd(command)
 	},

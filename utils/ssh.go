@@ -293,8 +293,8 @@ Loop:
 			Logger.Error("权限被拒绝")
 			return "", fmt.Errorf("权限被拒绝")
 		}
-		if strings.Contains(currentOutput, "logout") || strings.Contains(currentOutput, "Connection to") ||
-			strings.Contains(currentOutput, "Connection closed") {
+		if strings.Contains(currentOutput, "logout") || strings.Contains(currentOutput, "注销") ||
+			strings.Contains(currentOutput, "Connection to") || strings.Contains(currentOutput, "Connection closed") {
 			Logger.Debug("会话已关闭或连接已断开")
 			break Loop // 会话已关闭或连接已断开，退出循环
 		}

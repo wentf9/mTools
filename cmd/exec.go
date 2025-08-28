@@ -176,7 +176,7 @@ func ExecuteConcurrently(hosts []string, csvHosts []hostInfo, cmd utils.CommandO
 	passwordModified := false
 
 	executeHost := func(h string, u string, p string) {
-		defer wg.Done()
+
 		sem <- struct{}{}
 		defer func() { <-sem }()
 
@@ -232,21 +232,19 @@ func ExecuteConcurrently(hosts []string, csvHosts []hostInfo, cmd utils.CommandO
 	if len(csvHosts) > 0 {
 		// 使用CSV文件中的认证信息
 		for _, host := range csvHosts {
-			wg.Add(1)
-			go executeHost(host.ip, host.user, host.password)
+			wg.Go(func() { executeHost(host.ip, host.user, host.password) }) // 1.25新特性,不支持低版本
 		}
 	} else {
 		// 使用命令行参数中的认证信息
 		for _, h := range hosts {
-			wg.Add(1)
 			if user == "" {
 				if currentOsUser == "" {
 					fmt.Fprintf(os.Stderr, "未指定用户,且当前系统用户无法获取\n")
 					os.Exit(1)
 				}
-				go executeHost(h, currentOsUser, password)
+				wg.Go(func() { executeHost(h, currentOsUser, password) })
 			} else {
-				go executeHost(h, user, password)
+				wg.Go(func() { executeHost(h, user, password) })
 			}
 		}
 	}

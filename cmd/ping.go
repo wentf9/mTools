@@ -18,9 +18,12 @@ var pingCmd = &cobra.Command{
 	Short: "通过ICMP Ping主机或检查主机的TCP端口是否开放",
 	Long: `该命令有两种工作模式:
 1. ICMP Ping (1个参数):
-   当只提供一个IP地址或主机名时,它会发送ICMP请求来测试网络连通性,
-   类似于系统自带的ping工具。
+   当只提供一个IP地址或主机名时,它会发送ICMP请求来测试网络连通性,类似于系统自带的ping工具
    示例: mikuTools ping 8.8.8.8
+   linux系统发送icmp请求需要具有权限,需要使用以下方法才能执行:
+   修改 net.ipv4.ping_group_range 参数: sysctl net.ipv4.ping_group_range="0 2147483647"
+   设置文件功能参数: setcap cap_net_raw+eip /path/to/mtool
+   使用sudo执行或切换至root用户执行
 
 2. TCP端口检查 (2个参数):
    当提供IP地址/主机名和端口号时,它会尝试建立TCP连接来判断端口是否开放。

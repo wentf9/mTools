@@ -16,14 +16,14 @@ var rootCmd = &cobra.Command{
 	Short: "mtool(Miku Tools)是一个命令行工具集,用于日常运维和开发工作",
 	Long: `mtool(Miku Tools)是一个命令行工具集,
 提供了多种实用的命令行工具,旨在提高日常运维和开发工作的效率。
-它包括对多台主机执行命令、批量处理文件、网络工具等功能。
+它包括对多台主机执行命令、防火墙管理、网络工具等功能。
 使用mtool可以简化复杂的操作流程,节省时间和精力。`,
 	// Uncomment the following line if your bare application
 	// has an action associated with it:
 	Run: func(cmd *cobra.Command, args []string) {
 		versionFlag, _ := cmd.Flags().GetBool("version")
 		if versionFlag {
-			println("mtool(Miku Tools) version 2025.08.22")
+			println("mtool(Miku Tools) version 2025.08.25")
 			os.Exit(0)
 		}
 		cmd.Help() // 显示帮助信息
