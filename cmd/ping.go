@@ -8,6 +8,7 @@ import (
 	"net"
 	"time"
 
+	"example.com/MikuTools/utils"
 	ping "github.com/prometheus-community/pro-bing"
 	"github.com/spf13/cobra"
 )
@@ -31,7 +32,14 @@ var pingCmd = &cobra.Command{
 	Args: cobra.RangeArgs(1, 2),
 	RunE: func(cmd *cobra.Command, args []string) error {
 		ip := args[0]
-
+		if !utils.IsValidIPv4(ip) {
+			if resolve, err := net.ResolveIPAddr("ip", ip); err != nil {
+				return fmt.Errorf("提供的主机名无法解析为ip地址: %v", err)
+			} else {
+				fmt.Printf("主机名 [%s] 的IP地址为: [%s]\n", ip, resolve.String())
+				ip = resolve.String()
+			}
+		}
 		// 情况2: 提供了IP和端口，进行TCP端口检查
 		if len(args) == 2 {
 			port := args[1]
