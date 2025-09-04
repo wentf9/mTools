@@ -35,6 +35,23 @@ func ParseAddr(input string) (string, string, uint16) {
 	return user, ip, port
 }
 
+// GetLocalIp 获取本机ip地址
+func GetLocalIp() string {
+	addrs, err := net.InterfaceAddrs()
+	if err != nil {
+		Logger.Error(fmt.Sprintf("获取本机IP地址失败: %v", err))
+		return "127.0.0.1"
+	}
+	for _, addr := range addrs {
+		if ipNet, ok := addr.(*net.IPNet); ok && !ipNet.IP.IsLoopback() {
+			if ipNet.IP.To4() != nil {
+				return ipNet.IP.String()
+			}
+		}
+	}
+	return "127.0.0.1"
+}
+
 // ParsePort 解析端口字符串
 // 如果输入为空字符串，则返回0
 func ParsePort(input string) uint16 {
