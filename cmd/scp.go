@@ -157,7 +157,7 @@ var scpCmd = &cobra.Command{
 			force, _ := cmd.Flags().GetBool("force")
 			scp := utils.SCPClient{
 				SSHCli: utils.SSHCli{
-					Ip:   h,
+					Host: h,
 					Port: port,
 					User: u,
 					Pwd:  hostPassword,

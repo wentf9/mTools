@@ -101,12 +101,8 @@ func startFirewallCmd(command string) {
 	if csvFile != "" {
 		concurrency = len(csvHosts)
 	}
-	commandOptions := utils.CommandOptions{
-		Sudo:    1,
-		Content: command,
-		IsCli:   true,
-	}
-	ExecuteConcurrently(hosts, csvHosts, commandOptions, concurrency)
+	sshCommand := utils.NewSSHCommand(command, 1, true)
+	ExecuteConcurrently(hosts, csvHosts, sshCommand, concurrency)
 }
 
 // listCmd represents the list command

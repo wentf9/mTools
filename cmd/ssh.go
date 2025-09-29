@@ -97,20 +97,12 @@ var sshCmd = &cobra.Command{
 		}
 
 		// 创建SSH客户端
-		c := utils.SSHCli{
-			Ip:   ip,
+		c := &utils.SSHCli{
+			Host: ip,
 			Port: port,
 			User: user,
 			Pwd:  hostPassword,
 		}
-
-		// 建立连接
-		session, err := c.Connect()
-		if err != nil {
-			fmt.Fprintf(os.Stderr, "连接失败: %v\n", err)
-			os.Exit(1)
-		}
-		defer c.Client.Close()
 
 		// 如果连接成功且密码是新的，保存密码
 		if passwords.SaveOrUpdate(user, ip, hostPassword) {
@@ -122,7 +114,7 @@ var sshCmd = &cobra.Command{
 		}
 
 		// 启动交互式会话
-		if err := c.InteractiveSession(session); err != nil {
+		if err := utils.InteractiveSession(c); err != nil {
 			fmt.Fprintf(os.Stderr, "会话异常: %v\n", err)
 			os.Exit(1)
 		}

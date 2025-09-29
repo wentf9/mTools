@@ -2,6 +2,7 @@ package utils
 
 import (
 	// "fmt"
+	"encoding/json"
 	"fmt"
 	"net"
 	"os/user"
@@ -10,13 +11,6 @@ import (
 	"strings"
 	"sync"
 )
-
-type CommandResult struct {
-	Host    string
-	Success bool
-	Output  string
-	Error   error
-}
 
 // ParseUserIP 解析 user@ip:port 格式的字符串
 func ParseAddr(input string) (string, string, uint16) {
@@ -204,4 +198,82 @@ func IsLinux() bool {
 // IsMacOS 检查当前操作系统是否是macOS
 func IsMacOS() bool {
 	return runtime.GOOS == "darwin"
+}
+
+func StringToUnicode(s string) string {
+	var result strings.Builder
+	for _, r := range s {
+		if r <= 0xFFFF {
+			result.WriteString(fmt.Sprintf("\\u%04x", r))
+		} else {
+			// 处理超过U+FFFF的字符（如emoji）
+			result.WriteString(fmt.Sprintf("\\U%08x", r))
+		}
+	}
+	return result.String()
+}
+
+func UnicodeToString(s string) (string, error) {
+	// 使用json.Unmarshal来处理Unicode转义序列
+	str := "\"" + s + "\""
+	var result string
+	err := json.Unmarshal([]byte(str), &result)
+	if err != nil {
+		return "", fmt.Errorf("无效的Unicode序列: %v", err)
+	}
+	return result, nil
+}
+
+// 将字符串转换为UTF-8编码（&#x...;格式）
+func StringToUTF8(s string) string {
+	var result strings.Builder
+	for _, r := range s {
+		result.WriteString(fmt.Sprintf("&#x%X;", r))
+	}
+	return result.String()
+}
+
+// 将UTF-8编码（&#x...;格式）转换回字符串
+func Utf8ToString(s string) (string, error) {
+	var result strings.Builder
+	parts := strings.Split(s, "&#x")
+
+	for i, part := range parts {
+		if i == 0 {
+			// 第一个部分可能不是编码
+			if part != "" && !strings.HasPrefix(s, "&#x") {
+				result.WriteString(part)
+			}
+			continue
+		}
+
+		// 查找分号位置
+		semicolonPos := strings.Index(part, ";")
+		if semicolonPos == -1 {
+			return "", fmt.Errorf("无效的UTF-8编码格式: 缺少分号")
+		}
+
+		// 提取十六进制数字部分
+		hexStr := part[:semicolonPos]
+		// 将十六进制字符串转换为整数
+		codePoint, err := strconv.ParseInt(hexStr, 16, 32)
+		if err != nil {
+			return "", fmt.Errorf("无效的十六进制数字: %s", hexStr)
+		}
+
+		// 将代码点转换为字符
+		result.WriteRune(rune(codePoint))
+
+		// 添加剩余部分（如果有）
+		if len(part) > semicolonPos+1 {
+			result.WriteString(part[semicolonPos+1:])
+		}
+	}
+
+	// 如果没有找到任何编码，直接返回原字符串
+	if result.Len() == 0 {
+		return s, nil
+	}
+
+	return result.String(), nil
 }

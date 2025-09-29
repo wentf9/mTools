@@ -80,11 +80,7 @@ var execCmd = &cobra.Command{
 			}
 			isCli = false
 		}
-		commandOptions := utils.CommandOptions{
-			Sudo:    sudo,
-			Content: command,
-			IsCli:   isCli,
-		}
+		sshCommand := utils.NewSSHCommand(command, sudo, isCli)
 		hosts, csvHosts, err := parseHosts(ip, hostFile, csvFile)
 		if err != nil {
 			fmt.Fprintf(os.Stderr, "解析主机列表失败: %v\n", err)
@@ -94,7 +90,7 @@ var execCmd = &cobra.Command{
 		if csvFile != "" {
 			concurrency = len(csvHosts)
 		}
-		ExecuteConcurrently(hosts, csvHosts, commandOptions, concurrency)
+		ExecuteConcurrently(hosts, csvHosts, sshCommand, concurrency)
 	},
 }
 
@@ -159,7 +155,7 @@ func parseHosts(ip, hostFile, csvFile string) ([]string, []hostInfo, error) {
 	return hosts, csvHosts, nil
 }
 
-func ExecuteConcurrently(hosts []string, csvHosts []hostInfo, cmd utils.CommandOptions, concurrency int) {
+func ExecuteConcurrently(hosts []string, csvHosts []hostInfo, cmd utils.Command, concurrency int) {
 	sem := make(chan struct{}, concurrency)
 	wg := sync.WaitGroup{}
 	currentOsUser := ""
@@ -195,32 +191,32 @@ func ExecuteConcurrently(hosts []string, csvHosts []hostInfo, cmd utils.CommandO
 			}
 
 		}
-		if cmd.Sudo == 2 {
-			if suPwd == "" {
-				suPwd = hostPassword
-			}
+
+		if suPwd == "" {
+			suPwd = hostPassword
 		}
+
 		c := utils.SSHCli{
-			Ip:    h,
+			Host:  h,
 			Port:  port,
 			User:  u,
 			Pwd:   hostPassword,
 			SuPwd: suPwd,
 		}
-		_, err := c.Connect()
+		err := c.Connect()
 		if err != nil {
 			fmt.Printf("[ERROR] %s\n------------\n", h)
 			fmt.Fprintf(os.Stderr, "连接到主机 %s 失败: %v\n", h, err)
 			return
 		}
-		defer c.Client.Close()
+		defer c.Close()
 
 		// 如果有密码并且是新密码，保存它
 		if hostPassword != "" {
 			passwordModified = passwords.SaveOrUpdate(u, h, hostPassword)
 		}
 
-		result, err := c.Run(cmd)
+		result, err := cmd.Execute(&c)
 		if err != nil {
 			fmt.Printf("[ERROR] %s\n------------\n", h)
 			fmt.Fprintf(os.Stderr, "执行命令失败: %v\n%s", err, result)
