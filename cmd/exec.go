@@ -52,7 +52,7 @@ var execCmd = &cobra.Command{
 	成功登录过的用户和ip组合的密码将会保存到密码文件中
 	密码采用对称加密算法加密保存,密码文件位置为~/.mtool_passwords.json`,
 	Run: func(cmd *cobra.Command, args []string) {
-		isCli := true
+		isShell := false
 		issu, _ := cmd.Flags().GetBool("su")
 		issudo, _ := cmd.Flags().GetBool("sudo")
 		if issu || issudo {
@@ -78,9 +78,9 @@ var execCmd = &cobra.Command{
 				fmt.Fprintf(os.Stderr, "打开shell脚本失败: %v\n", err)
 				os.Exit(1)
 			}
-			isCli = false
+			isShell = true
 		}
-		sshCommand := utils.NewSSHCommand(command, sudo, isCli)
+		sshCommand := utils.NewSSHCommand(command, sudo, isShell)
 		hosts, csvHosts, err := parseHosts(ip, hostFile, csvFile)
 		if err != nil {
 			fmt.Fprintf(os.Stderr, "解析主机列表失败: %v\n", err)

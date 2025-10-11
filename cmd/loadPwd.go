@@ -38,7 +38,7 @@ var loadPwdCmd = &cobra.Command{
 			fmt.Fprintf(os.Stderr, "CSV文件中没有找到有效的主机信息\n")
 			os.Exit(1)
 		}
-		ExecuteConcurrently(nil, hosts, utils.NewSSHCommand("whoami", 0, true), len(hosts))
+		ExecuteConcurrently(nil, hosts, utils.NewSSHCommand("whoami", 0, false), len(hosts))
 	},
 }
 

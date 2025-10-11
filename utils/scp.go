@@ -96,6 +96,7 @@ func (c *SCPClient) Upload(localPath, remotePath string, recursive bool) error {
 		if !recursive {
 			return fmt.Errorf("'%s' 是目录，需要使用 -r 选项", localPath)
 		}
+		remotePath = filepath.Join(remotePath, filepath.Base(localPath))
 		return c.uploadDirectory(localPath, remotePath)
 	}
 
@@ -117,6 +118,7 @@ func (c *SCPClient) Download(remotePath, localPath string, recursive bool) error
 		if !recursive {
 			return fmt.Errorf("'%s' 是目录，需要使用 -r 选项", remotePath)
 		}
+		localPath = filepath.Join(localPath, filepath.Base(remotePath))
 		return c.downloadDirectory(remotePath, localPath)
 	}
 

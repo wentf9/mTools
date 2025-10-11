@@ -2,9 +2,9 @@ package cmd
 
 import (
 	"fmt"
+	"sync"
 
 	"os"
-	"os/exec"
 	"strings"
 
 	"example.com/MikuTools/utils"
@@ -17,10 +17,10 @@ var (
 	firewallNotPermanent bool
 	firewallZone         string
 	firewallRemove       bool   // 是否删除规则,如果为false则添加规则
-	firewallCheckCommand string = "command -v firewall-cmd >/dev/null 2>&1 || { echo '错误: firewall-cmd 未安装'; exit 1; }; " +
-		"systemctl is-active --quiet firewalld || { echo '错误: firewalld 服务未运行'; exit 1; }; "
+	firewallCheckCommand string = "command -v firewall-cmd >/dev/null 2>&1 || echo '错误: firewall-cmd 未安装'"
+	// firewallActiveCommand string = "systemctl is-active --quiet firewalld || { echo '错误: firewalld 服务未运行'; exit 1; }"
 	firewallReload        bool
-	firewallReloadCommand string = "firewall-cmd --reload ;"
+	firewallReloadCommand string = "firewall-cmd --reload"
 	firewallLocalMode     bool   = false // 是否本地模式,如果为true则不使用SSH连接,直接在本地执行命令
 
 )
@@ -76,19 +76,23 @@ var firewallCmd = &cobra.Command{
 	},
 }
 
-func startFirewallCmd(command string) {
+func startFirewallCmd(command []string) {
 	utils.Logger.Debug(fmt.Sprintf("待执行命令: %s", command))
 	if firewallLocalMode {
 		// 使用 "sh -c" 来执行复杂的shell命令字符串。
 		// 直接使用 exec.Command(command) 会将整个字符串作为单个命令名, 导致执行失败。
-		cmd := exec.Command("bash", "-c", command)
-		output, err := cmd.CombinedOutput()
+		// cmd := exec.Command("bash", "-c", command)
+		cmd := utils.NewLocalCommand(firewallCheckCommand, 0, false)
+		_, err := cmd.Execute(&utils.LocalExecutor{})
 		if err != nil {
-			fmt.Fprintf(os.Stderr, "执行命令失败: %v\n", err)
-			fmt.Fprintf(os.Stderr, "命令输出: %s\n", string(output))
-			os.Exit(1)
+			fmt.Fprintf(os.Stderr, "firewall-cmd未安装: %v\n", err)
+			return
 		}
-		fmt.Printf("%s\n", string(output))
+		for _, cmdStr := range command {
+			cmd := utils.NewLocalCommand(cmdStr, 1, false)
+			output, _ := cmd.Execute(&utils.LocalExecutor{})
+			fmt.Printf("%s\n", string(output))
+		}
 		return
 	}
 	hosts, csvHosts, err := parseHosts(ip, hostFile, csvFile)
@@ -101,8 +105,101 @@ func startFirewallCmd(command string) {
 	if csvFile != "" {
 		concurrency = len(csvHosts)
 	}
-	sshCommand := utils.NewSSHCommand(command, 1, true)
-	ExecuteConcurrently(hosts, csvHosts, sshCommand, concurrency)
+	currentOsUser := ""
+	if u := utils.GetCurrentUser(); u != "" {
+		currentOsUser = u
+		utils.Logger.Debug(fmt.Sprintf("当前系统用户: %s", currentOsUser))
+	}
+	passwords, err := utils.LoadPasswords()
+	if err != nil {
+		fmt.Fprintf(os.Stderr, "could not load passwords: %v\n", err)
+		passwords = utils.NewPasswordStore()
+	}
+
+	passwordModified := false
+	sem := make(chan struct{}, concurrency)
+	wg := sync.WaitGroup{}
+
+	executeHost := func(h string, u string, p string) {
+
+		sem <- struct{}{}
+		defer func() { <-sem }()
+
+		hostPassword := p
+		if hostPassword == "" {
+
+			if storedPass, ok := passwords.GetPass(u, h); ok {
+				hostPassword = storedPass
+			} else {
+				// 如果没有保存的密码，从终端读取
+				if newPass, err := utils.ReadPasswordFromTerminal(fmt.Sprintf("请输入 %s@%s 的密码: ", u, h)); err == nil {
+					hostPassword = newPass
+				} else {
+					fmt.Fprintf(os.Stderr, "读取密码失败: %v\n", err)
+				}
+			}
+
+		}
+
+		if suPwd == "" {
+			suPwd = hostPassword
+		}
+
+		c := utils.SSHCli{
+			Host:  h,
+			Port:  port,
+			User:  u,
+			Pwd:   hostPassword,
+			SuPwd: suPwd,
+		}
+		err := c.Connect()
+		if err != nil {
+			fmt.Printf("[ERROR] %s\n------------\n", h)
+			fmt.Fprintf(os.Stderr, "连接到主机 %s 失败: %v\n", h, err)
+			return
+		}
+		defer c.Close()
+
+		// 如果有密码并且是新密码，保存它
+		if hostPassword != "" {
+			passwordModified = passwords.SaveOrUpdate(u, h, hostPassword)
+		}
+		output := ""
+		for _, cmd := range command {
+			sshCommand := utils.NewSSHCommand(cmd, 1, false)
+			outputPart, _ := sshCommand.Execute(&c)
+			output += outputPart
+		}
+		fmt.Printf("[%s]\n------------\n%s", h, output)
+	}
+	if len(csvHosts) > 0 {
+		// 使用CSV文件中的认证信息
+		for _, host := range csvHosts {
+			wg.Go(func() { executeHost(host.ip, host.user, host.password) }) // 1.25新特性,不支持低版本
+		}
+	} else {
+		// 使用命令行参数中的认证信息
+		for _, h := range hosts {
+			if user == "" {
+				if currentOsUser == "" {
+					fmt.Fprintf(os.Stderr, "未指定用户,且当前系统用户无法获取\n")
+					os.Exit(1)
+				}
+				wg.Go(func() { executeHost(h, currentOsUser, password) })
+			} else {
+				wg.Go(func() { executeHost(h, user, password) })
+			}
+		}
+	}
+	wg.Wait()
+
+	if passwordModified {
+		if err := passwords.Save2File(); err != nil {
+			fmt.Fprintf(os.Stderr, "保存密码到文件失败: %v", err)
+		} else {
+			utils.Logger.Info(fmt.Sprintf("密码已保存到文件: %s@%s", user, ip))
+		}
+	}
 }
 
 // listCmd represents the list command
@@ -111,12 +208,12 @@ var listCmd = &cobra.Command{
 	Short: "列出防火墙规则",
 	Long:  `列出主机的防火墙规则。基于firewall-cmd实现。支持同时对多台主机进行防火墙规则查看。`,
 	Run: func(cmd *cobra.Command, args []string) {
-		command := firewallCheckCommand + "firewall-cmd --state && echo '当前配置:' && firewall-cmd"
+		command := "firewall-cmd"
 		if firewallZone != "" {
 			command = fmt.Sprintf("%s --zone=%s", command, firewallZone)
 		}
 		command += " --list-all"
-		startFirewallCmd(command)
+		startFirewallCmd([]string{command})
 	},
 }
 
@@ -176,21 +273,22 @@ var portCmd = &cobra.Command{
 		} else {
 			action = "--add-port"
 		}
-		command := firewallCheckCommand
+		cmdList := []string{}
 		for _, port := range ports {
-			command += "firewall-cmd"
+			command := "firewall-cmd"
 			if !firewallNotPermanent {
 				command += " --permanent"
 			}
 			if firewallZone != "" {
 				command = fmt.Sprintf("%s --zone=%s", command, firewallZone)
 			}
-			command = fmt.Sprintf("%s %s=%s/%s;", command, action, port, firewallProtocol)
+			command = fmt.Sprintf("%s %s=%s/%s", command, action, port, firewallProtocol)
+			cmdList = append(cmdList, command)
 		}
 		if firewallReload {
-			command += firewallReloadCommand
+			cmdList = append(cmdList, firewallReloadCommand)
 		}
-		startFirewallCmd(command)
+		startFirewallCmd(cmdList)
 	},
 }
 
@@ -235,21 +333,22 @@ var serviceCmd = &cobra.Command{
 		} else {
 			action = "--add-service"
 		}
-		command := firewallCheckCommand
+		cmdList := []string{}
 		for _, service := range services {
-			command += "firewall-cmd"
+			command := "firewall-cmd"
 			if !firewallNotPermanent {
 				command += " --permanent"
 			}
 			if firewallZone != "" {
 				command = fmt.Sprintf("%s --zone=%s", command, firewallZone)
 			}
-			command = fmt.Sprintf("%s %s=%s;", command, action, service)
+			command = fmt.Sprintf("%s %s=%s", command, action, service)
+			cmdList = append(cmdList, command)
 		}
 		if firewallReload {
-			command += firewallReloadCommand
+			cmdList = append(cmdList, firewallReloadCommand)
 		}
-		startFirewallCmd(command)
+		startFirewallCmd(cmdList)
 	},
 }
 
@@ -262,15 +361,7 @@ var ruleCmd = &cobra.Command{
   mtool firewall rule [端口号1,端口号2,...] 源IP1,源IP2,... [-r|--remove] [--tcp|--udp] [--reload] [--accept|--reject|--drop]
   目的端口支持单个端口号和端口范围(如:80-443),源ip支持ipv4格式的单个ip或cidr格式(如:10.0.0.0/24)的网段
   只有一个参数的情况下必须是ip,管理源ip的全部请求,两个参数时端口在前,ip在后,管理源ip对目的端口的请求`,
-	Args: func(cmd *cobra.Command, args []string) error {
-		if len(args) < 1 {
-			return fmt.Errorf("错误:至少要有一个参数")
-		}
-		if len(args) > 2 {
-			return fmt.Errorf("错误:参数过多(最多两个)")
-		}
-		return nil
-	},
+	Args: cobra.RangeArgs(1, 2),
 	Run: func(cmd *cobra.Command, args []string) {
 		var portStrs []string = []string{}
 
@@ -337,25 +428,27 @@ var ruleCmd = &cobra.Command{
 		}
 		portRule := fmt.Sprintf("port protocol=\"%s\"", firewallProtocol)
 		sourceRule := "rule family=\"ipv4\""
-		command := firewallCheckCommand
+		cmdList := []string{}
 		// 构建富规则
 		if len(ports) < 1 {
 			for _, sourceIP := range sourceIPs {
-				command += fmt.Sprintf("%s %s='%s source address=\"%s\" %s';",
+				command := fmt.Sprintf("%s %s='%s source address=\"%s\" %s'",
 					rule, action, sourceRule, sourceIP, firewallAction)
+				cmdList = append(cmdList, command)
 			}
 		} else {
 			for _, port := range ports {
 				for _, sourceIP := range sourceIPs {
-					command += fmt.Sprintf("%s %s='%s source address=\"%s\" %s port=\"%s\" %s';",
+					command := fmt.Sprintf("%s %s='%s source address=\"%s\" %s port=\"%s\" %s'",
 						rule, action, sourceRule, sourceIP, portRule, port, firewallAction)
+					cmdList = append(cmdList, command)
 				}
 			}
 		}
 		if firewallReload {
-			command += firewallReloadCommand
+			cmdList = append(cmdList, firewallReloadCommand)
 		}
-		startFirewallCmd(command)
+		startFirewallCmd(cmdList)
 	},
 }
 
@@ -365,8 +458,7 @@ var reloadCmd = &cobra.Command{
 	Short: "重新加载防火墙配置",
 	Long:  `重新加载主机的防火墙配置。基于firewall-cmd实现。支持同时对多台主机进行防火墙配置重载。`,
 	Run: func(cmd *cobra.Command, args []string) {
-		command := firewallCheckCommand + firewallReloadCommand
-		startFirewallCmd(command)
+		startFirewallCmd([]string{firewallReloadCommand})
 	},
 }
 
