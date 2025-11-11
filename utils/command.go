@@ -114,6 +114,22 @@ func (le *LocalExecutor) Execute(command Command) (string, error) {
 }
 
 func (le *LocalExecutor) executeWithSudo(command Command, isShell bool) (string, error) {
+	rootCheckCmd := exec.Command("bash", "-c", "test `id -u` -eq 0 && echo yes || echo no")
+	out, err := rootCheckCmd.CombinedOutput()
+
+	if err == nil && string(bytes.TrimSpace(out)) == "yes" {
+		// 已经是root用户，直接执行命令
+		var c *exec.Cmd
+		if isShell {
+			Logger.Debug("当前命令是shell脚本,当前已经是root环境")
+			c = exec.Command("bash", "-c", fmt.Sprintf("bash '%s'", command.Content))
+		} else {
+			Logger.Debug("当前命令是命令行命令,当前已经是root环境")
+			c = exec.Command("bash", "-c", command.Content)
+		}
+		output, err := c.CombinedOutput()
+		return string(output), err
+	}
 	passwords, err := LoadPasswords()
 	if err != nil {
 		fmt.Fprintf(os.Stderr, "could not load passwords: %v\n", err)

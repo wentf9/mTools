@@ -24,7 +24,7 @@ var rootCmd = &cobra.Command{
 	Run: func(cmd *cobra.Command, args []string) {
 		versionFlag, _ := cmd.Flags().GetBool("version")
 		if versionFlag {
-			println("mtool(Miku Tools) version 2025.10.01")
+			println("mtool(Miku Tools) version 2025.11.11")
 			os.Exit(0)
 		}
 		cmd.Help() // 显示帮助信息

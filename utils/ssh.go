@@ -146,7 +146,7 @@ func (c *SSHCli) execWithSudo(session *ssh.Session, cmd string, sudo uint8) (str
 	}
 	Logger.Debug("命令执行完成,开始处理输出")
 	Logger.Debug(fmt.Sprintf("原始输出 -> %s", output.String()))
-	regex := regexp.MustCompile(`\[sudo\].+:`)
+	regex := regexp.MustCompile(`\[sudo\].+[:：]`)
 	// regex := regexp.MustCompile(`.*#.*`)
 	outputStr := regex.ReplaceAllString(output.String(), "")
 
