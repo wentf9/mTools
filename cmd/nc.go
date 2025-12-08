@@ -6,9 +6,11 @@ import (
 	"io"
 	"net"
 	"os"
+	"time"
 
 	"example.com/MikuTools/utils"
 	"github.com/spf13/cobra"
+	"golang.org/x/term"
 )
 
 var ncCmd = &cobra.Command{
@@ -26,7 +28,7 @@ var ncCmd = &cobra.Command{
 		if len(args) != 2 {
 			return fmt.Errorf("需要指定ip和端口,或者使用-l参数监听端口")
 		}
-		if utils.IsValidIPv4(args[0]) == false {
+		if net.ParseIP(args[0]) == nil {
 			return fmt.Errorf("无效的IP地址: %s", args[0])
 		}
 		if port := utils.ParsePort(args[1]); port == 0 {
@@ -36,8 +38,16 @@ var ncCmd = &cobra.Command{
 	},
 	RunE: func(cmd *cobra.Command, args []string) error {
 		port, err := cmd.Flags().GetUint16("listen")
+		udp, _ := cmd.Flags().GetBool("udp")
+		var network string
+		if udp {
+			network = "udp"
+		} else {
+			network = "tcp"
+		}
 		if err == nil && port != 0 {
-			listener, err := net.Listen("tcp", fmt.Sprintf(":%d", port))
+
+			listener, err := net.Listen(network, fmt.Sprintf(":%d", port))
 			if err != nil {
 				return fmt.Errorf("无法监听端口 %d: %w", port, err)
 			}
@@ -53,12 +63,16 @@ var ncCmd = &cobra.Command{
 			}
 		}
 		// 连接到目标 TCP 地址
-		addr := fmt.Sprintf("%s:%s", args[0], args[1])
-		conn, err := net.Dial("tcp", addr)
+		addr := net.JoinHostPort(args[0], args[1])
+		conn, err := net.DialTimeout(network, addr, time.Second*10)
 		if err != nil {
-			return fmt.Errorf("Failed to connect to %s: %v", addr, err)
+			return fmt.Errorf("failed to connect to %s: %v", addr, err)
 		}
+		fmt.Fprintf(os.Stderr, "已连接到 %s\n", addr)
 		defer conn.Close()
+		if term.IsTerminal(int(os.Stdin.Fd())) {
+			return nil
+		}
 		reader := bufio.NewReader(os.Stdin)
 		buffer := make([]byte, 1024)
 		for {
@@ -115,4 +129,5 @@ func handleConnection(conn net.Conn) error {
 func init() {
 	rootCmd.AddCommand(ncCmd)
 	ncCmd.PersistentFlags().Uint16P("listen", "l", 0, "需要监听的端口,linux非root用户无法监听1024以内的端口")
+	ncCmd.PersistentFlags().BoolP("udp", "u", false, "使用UDP协议,默认tcp")
 }
