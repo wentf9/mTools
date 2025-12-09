@@ -35,7 +35,7 @@ var rootCmd = &cobra.Command{
 		if debugFlag {
 			// 开启调试模式
 			// 这里可以设置日志级别或其他调试相关的配置
-			utils.Logger.SetLogLevel("debug")
+			utils.SetLogLevel("debug")
 			utils.Logger.Debug("调试模式已开启")
 			utils.Logger.Debug("日志级别已设置为 DEBUG")
 		}

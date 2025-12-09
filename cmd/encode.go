@@ -1,21 +1,20 @@
-/*
-Copyright © 2025 NAME HERE <EMAIL ADDRESS>
-*/
 package cmd
 
 import (
 	"encoding/base64"
 	"fmt"
+	"io"
 	"net/url"
 	"os"
 
-	"example.com/MikuTools/global"
 	"example.com/MikuTools/utils"
 	"github.com/spf13/cobra"
+	"golang.org/x/term"
 )
 
 var (
-	isDecode bool
+	isDecode  bool
+	stdinData string
 )
 
 // encodeCmd represents the exec command
@@ -45,11 +44,10 @@ var urlCmd = &cobra.Command{
 	Use:   "url [-d] args",
 	Short: "进行urlEncode/urlDecode操作",
 	Long:  `对提供的字符串进行url编解码操作`,
-	Args:  utils.AtLeastOneArgsIncludePipe(),
+	Args:  argsValidator,
 	Run: func(cmd *cobra.Command, args []string) {
-		if !global.IsTerminal {
-			clear(args)
-			args = append(args, global.ArgsFromStdin)
+		if len(args) == 0 && stdinData != "" {
+			args = []string{stdinData}
 		}
 		for _, str := range args {
 			if isDecode {
@@ -70,13 +68,12 @@ var base64Cmd = &cobra.Command{
 	Use:   "base64 [-d] args",
 	Short: "进行base64Encode/base64Decode操作",
 	Long:  `对提供的字符串进行base64编解码操作`,
-	Args:  utils.AtLeastOneArgsIncludePipe(),
+	Args:  argsValidator,
 	Run: func(cmd *cobra.Command, args []string) {
-		if !global.IsTerminal {
-			clear(args)
-			args = append(args, global.ArgsFromStdin)
-		}
 		urlMode, _ := cmd.Flags().GetBool("url")
+		if len(args) == 0 && stdinData != "" {
+			args = []string{stdinData}
+		}
 		if urlMode {
 			if isDecode {
 				for _, str := range args {
@@ -114,11 +111,10 @@ var utf8Cmd = &cobra.Command{
 	Use:   "utf8 [-d] args",
 	Short: "进行utf-8编解码操作",
 	Long:  `对提供的字符串进行utf-8编解码操作`,
-	Args:  utils.AtLeastOneArgsIncludePipe(),
+	Args:  argsValidator,
 	Run: func(cmd *cobra.Command, args []string) {
-		if !global.IsTerminal {
-			clear(args)
-			args = append(args, global.ArgsFromStdin)
+		if len(args) == 0 && stdinData != "" {
+			args = []string{stdinData}
 		}
 		for _, str := range args {
 			if isDecode {
@@ -139,11 +135,10 @@ var unicodeCmd = &cobra.Command{
 	Use:   "unicode [-d] args",
 	Short: "进行Unicode编解码操作",
 	Long:  `对提供的字符串进行unicode编解码操作`,
-	Args:  utils.AtLeastOneArgsIncludePipe(),
+	Args:  argsValidator,
 	Run: func(cmd *cobra.Command, args []string) {
-		if !global.IsTerminal {
-			clear(args)
-			args = append(args, global.ArgsFromStdin)
+		if len(args) == 0 && stdinData != "" {
+			args = []string{stdinData}
 		}
 		for _, str := range args {
 			if isDecode {
@@ -157,6 +152,25 @@ var unicodeCmd = &cobra.Command{
 			}
 		}
 	},
+}
+
+func argsValidator(cmd *cobra.Command, args []string) error {
+	if term.IsTerminal(0) {
+		if len(args) < 1 {
+			return fmt.Errorf("需要至少一个参数")
+		}
+		return nil
+	}
+	input, err := io.ReadAll(os.Stdin)
+	if err != nil {
+		return fmt.Errorf("从管道或重定向中读取参数失败: %w", err)
+	}
+	utils.Logger.Debug(fmt.Sprintf("从管道或重定向中读取到输入数据: %s", string(input)))
+	stdinData = string(input)
+	if stdinData == "" && len(args) < 1 {
+		return fmt.Errorf("需要至少一个参数")
+	}
+	return nil
 }
 
 func init() {
