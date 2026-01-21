@@ -1,4 +1,4 @@
-package utils
+package concurrent
 
 import (
 	"hash/fnv"

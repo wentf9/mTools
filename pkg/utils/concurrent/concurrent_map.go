@@ -1,4 +1,4 @@
-package cmap
+package concurrent
 
 import (
 	"encoding/json"
@@ -10,20 +10,20 @@ import (
 const DEFAULT_SHARD_COUNT = 32
 
 // Option 定义配置函数的类型
-type Option[K comparable, V any] func(*ConcurrentMap[K, V])
+type Option[K comparable, V any] func(*Map[K, V])
 
 // WithShardCount 允许用户自定义分片数量
 // count: 建议设置为 2 的幂 (如 16, 32, 64, 128)
 func WithShardCount[K comparable, V any](count uint32) Option[K, V] {
-	return func(m *ConcurrentMap[K, V]) {
+	return func(m *Map[K, V]) {
 		m.shardCount = count
 	}
 }
 
-// ConcurrentMap 是我们暴露给外部的主结构体
+// Map 是我们暴露给外部的主结构体
 // K: 键的类型 (必须是可比较的)
 // V: 值的类型 (任意)
-type ConcurrentMap[K comparable, V any] struct {
+type Map[K comparable, V any] struct {
 	shards   []*ConcurrentMapShard[K, V]
 	hashFunc func(K) uint32 // 用于计算 Key 的哈希值，决定分片位置
 	// 定义分片的数量
@@ -39,10 +39,10 @@ type ConcurrentMapShard[K comparable, V any] struct {
 	sync.RWMutex // 读写锁，读写分离提高性能
 }
 
-// NewConcurrentMap 创建一个新的并发 Map
+// NewMap 创建一个新的并发 Map
 // hashFunc: 需要用户传入一个函数，将 Key 转换为 uint32 整数
-func NewConcurrentMap[K comparable, V any](hashFunc func(K) uint32, opts ...Option[K, V]) *ConcurrentMap[K, V] {
-	m := &ConcurrentMap[K, V]{
+func NewMap[K comparable, V any](hashFunc func(K) uint32, opts ...Option[K, V]) *Map[K, V] {
+	m := &Map[K, V]{
 		shardCount: DEFAULT_SHARD_COUNT,
 		hashFunc:   hashFunc,
 	}
@@ -63,14 +63,14 @@ func NewConcurrentMap[K comparable, V any](hashFunc func(K) uint32, opts ...Opti
 }
 
 // getShard 根据 Key 获取对应的分片
-func (m *ConcurrentMap[K, V]) getShard(key K) *ConcurrentMapShard[K, V] {
+func (m *Map[K, V]) getShard(key K) *ConcurrentMapShard[K, V] {
 	hash := m.hashFunc(key)
 	// 使用位运算取模 (前提是 SHARD_COUNT 必须是 2 的幂，这里为了通用使用 %)
 	return m.shards[hash%m.shardCount]
 }
 
 // Set 写入键值对
-func (m *ConcurrentMap[K, V]) Set(key K, value V) {
+func (m *Map[K, V]) Set(key K, value V) {
 	shard := m.getShard(key)
 	shard.Lock() // 加写锁
 	defer shard.Unlock()
@@ -78,7 +78,7 @@ func (m *ConcurrentMap[K, V]) Set(key K, value V) {
 }
 
 // Get 读取键值对
-func (m *ConcurrentMap[K, V]) Get(key K) (V, bool) {
+func (m *Map[K, V]) Get(key K) (V, bool) {
 	shard := m.getShard(key)
 	shard.RLock() // 加读锁
 	defer shard.RUnlock()
@@ -87,7 +87,7 @@ func (m *ConcurrentMap[K, V]) Get(key K) (V, bool) {
 }
 
 // Remove 删除键值对
-func (m *ConcurrentMap[K, V]) Remove(key K) {
+func (m *Map[K, V]) Remove(key K) {
 	shard := m.getShard(key)
 	shard.Lock()
 	defer shard.Unlock()
@@ -95,7 +95,7 @@ func (m *ConcurrentMap[K, V]) Remove(key K) {
 }
 
 // Count 统计所有元素的数量（大概率是准的，但在极高并发下是近似值）
-func (m *ConcurrentMap[K, V]) Count() int {
+func (m *Map[K, V]) Count() int {
 	count := 0
 	for i := range m.shardCount {
 		shard := m.shards[i]
@@ -107,7 +107,7 @@ func (m *ConcurrentMap[K, V]) Count() int {
 }
 
 // Keys 获取所有的 Key
-func (m *ConcurrentMap[K, V]) Keys() []K {
+func (m *Map[K, V]) Keys() []K {
 	keys := make([]K, 0)
 	for i := range m.shardCount {
 		shard := m.shards[i]
@@ -123,7 +123,7 @@ func (m *ConcurrentMap[K, V]) Keys() []K {
 // IterCb 接受一个回调函数 fn
 // fn 的参数是 key 和 value
 // fn 的返回值是一个 bool：如果返回 true，继续遍历；如果返回 false，停止遍历。
-func (m *ConcurrentMap[K, V]) IterCb(fn func(key K, v V) bool) {
+func (m *Map[K, V]) IterCb(fn func(key K, v V) bool) {
 	// 逐个遍历分片
 	for i := range m.shardCount {
 		shard := m.shards[i]
@@ -150,7 +150,7 @@ func (m *ConcurrentMap[K, V]) IterCb(fn func(key K, v V) bool) {
 
 // MarshalJSON 实现 json.Marshaler 接口
 // 当你调用 json.Marshal(cMap) 时，会自动调用此方法
-func (m *ConcurrentMap[K, V]) MarshalJSON() ([]byte, error) {
+func (m *Map[K, V]) MarshalJSON() ([]byte, error) {
 	// 1. 创建一个临时的标准 Map
 	tmp := make(map[K]V)
 
@@ -169,7 +169,7 @@ func (m *ConcurrentMap[K, V]) MarshalJSON() ([]byte, error) {
 
 // UnmarshalJSON 实现 json.Unmarshaler 接口
 // 当你调用 json.Unmarshal(data, cMap) 时，会自动调用此方法
-func (m *ConcurrentMap[K, V]) UnmarshalJSON(b []byte) error {
+func (m *Map[K, V]) UnmarshalJSON(b []byte) error {
 	// 1. 创建一个临时的标准 Map 用于承接解析的数据
 	tmp := make(map[K]V)
 
@@ -189,7 +189,7 @@ func (m *ConcurrentMap[K, V]) UnmarshalJSON(b []byte) error {
 
 // Clear 清空 Map 中的所有数据
 // 策略：直接用一个新的空 Map 替换旧 Map，而不是逐个删除 Key
-func (m *ConcurrentMap[K, V]) Clear() {
+func (m *Map[K, V]) Clear() {
 	for i := range m.shardCount {
 		shard := m.shards[i]
 		shard.Lock()
@@ -201,7 +201,7 @@ func (m *ConcurrentMap[K, V]) Clear() {
 
 // MSet 批量写入多个键值对
 // 策略：预先将数据按分片归类，减少锁的竞争次数
-func (m *ConcurrentMap[K, V]) MSet(data map[K]V) {
+func (m *Map[K, V]) MSet(data map[K]V) {
 	// 1. 创建临时存储，用于将输入的数据按“分片索引”归类
 	// batchedData[i] 存放属于第 i 个分片的所有数据
 	batchedData := make([]map[K]V, m.shardCount)
@@ -232,7 +232,7 @@ func (m *ConcurrentMap[K, V]) MSet(data map[K]V) {
 
 // Pop 从 Map 中删除一个 Key，并返回它被删除之前的值
 // 如果 Key 不存在，返回零值和 false
-func (m *ConcurrentMap[K, V]) Pop(key K) (V, bool) {
+func (m *Map[K, V]) Pop(key K) (V, bool) {
 	shard := m.getShard(key)
 	shard.Lock()
 	defer shard.Unlock()
@@ -247,7 +247,7 @@ func (m *ConcurrentMap[K, V]) Pop(key K) (V, bool) {
 // Upsert 提供原子性的“读取-修改-回写”操作
 // cb: 回调函数，参数是 (是否存在, 旧值)。返回值将作为新值写入 Map。
 // 返回值: 最终写入 Map 的新值
-func (m *ConcurrentMap[K, V]) Upsert(key K, cb func(exist bool, valueInMap V) V) V {
+func (m *Map[K, V]) Upsert(key K, cb func(exist bool, valueInMap V) V) V {
 	shard := m.getShard(key)
 	shard.Lock()
 	defer shard.Unlock()
@@ -267,7 +267,7 @@ func (m *ConcurrentMap[K, V]) Upsert(key K, cb func(exist bool, valueInMap V) V)
 // SetIfAbsent 如果 Key 不存在，则写入值；如果存在，则什么都不做
 // 返回值: (实际存储的值, 是否是新写入的)
 // 如果返回 true，说明写入成功；如果返回 false，说明 Key 已存在，返回旧值
-func (m *ConcurrentMap[K, V]) SetIfAbsent(key K, value V) (V, bool) {
+func (m *Map[K, V]) SetIfAbsent(key K, value V) (V, bool) {
 	shard := m.getShard(key)
 	shard.Lock()
 	defer shard.Unlock()
