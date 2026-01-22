@@ -2,15 +2,16 @@ package config
 
 import (
 	"errors"
+	"fmt"
 
 	"example.com/MikuTools/pkg/models"
 	"example.com/MikuTools/pkg/utils/concurrent"
 )
 
 type NodeFinder interface {
-	// Add 将节点(用户名@地址 / 别名 / ID)加入索引
+	// Add 将节点(用户名@地址:端口 / 别名 / ID)加入索引
 	Add(nodeId string, h *models.Node)
-	// Find 匹配用户输入(用户名@地址 / 别名 / ID)
+	// Find 匹配用户输入(用户名@地址:端口 / 别名 / ID)
 	Find(input string) (*models.Node, error)
 }
 
@@ -34,12 +35,12 @@ func (f *finder) Add(nodeId string, n *models.Node) {
 	f.lookupIndex.Set(nodeId, nodeId)
 	user := identity.User
 	if user != "" {
-		f.lookupIndex.Set(user+"@"+host.Address, nodeId)
+		f.lookupIndex.Set(fmt.Sprintf("%s@%s:%d", user, host.Address, host.Port), nodeId)
 		for _, addr := range host.Alias {
 			if addr == "" {
 				continue
 			}
-			f.lookupIndex.Set(user+"@"+addr, nodeId)
+			f.lookupIndex.Set(fmt.Sprintf("%s@%s:%d", user, addr, host.Port), nodeId)
 		}
 	}
 	for _, alias := range n.Alias {
