@@ -53,8 +53,20 @@ func (c *Client) Run(ctx context.Context, cmd string) (string, error) {
 	return startWithTimeout(ctx, session, cmd)
 }
 
-// RunWithSudo 执行 sudo 命令，自动注入密码，并返回干净的输出
+// RunWithSudo 提权执行命令，自动注入密码，并返回干净的输出
 func (c *Client) RunWithSudo(ctx context.Context, command string, password string) (string, error) {
+	switch c.node.SudoMode {
+	case "sudo", "sudoer":
+		return c.runWithSudo(ctx, command, password)
+	case "su":
+		return c.runWithSu(command, password)
+	default:
+		return "", fmt.Errorf("unsupported sudo mode: %s", c.node.SudoMode)
+	}
+}
+
+// runWithSudo 执行 sudo 命令，自动注入密码，并返回干净的输出
+func (c *Client) runWithSudo(ctx context.Context, command string, password string) (string, error) {
 	session, err := c.sshClient.NewSession()
 	if err != nil {
 		return "", err
@@ -75,8 +87,8 @@ func (c *Client) RunWithSudo(ctx context.Context, command string, password strin
 	return startWithTimeout(ctx, session, fullCmd)
 }
 
-// RunWithSu 执行 sudo 命令，自动注入密码，并返回干净的输出
-func (c *Client) RunWithSu(ctx context.Context, command string, password string) (string, error) {
+// runWithSu 执行 sudo 命令，自动注入密码，并返回干净的输出
+func (c *Client) runWithSu(command string, password string) (string, error) {
 	session, err := c.sshClient.NewSession()
 	if err != nil {
 		return "", err
@@ -179,6 +191,51 @@ func (c *Client) RunWithSu(ctx context.Context, command string, password string)
 	return cleanOutput, nil
 }
 
+func (c *Client) Shell(ctx context.Context, password string) error {
+	session, err := c.sshClient.NewSession()
+	if err != nil {
+		return err
+	}
+	defer session.Close()
+	// 配置 PTY (终端模式)
+	modes := ssh.TerminalModes{
+		ssh.ECHO:          1,
+		ssh.TTY_OP_ISPEED: 14400,
+		ssh.TTY_OP_OSPEED: 14400,
+	}
+	fd := int(os.Stdin.Fd())
+	width, height, err := term.GetSize(fd)
+	if err != nil {
+		width, height = 80, 40
+	}
+	if err := session.RequestPty("xterm-256color", height, width, modes); err != nil {
+		return fmt.Errorf("request for pty failed: %v", err)
+	}
+	// 获取管道
+	stdin, _ := session.StdinPipe()
+	stdout, _ := session.StdoutPipe()
+	stderr, _ := session.StderrPipe()
+
+	// 启动 Shell
+	if err := session.Shell(); err != nil {
+		return fmt.Errorf("start Shell failed: %v", err)
+	}
+
+	// 设置本地终端为 Raw 模式 (这行必须在任何输出之前执行，保证体验)
+	oldState, err := term.MakeRaw(fd)
+	if err != nil {
+		return fmt.Errorf("can not set term to Raw : %v", err)
+	}
+	defer term.Restore(fd, oldState)
+	go io.Copy(os.Stdout, stdout)
+	go io.Copy(os.Stderr, stderr)
+
+	// 主线程或者新协程处理用户输入
+	go io.Copy(stdin, os.Stdin)
+
+	return session.Wait()
+}
+
 func (c *Client) ShellWithSudo(ctx context.Context, password string) error {
 	session, err := c.sshClient.NewSession()
 	if err != nil {
@@ -220,63 +277,91 @@ func (c *Client) ShellWithSudo(ctx context.Context, password string) error {
 
 	// 第一步：发送 sudo 命令
 	// 注意：这里不需要等待，直接发
-	stdin.Write([]byte("sudo -i\n"))
+	var sudoCmd string
+	switch c.node.SudoMode {
+	case "sudo", "sudoer":
+		sudoCmd = "sudo -i"
+	case "su":
+		sudoCmd = "su -"
+	default:
+		sudoCmd = ""
+	}
+	stdin.Write([]byte(sudoCmd + "\n"))
 
+	if password == "" {
+		// 如果没有密码，直接交还控制权
+		go io.Copy(os.Stdout, stdout)
+		go io.Copy(os.Stderr, stderr)
+		go io.Copy(stdin, os.Stdin)
+		return session.Wait()
+	}
 	// 第二步：智能等待密码提示符
-	// 我们创建一个缓冲区，循环读取远程的输出
-	buf := make([]byte, 1024)
 	var outputBuffer bytes.Buffer // 用于累积最近的输出以便匹配字符串
 
 	// 设置一个超时机制，防止 sudo 不需要密码或者卡死导致程序永远等待
-	// 这里使用一个简单的标志位
-	passwordSent := false
+	passwordPromptFound := make(chan bool)
+	timeout := time.After(10 * time.Second)
+	// 在“握手阶段”手动读取 stdout
+	bufferTooLarge := make(chan bool)
 
-	// 我们只在“握手阶段”手动读取 stdout
-	// 这是一个简单的状态机：寻找 "assword" 或 "密码"
-	for !passwordSent {
-		// 从远程读取数据
-		n, err := stdout.Read(buf)
-		if err != nil {
-			if err != io.EOF {
-				// 此时处于 Raw 模式，直接打印可能排版会乱，建议使用 \r\n
-				fmt.Printf("\r\n读取错误: %v\r\n", err)
+	go func() {
+		// 我们创建一个缓冲区，读取远程的输出
+		buf := make([]byte, 1024)
+		for {
+			// 从远程读取数据
+			n, err := stdout.Read(buf)
+			if err != nil {
+				close(passwordPromptFound)
+				close(bufferTooLarge)
+				break
 			}
-			break
+			// 1. 重要：立即将读到的内容原样打印到屏幕，让用户看到 "[sudo] password for..."
+			// os.Stdout.Write(buf[:n])
+
+			// 2. 将内容存入临时 buffer 用于检查
+			// 为了防止 buffer 无限增长，实际生产中应该只保留最后几百个字节，这里简化处理
+			outputBuffer.Write(buf[:n])
+			text := outputBuffer.String()
+
+			// 3. 检测关键字
+			// 常见的提示符有: "Password:", "[sudo] password for user:", "输入密码:"
+			// 检测 "assword" (忽略大小写) 通常比较通用，且避开了首字母P的大小写问题
+			// 也可以加入中文 "密码" 支持
+			if strings.Contains(strings.ToLower(text), "assword") || strings.Contains(text, "密码") {
+				// 找到提示符了！发送密码
+				// stdin.Write([]byte(rootPass + "\n"))
+				passwordPromptFound <- true
+				// 此时不要 break，因为可能还有后续的回显（比如换行符），
+				// 但为了简化逻辑，我们假设密码发送后就可以转交控制权了。
+				// 更好的做法是再等一小会儿看有没有 "Try again" 错误，但这里先做基础版。
+				break
+			}
+			// 4. 超时保护逻辑 (可选)
+			// 如果读了太多内容还没提示符，或者时间太久，也可以强制跳出循环交还给用户
+			if outputBuffer.Len() > 500 {
+				// 缓冲区过大，可能已经进入了 shell 或者 sudo 免密成功了
+				// 清空 buffer 防止内存泄漏，继续在此循环或跳出视具体需求而定
+				// 针对本例，如果已经不需要密码（免密sudo），用户会看到提示符，我们直接把控制权交给用户即可
+				// 但如何判断免密成功比较难，通常通过超时或者检测 shell 提示符 (#/$).
+				bufferTooLarge <- true
+				break
+			}
 		}
+	}()
 
-		// 1. 重要：立即将读到的内容原样打印到屏幕，让用户看到 "[sudo] password for..."
-		// os.Stdout.Write(buf[:n])
-
-		// 2. 将内容存入临时 buffer 用于检查
-		// 为了防止 buffer 无限增长，实际生产中应该只保留最后几百个字节，这里简化处理
-		outputBuffer.Write(buf[:n])
-		text := outputBuffer.String()
-
-		// 3. 检测关键字
-		// 常见的提示符有: "Password:", "[sudo] password for user:", "输入密码:"
-		// 检测 "assword" (忽略大小写) 通常比较通用，且避开了首字母P的大小写问题
-		// 也可以加入中文 "密码" 支持
-		if strings.Contains(strings.ToLower(text), "assword") || strings.Contains(text, "密码") {
-			// 找到提示符了！发送密码
-			stdin.Write([]byte(password + "\n"))
-			passwordSent = true
-
-			// 此时不要 break，因为可能还有后续的回显（比如换行符），
-			// 但为了简化逻辑，我们假设密码发送后就可以转交控制权了。
-			// 更好的做法是再等一小会儿看有没有 "Try again" 错误，但这里先做基础版。
+	// 5. 等待密码提示符出现，并设置超时
+	select {
+	case <-passwordPromptFound:
+		// 找到了提示符，发送密码
+		_, err = stdin.Write([]byte(password + "\n"))
+		if err != nil {
+			return fmt.Errorf("failed to send password: %v", err)
 		}
-
-		// 4. 超时保护逻辑 (可选)
-		// 如果读了太多内容还没提示符，或者时间太久，也可以强制跳出循环交还给用户
-		if outputBuffer.Len() > 500 {
-			// 缓冲区过大，可能已经进入了 shell 或者 sudo 免密成功了
-			// 清空 buffer 防止内存泄漏，继续在此循环或跳出视具体需求而定
-			// 针对本例，如果已经不需要密码（免密sudo），用户会看到提示符，我们直接把控制权交给用户即可
-			// 但如何判断免密成功比较难，通常通过超时或者检测 shell 提示符 (#/$).
-			// 简单起见：这里假设必须输入密码。如果你有免密需求，需要增加超时 break。
-		}
+	case <-timeout:
+		return fmt.Errorf("timeout waiting for password prompt")
+	case <-bufferTooLarge:
+		return fmt.Errorf("buffer is too large when waiting for password prompt")
 	}
-
 	// =================== 智能 Sudo 核心逻辑结束 ===================
 
 	// 8. 交接控制权
@@ -286,7 +371,6 @@ func (c *Client) ShellWithSudo(ctx context.Context, password string) error {
 	go io.Copy(os.Stderr, stderr)
 
 	// 主线程或者新协程处理用户输入
-	// 因为 main 函数最后有 session.Wait() 阻塞，所以这里用 Copy 阻塞也行，或者放到协程里
 	go io.Copy(stdin, os.Stdin)
 
 	return session.Wait()

@@ -5,8 +5,9 @@ import "context"
 type Executor interface {
 	// Execute 执行命令并返回输出
 	Run(ctx context.Context, cmd string) (string, error)
-	RunWithSu(ctx context.Context, command string, password string) (string, error)
 	RunWithSudo(ctx context.Context, command string, password string) (string, error)
+	Shell(ctx context.Context, password string) error
+	ShellWithSudo(ctx context.Context, password string) error
 }
 
 type Transfer interface {
