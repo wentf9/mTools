@@ -12,7 +12,7 @@ MODULE=example.com/MikuTools
 # if git info fails, default to "unknown"
 VERSION ?= $(shell git describe --tags --always --dirty 2>/dev/null || echo "unknown")
 COMMIT  ?= $(shell git rev-parse --short HEAD 2>/dev/null || echo "unknown")
-DATE    ?= $(shell date -u +%Y-%m-%dT%H:%M:%SZ)
+DATE    ?= $(shell date +%Y-%m-%dT%H:%M:%S%z)
 
 # 注入 LDFLAGS
 LDFLAGS := -s -w \
@@ -67,9 +67,9 @@ linux:
 	CGO_ENABLED=0 GOOS=linux GOARCH=amd64 go build -ldflags "$(LDFLAGS)" -o $(BIN_DIR)/$(BINARY_NAME)-linux-amd64 ./cmd/cli
 
 # 编译 Linux 版本 (aarch64位)
-linux-aarch64:
-	@echo "Compiling for Linux (aarch64)..."
-	CGO_ENABLED=0 GOOS=linux GOARCH=aarch64 go build -ldflags "$(LDFLAGS)" -o $(BIN_DIR)/$(BINARY_NAME)-linux-aarch64 ./cmd/cli
+linux-arm64:
+	@echo "Compiling for Linux (arm64)..."
+	CGO_ENABLED=0 GOOS=linux GOARCH=arm64 go build -ldflags "$(LDFLAGS)" -o $(BIN_DIR)/$(BINARY_NAME)-linux-aarch64 ./cmd/cli
 
 
 
