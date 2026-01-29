@@ -291,13 +291,13 @@ func init() {
 
 	// Cobra supports Persistent Flags which will work for this command
 	// and all subcommands, e.g.:
-	execCmd.PersistentFlags().StringVarP(&ip, "ip", "i", "", "需要执行命令的主机,使用英文逗号分隔,和ifile及csv只能选择一个")
-	execCmd.PersistentFlags().Uint16Var(&port, "port", 22, "ssh端口")
-	execCmd.PersistentFlags().StringVarP(&command, "cmd", "c", "", "待执行命令,和cfile及shell只能选择一个")
-	execCmd.PersistentFlags().StringVarP(&user, "user", "u", "", "ssh用户")
-	execCmd.PersistentFlags().StringVarP(&password, "passwd", "p", "", "ssh密码")
-	execCmd.PersistentFlags().StringVarP(&hostFile, "ifile", "I", "", "记录需要执行命令的主机的文件的路径,每个ip一行")
-	execCmd.PersistentFlags().StringVarP(&csvFile, "csv", "", "", "CSV文件路径,包含主机IP,用户名,密码,每行一条记录")
+	execCmd.Flags().StringVarP(&ip, "ip", "i", "", "需要执行命令的主机,使用英文逗号分隔,和ifile及csv只能选择一个")
+	execCmd.Flags().Uint16Var(&port, "port", 22, "ssh端口")
+	execCmd.Flags().StringVarP(&command, "cmd", "c", "", "待执行命令,和cfile及shell只能选择一个")
+	execCmd.Flags().StringVarP(&user, "user", "u", "", "ssh用户")
+	execCmd.Flags().StringVarP(&password, "passwd", "p", "", "ssh密码")
+	execCmd.Flags().StringVarP(&hostFile, "ifile", "I", "", "记录需要执行命令的主机的文件的路径,每个ip一行")
+	execCmd.Flags().StringVarP(&csvFile, "csv", "", "", "CSV文件路径,包含主机IP,用户名,密码,每行一条记录")
 	execCmd.Flags().StringVarP(&cmdFile, "cfile", "C", "", "记录需要执行的脚本文件的路径")
 	execCmd.Flags().StringVarP(&shellFile, "shell", "s", "", "需要执行的脚本文件的位置")
 	execCmd.Flags().BoolP("sudo", "S", false, "是否需要使用sudo切换到root执行,不要在命令中加入sudo")

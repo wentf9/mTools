@@ -13,7 +13,7 @@ type Identity struct {
 type Host struct {
 	Alias   []string `yaml:"alias,omitempty"`
 	Address string   `yaml:"address"` // IP 或 域名
-	Port    int      `yaml:"port"`
+	Port    uint16   `yaml:"port"`
 }
 
 // Node 是用户操作的最小单元，聚合了 Host 和 Identity
@@ -30,7 +30,7 @@ type Node struct {
 
 	// 提权配置
 	SudoMode string `yaml:"sudo_mode"` // "none", "sudo", "sudoer", "su"
-	SudoPwd  string `yaml:"sudo_pwd,omitempty"`
+	SuPwd    string `yaml:"su_pwd,omitempty"`
 }
 
 // NodeFilter 用于批量操作时筛选节点

@@ -471,19 +471,19 @@ func init() {
 	firewallCmd.AddCommand(reloadCmd)
 
 	// 继承全局标志
-	firewallCmd.PersistentFlags().StringVarP(&ip, "ip", "i", "", "目标主机,多个主机用逗号分隔")
-	firewallCmd.PersistentFlags().StringVarP(&user, "user", "u", "", "SSH用户名")
-	firewallCmd.PersistentFlags().StringVarP(&password, "passwd", "p", "", "SSH密码")
-	firewallCmd.PersistentFlags().StringVarP(&hostFile, "ifile", "I", "", "主机列表文件路径")
-	firewallCmd.PersistentFlags().StringVarP(&csvFile, "csv", "", "", "CSV文件路径(包含主机IP,用户名,密码)")
+	firewallCmd.Flags().StringVarP(&ip, "ip", "i", "", "目标主机,多个主机用逗号分隔")
+	firewallCmd.Flags().StringVarP(&user, "user", "u", "", "SSH用户名")
+	firewallCmd.Flags().StringVarP(&password, "passwd", "p", "", "SSH密码")
+	firewallCmd.Flags().StringVarP(&hostFile, "ifile", "I", "", "主机列表文件路径")
+	firewallCmd.Flags().StringVarP(&csvFile, "csv", "", "", "CSV文件路径(包含主机IP,用户名,密码)")
 
 	// 防火墙特定标志
-	firewallCmd.PersistentFlags().Bool("tcp", false, "协议tcp,默认tcp")
-	firewallCmd.PersistentFlags().Bool("udp", false, "协议udp")
-	firewallCmd.PersistentFlags().BoolVar(&firewallReload, "reload", false, "是否重载防火墙配置,默认false,启用此项时将在执行操作后立即重载防火墙配置")
-	firewallCmd.PersistentFlags().BoolVar(&firewallNotPermanent, "not-permanent", false, "是否临时规则,默认false,如果为true则添加永久规则,永久规则需要重载防火墙配置后才生效")
-	firewallCmd.PersistentFlags().BoolVarP(&firewallRemove, "remove", "r", false, "是否删除规则,默认false,如果为false则添加规则")
-	firewallCmd.PersistentFlags().StringVarP(&firewallZone, "zone", "z", "", "防火墙区域")
+	firewallCmd.Flags().Bool("tcp", false, "协议tcp,默认tcp")
+	firewallCmd.Flags().Bool("udp", false, "协议udp")
+	firewallCmd.Flags().BoolVar(&firewallReload, "reload", false, "是否重载防火墙配置,默认false,启用此项时将在执行操作后立即重载防火墙配置")
+	firewallCmd.Flags().BoolVar(&firewallNotPermanent, "not-permanent", false, "是否临时规则,默认false,如果为true则添加永久规则,永久规则需要重载防火墙配置后才生效")
+	firewallCmd.Flags().BoolVarP(&firewallRemove, "remove", "r", false, "是否删除规则,默认false,如果为false则添加规则")
+	firewallCmd.Flags().StringVarP(&firewallZone, "zone", "z", "", "防火墙区域")
 
 	firewallCmd.MarkFlagsMutuallyExclusive("ip", "ifile", "csv")
 	firewallCmd.MarkFlagsMutuallyExclusive("tcp", "udp")

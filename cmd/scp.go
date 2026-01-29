@@ -213,12 +213,12 @@ var scpCmd = &cobra.Command{
 func init() {
 	rootCmd.AddCommand(scpCmd)
 
-	scpCmd.PersistentFlags().StringVarP(&ip, "ip", "i", "", "目标主机,多个主机用逗号分隔")
-	scpCmd.PersistentFlags().Uint16Var(&port, "port", 22, "SSH端口")
-	scpCmd.PersistentFlags().StringVarP(&user, "user", "u", "", "SSH用户名")
-	scpCmd.PersistentFlags().StringVarP(&password, "passwd", "p", "", "SSH密码")
-	scpCmd.PersistentFlags().StringVarP(&hostFile, "ifile", "I", "", "主机列表文件路径")
-	scpCmd.PersistentFlags().StringVarP(&csvFile, "csv", "", "", "CSV文件路径(包含主机IP,用户名,密码)")
+	scpCmd.Flags().StringVarP(&ip, "ip", "i", "", "目标主机,多个主机用逗号分隔")
+	scpCmd.Flags().Uint16Var(&port, "port", 22, "SSH端口")
+	scpCmd.Flags().StringVarP(&user, "user", "u", "", "SSH用户名")
+	scpCmd.Flags().StringVarP(&password, "passwd", "p", "", "SSH密码")
+	scpCmd.Flags().StringVarP(&hostFile, "ifile", "I", "", "主机列表文件路径")
+	scpCmd.Flags().StringVarP(&csvFile, "csv", "", "", "CSV文件路径(包含主机IP,用户名,密码)")
 	scpCmd.Flags().StringVar(&sourcePath, "src", "", "源路径")
 	scpCmd.Flags().StringVar(&destPath, "dest", "", "目标路径")
 	scpCmd.Flags().BoolVarP(&isRecursive, "recursive", "r", false, "递归复制目录")

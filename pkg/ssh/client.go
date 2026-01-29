@@ -16,13 +16,17 @@ import (
 
 type Client struct {
 	sshClient *ssh.Client
-	node      *models.Node
+	node      models.Node
+	host      models.Host
+	identity  models.Identity
 }
 
-func NewClient(raw *ssh.Client, node *models.Node) *Client {
+func newClient(raw *ssh.Client, node models.Node, host models.Host, identity models.Identity) *Client {
 	return &Client{
 		sshClient: raw,
 		node:      node,
+		host:      host,
+		identity:  identity,
 	}
 }
 
@@ -37,7 +41,7 @@ func (c *Client) SSHClient() *ssh.Client {
 }
 
 // Node 返回当前连接对应的节点配置
-func (c *Client) Node() *models.Node {
+func (c *Client) Node() models.Node {
 	return c.node
 }
 
@@ -54,12 +58,14 @@ func (c *Client) Run(ctx context.Context, cmd string) (string, error) {
 }
 
 // RunWithSudo 提权执行命令，自动注入密码，并返回干净的输出
-func (c *Client) RunWithSudo(ctx context.Context, command string, password string) (string, error) {
+func (c *Client) RunWithSudo(ctx context.Context, command string) (string, error) {
 	switch c.node.SudoMode {
-	case "sudo", "sudoer":
-		return c.runWithSudo(ctx, command, password)
+	case "sudo":
+		return c.runWithSudo(ctx, command, c.identity.Password)
+	case "sudoer":
+		return c.runWithSudo(ctx, command, "")
 	case "su":
-		return c.runWithSu(command, password)
+		return c.runWithSu(command, c.node.SuPwd)
 	default:
 		return "", fmt.Errorf("unsupported sudo mode: %s", c.node.SudoMode)
 	}
@@ -191,7 +197,7 @@ func (c *Client) runWithSu(command string, password string) (string, error) {
 	return cleanOutput, nil
 }
 
-func (c *Client) Shell(ctx context.Context, password string) error {
+func (c *Client) Shell(ctx context.Context) error {
 	session, err := c.sshClient.NewSession()
 	if err != nil {
 		return err
@@ -236,7 +242,7 @@ func (c *Client) Shell(ctx context.Context, password string) error {
 	return session.Wait()
 }
 
-func (c *Client) ShellWithSudo(ctx context.Context, password string) error {
+func (c *Client) ShellWithSudo(ctx context.Context) error {
 	session, err := c.sshClient.NewSession()
 	if err != nil {
 		return err
@@ -278,11 +284,17 @@ func (c *Client) ShellWithSudo(ctx context.Context, password string) error {
 	// 第一步：发送 sudo 命令
 	// 注意：这里不需要等待，直接发
 	var sudoCmd string
+	var password string
 	switch c.node.SudoMode {
-	case "sudo", "sudoer":
+	case "sudo":
 		sudoCmd = "sudo -i"
+		password = c.identity.Password
+	case "sudoer":
+		sudoCmd = "sudo -i"
+		password = ""
 	case "su":
 		sudoCmd = "su -"
+		password = c.node.SuPwd
 	default:
 		sudoCmd = ""
 	}

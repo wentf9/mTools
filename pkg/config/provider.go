@@ -1,48 +1,100 @@
 package config
 
 import (
-	"errors"
+	"fmt"
 
 	"example.com/MikuTools/pkg/models"
+	"example.com/MikuTools/pkg/utils/concurrent"
 )
 
 type Provider struct {
-	cfg    Configuration
-	finder NodeFinder
+	cfg         *Configuration
+	lookupIndex *concurrent.Map[string, string]
 }
 
-func NewProvider(cfg Configuration) *Provider {
-	provider := Provider{cfg: cfg, finder: NewNodeFinder(&cfg)}
+func NewProvider(cfg *Configuration) ConfigProvider {
+	provider := Provider{
+		cfg:         cfg,
+		lookupIndex: concurrent.NewMap[string, string](concurrent.HashString),
+	}
 	provider.init()
-	return &provider
+	return provider
 }
 
-func (cp *Provider) GetNode(name string) (*models.Node, error) {
-	if node, err := cp.finder.Find(name); err != nil {
-		return nil, err
-	} else {
-		return node, nil
+// Add 将主机及其所有标识符加入索引
+func (cp Provider) add(nodeId string) {
+	node, ok := cp.GetNode(nodeId)
+	if !ok {
+		return
+	}
+	identity, ok := cp.GetIdentity(nodeId)
+	if !ok {
+		return
+	}
+	host, ok := cp.GetHost(nodeId)
+	if !ok {
+		return
+	}
+	cp.lookupIndex.Set(nodeId, nodeId)
+	user := identity.User
+	if user != "" {
+		cp.lookupIndex.Set(fmt.Sprintf("%s@%s:%d", user, host.Address, host.Port), nodeId)
+		for _, addr := range host.Alias {
+			if addr == "" {
+				continue
+			}
+			cp.lookupIndex.Set(fmt.Sprintf("%s@%s:%d", user, addr, host.Port), nodeId)
+		}
+	}
+	for _, alias := range node.Alias {
+		if alias == "" {
+			continue
+		}
+		cp.lookupIndex.Set(alias, nodeId)
 	}
 }
 
-func (cp *Provider) GetHost(name string) (*models.Host, error) {
-	if host, ok := cp.cfg.Hosts[name]; ok {
-		return &host, nil
-	} else {
-		return nil, errors.New("host not found for inpute: " + name)
+// Find 匹配用户输入
+func (cp Provider) Find(input string) string {
+	// 1. 直接匹配
+	if nodeId, ok := cp.lookupIndex.Get(input); ok {
+		return nodeId
 	}
+	return ""
 }
 
-func (cp *Provider) GetIdentity(name string) (*models.Identity, error) {
-	if identity, ok := cp.cfg.Identities[name]; ok {
-		return &identity, nil
-	} else {
-		return nil, errors.New("identity not found for inpute: " + name)
-	}
+func (cp Provider) GetNode(nodeId string) (models.Node, bool) {
+	return cp.cfg.Nodes.Get(nodeId)
 }
 
-func (cp *Provider) init() {
-	for nodeId, node := range cp.cfg.Nodes {
-		cp.finder.Add(nodeId, &node)
+func (cp Provider) GetHost(nodeId string) (models.Host, bool) {
+	if node, ok := cp.cfg.Nodes.Get(nodeId); ok {
+		return cp.cfg.Hosts.Get(node.HostRef)
+	}
+	return models.Host{}, false
+}
+
+func (cp Provider) GetIdentity(nodeId string) (models.Identity, bool) {
+	if node, ok := cp.cfg.Nodes.Get(nodeId); ok {
+		return cp.cfg.Identities.Get(node.IdentityRef)
+	}
+	return models.Identity{}, false
+}
+
+func (cp Provider) AddNode(nodeId string, node models.Node) {
+	cp.cfg.Nodes.Set(nodeId, node)
+}
+
+func (cp Provider) AddHost(hostId string, host models.Host) {
+	cp.cfg.Hosts.Set(hostId, host)
+}
+
+func (cp Provider) AddIdentity(identityId string, identity models.Identity) {
+	cp.cfg.Identities.Set(identityId, identity)
+}
+
+func (cp Provider) init() {
+	for _, nodeId := range cp.cfg.Nodes.Keys() {
+		cp.add(nodeId)
 	}
 }

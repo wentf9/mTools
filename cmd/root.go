@@ -6,6 +6,7 @@ package cmd
 import (
 	"os"
 
+	"example.com/MikuTools/cmd/version"
 	"example.com/MikuTools/global"
 	"example.com/MikuTools/utils"
 	"github.com/spf13/cobra"
@@ -24,7 +25,7 @@ var rootCmd = &cobra.Command{
 	Run: func(cmd *cobra.Command, args []string) {
 		versionFlag, _ := cmd.Flags().GetBool("version")
 		if versionFlag {
-			println("mtool(Miku Tools) version 2025.11.11")
+			version.PrintFullVersion()
 			os.Exit(0)
 		}
 		cmd.Help() // 显示帮助信息
@@ -44,6 +45,15 @@ var rootCmd = &cobra.Command{
 		} else {
 			utils.Logger.Debug("当前为重定向或管道环境")
 		}
+	},
+}
+
+var versionCmd = &cobra.Command{
+	Use:   "version",
+	Short: "Print the version number",
+	Run: func(cmd *cobra.Command, args []string) {
+		// 调用 version 包的方法
+		version.PrintFullVersion()
 	},
 }
 
@@ -68,4 +78,5 @@ func init() {
 	rootCmd.Flags().BoolP("toggle", "t", false, "Help message for toggle")
 	rootCmd.Flags().BoolP("version", "v", false, "显示版本信息")
 	rootCmd.PersistentFlags().Bool("debug", false, "开启调试模式")
+	rootCmd.AddCommand(versionCmd)
 }

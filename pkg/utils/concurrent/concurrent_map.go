@@ -2,8 +2,12 @@ package concurrent
 
 import (
 	"encoding/json"
+	"fmt"
 	"maps"
+	"strings"
 	"sync"
+
+	"gopkg.in/yaml.v3"
 )
 
 // 默认分片数量
@@ -187,6 +191,50 @@ func (m *Map[K, V]) UnmarshalJSON(b []byte) error {
 	return nil
 }
 
+// ==========================================
+// YAML 序列化支持 (gopkg.in/yaml.v3)
+// ==========================================
+
+// MarshalYAML 实现 yaml.Marshaler 接口
+// 当调用 yaml.Marshal(cMap) 时会自动触发
+func (m *Map[K, V]) MarshalYAML() (interface{}, error) {
+	// 1. 创建一个临时的普通 Map
+	tmp := make(map[K]V)
+
+	// 2. 遍历分片，将数据快照复制到临时 Map
+	for i := uint32(0); i < m.shardCount; i++ {
+		shard := m.shards[i]
+		shard.RLock()
+		for k, v := range shard.items {
+			tmp[k] = v
+		}
+		shard.RUnlock()
+	}
+
+	// 3. 直接返回临时 Map，yaml 库会自动处理它的序列化
+	return tmp, nil
+}
+
+// UnmarshalYAML 实现 yaml.Unmarshaler 接口
+// 当调用 yaml.Unmarshal(data, cMap) 时会自动触发
+func (m *Map[K, V]) UnmarshalYAML(value *yaml.Node) error {
+	// 1. 创建一个临时的普通 Map 用于承接解析的数据
+	tmp := make(map[K]V)
+
+	// 2. 使用 yaml.Node 的 Decode 方法将数据解析到临时 Map 中
+	if err := value.Decode(&tmp); err != nil {
+		return err
+	}
+
+	// 3. 将数据从临时 Map 转移到 ConcurrentMap
+	// 注意：这里假设 m 已经被 NewConcurrentMap 初始化过
+	for k, v := range tmp {
+		m.Set(k, v)
+	}
+
+	return nil
+}
+
 // Clear 清空 Map 中的所有数据
 // 策略：直接用一个新的空 Map 替换旧 Map，而不是逐个删除 Key
 func (m *Map[K, V]) Clear() {
@@ -279,4 +327,48 @@ func (m *Map[K, V]) SetIfAbsent(key K, value V) (V, bool) {
 
 	shard.items[key] = value
 	return value, true
+}
+
+// String 实现 fmt.Stringer 接口
+// 这允许你直接使用 fmt.Println(cMap)
+// 输出格式示例: {key1: val1, key2: val2}
+func (m *Map[K, V]) String() string {
+	var parts []string
+
+	// 使用我们之前写的 IterCb 安全遍历
+	m.IterCb(func(k K, v V) bool {
+		// %v 占位符会自动适配各种类型
+		parts = append(parts, fmt.Sprintf("%v:%v", k, v))
+		return true
+	})
+
+	return "{" + strings.Join(parts, ", ") + "}"
+}
+
+// Print 逐行打印所有键值对 (适合数据量较大时查看)
+// 格式:
+// [Key] val
+// [Key] val
+func (m *Map[K, V]) Print() string {
+	var sb strings.Builder
+	sb.WriteString("--- ConcurrentMap Content ---\n")
+	count := 0
+	m.IterCb(func(k K, v V) bool {
+		fmt.Fprintf(&sb, "[%v] %v\n", k, v)
+		count++
+		return true
+	})
+	fmt.Fprintf(&sb, "--- Total: %d items ---\n", count)
+	return sb.String()
+}
+
+// PrettyPrint 以格式化的 JSON 样式打印 (适合调试复杂结构)
+// 需要引入 "encoding/json"
+func (m *Map[K, V]) PrettyPrint() string {
+	// 复用我们之前实现的 MarshalJSON
+	data, err := json.MarshalIndent(m, "", "  ")
+	if err != nil {
+		return ""
+	}
+	return string(data)
 }
