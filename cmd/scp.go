@@ -10,6 +10,62 @@ import (
 	"github.com/spf13/cobra"
 )
 
+/*
+1.scp user@host1:/file1 user@host2:/file2
+在两个远程主机之间传输文件，采用本机中转，可直接流式传输，不经过本地磁盘读写
+2.scp file1 file2 -h host1,host2,host3... -u user1,user2,user3... -p 22,22,22... -P pass1,pass2,pass3...
+将file1传输到多个远程主机，file1是否可以是远程主机地址，多个远程地址参数如何设计，多个主机的端口，用户，主机名，认证信息等各种配置应如何设计参数
+应该是单个主机的源地址到多个主机的目的地址，反过来是否有意义
+3.如果有未保存的主机，需要提供认证信息
+在2的场景里如果多个远程地址都没有认证信息是否要每个主机都在控制台提示输入密码，交互是否合理，存在无认证信息的主机的情况下是否可以直接提示，不执行传输
+4.是否可以与多主机命令执行的功能复用逻辑
+*/
+type ScpOptions struct {
+	SshOptions
+	maxTask   int
+	maxThread int
+	source    string
+	dest      string
+}
+
+func NewScpOptions() *SftpOptions {
+	return &SftpOptions{
+		SshOptions: *NewSshOptions(),
+	}
+}
+
+func NewCmdScp() *cobra.Command {
+	o := NewScpOptions()
+	cmd := &cobra.Command{
+		Use:   "scp [[user@]host:]source_file [[user@]host:]dest_file",
+		Short: "在主机之间传输文件",
+		Long: `在主机之间传输文件
+用法示例:
+mtool scp [[user@]host:]source_file [[user@]host:]dest_file [--task maxTask] [--thread maxThread]
+用户和主机为必选参数,端口默认为22,一般不需要修改
+通过flags提供主机和用户信息时会忽略参数提供的信息
+如果未通过-p选项显式提供密码,将会从终端输入或通过保存的密码文件读取密码
+成功登录过的用户和主机组合的密码将会保存到密码文件中
+密码采用对称加密算法加密保存,密码文件位置为~/.mtool_passwords.json`,
+		RunE: func(cmd *cobra.Command, args []string) error {
+			o.Complete(cmd, args)
+			if err := o.Validate(); err != nil {
+				return fmt.Errorf("参数错误: %v", err)
+			}
+			return o.Run()
+		},
+	}
+	cmd.Flags().IntVar(&o.maxTask, "task", 0, "同时下载文件数")
+	cmd.Flags().IntVar(&o.maxThread, "thread", 0, "单个文件同时下载线程")
+	cmd.Flags().StringVarP(&o.Password, "password", "P", "", "SSH密码")
+	cmd.Flags().StringVarP(&o.KeyFile, "key", "i", "", "SSH私钥文件路径")
+	cmd.Flags().StringVarP(&o.KeyPass, "key_pass", "W", "", "SSH私钥密码")
+	cmd.Flags().StringVarP(&o.JumpHost, "jump", "j", "", "跳板机地址[user@]host[:port]")
+	cmd.Flags().StringVarP(&o.Alias, "alias", "a", "", "连接别名")
+	cmd.MarkFlagsMutuallyExclusive("password", "key")
+	return cmd
+}
+
 var (
 	sourcePath  string
 	destPath    string

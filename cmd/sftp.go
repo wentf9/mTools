@@ -122,7 +122,11 @@ func (o *SftpOptions) Run() error {
 	ctx, cancel := context.WithTimeout(context.Background(), 10*time.Second)
 	defer cancel()
 	client, err := connector.Connect(ctx, nodeId)
-	sftpClient, err := sftp.NewClient(client)
+	sftpClient, err := sftp.NewClient(
+		client,
+		sftp.WithConcurrentFiles(o.maxTask),
+		sftp.WithThreadsPerFile(o.maxThread),
+	)
 	if err != nil {
 		return fmt.Errorf("连接失败: %v", err)
 	}
