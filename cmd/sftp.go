@@ -138,7 +138,7 @@ func (o *SftpOptions) Run() error {
 	if err != nil {
 		return fmt.Errorf("sftp交互式环境创建失败: %v", err)
 	}
-	if err := shell.Run(ctx); err != nil {
+	if err := shell.Run(context.Background()); err != nil {
 		return fmt.Errorf("sftp交互式环境启动失败: %v", err)
 	}
 	if updated {
