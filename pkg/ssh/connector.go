@@ -46,7 +46,7 @@ func (c *Connector) Connect(ctx context.Context, nodeName string) (*Client, erro
 	// 【合并请求】使用 singleflight
 	// 即使 100 个协程同时调 Connect(host)，Do 里面的函数只会执行一次
 	// 其他协程会阻塞在这里等待结果
-	result, err, _ := c.sf.Do(nodeName, func() (interface{}, error) {
+	result, err, _ := c.sf.Do(nodeName, func() (any, error) {
 		// 双重检查：防止在进入 Do 之前那一瞬间，别的协程刚好把连接建立好了
 		if cachedClient, ok := c.clients.Get(nodeName); ok {
 			node, _ := c.Config.GetNode(nodeName)

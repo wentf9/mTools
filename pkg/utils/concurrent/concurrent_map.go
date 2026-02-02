@@ -3,6 +3,7 @@ package concurrent
 import (
 	"encoding/json"
 	"fmt"
+	"io"
 	"maps"
 	"strings"
 	"sync"
@@ -205,9 +206,7 @@ func (m *Map[K, V]) MarshalYAML() (interface{}, error) {
 	for i := uint32(0); i < m.shardCount; i++ {
 		shard := m.shards[i]
 		shard.RLock()
-		for k, v := range shard.items {
-			tmp[k] = v
-		}
+		maps.Copy(tmp, shard.items)
 		shard.RUnlock()
 	}
 
@@ -349,17 +348,15 @@ func (m *Map[K, V]) String() string {
 // 格式:
 // [Key] val
 // [Key] val
-func (m *Map[K, V]) Print() string {
-	var sb strings.Builder
-	sb.WriteString("--- ConcurrentMap Content ---\n")
+func (m *Map[K, V]) Print(w io.Writer) {
+	fmt.Fprintln(w, "--- ConcurrentMap Content ---")
 	count := 0
 	m.IterCb(func(k K, v V) bool {
-		fmt.Fprintf(&sb, "[%v] %v\n", k, v)
+		fmt.Fprintf(w, "[%v] %v\n", k, v)
 		count++
 		return true
 	})
-	fmt.Fprintf(&sb, "--- Total: %d items ---\n", count)
-	return sb.String()
+	fmt.Fprintf(w, "--- Total: %d items ---\n", count)
 }
 
 // PrettyPrint 以格式化的 JSON 样式打印 (适合调试复杂结构)

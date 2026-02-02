@@ -209,8 +209,10 @@ func (c *Client) Shell(ctx context.Context) error {
 		ssh.TTY_OP_ISPEED: 14400,
 		ssh.TTY_OP_OSPEED: 14400,
 	}
-	fd := int(os.Stdin.Fd())
-	width, height, err := term.GetSize(fd)
+	// 获取当前终端文件描述符
+	fdIn := int(os.Stdin.Fd())
+	fdOut := int(os.Stdout.Fd())
+	width, height, err := term.GetSize(fdOut)
 	if err != nil {
 		width, height = 80, 40
 	}
@@ -228,16 +230,32 @@ func (c *Client) Shell(ctx context.Context) error {
 	}
 
 	// 设置本地终端为 Raw 模式 (这行必须在任何输出之前执行，保证体验)
-	oldState, err := term.MakeRaw(fd)
+	oldState, err := term.MakeRaw(fdIn)
 	if err != nil {
 		return fmt.Errorf("can not set term to Raw : %v", err)
 	}
-	defer term.Restore(fd, oldState)
+	defer term.Restore(fdIn, oldState)
+	// ================= Windows 窗口大小自适应 =================
+	// Windows 不支持 SIGWINCH 信号，所以我们启动一个协程，每秒检查一次窗口大小
+	// 如果大小变了，就通知远程服务器调整。
+	go func() {
+		lastW, lastH := width, height
+		ticker := time.NewTicker(1 * time.Second)
+		defer ticker.Stop()
+
+		for range ticker.C {
+			currW, currH, _ := term.GetSize(fdOut)
+			if currW != lastW || currH != lastH {
+				session.WindowChange(currH, currW)
+				lastW, lastH = currW, currH
+			}
+		}
+	}()
 	go io.Copy(os.Stdout, stdout)
 	go io.Copy(os.Stderr, stderr)
 
 	// 主线程或者新协程处理用户输入
-	go io.Copy(stdin, os.Stdin)
+	io.Copy(stdin, os.Stdin)
 
 	return session.Wait()
 }
@@ -254,8 +272,10 @@ func (c *Client) ShellWithSudo(ctx context.Context) error {
 		ssh.TTY_OP_ISPEED: 14400,
 		ssh.TTY_OP_OSPEED: 14400,
 	}
-	fd := int(os.Stdin.Fd())
-	width, height, err := term.GetSize(fd)
+	// 获取当前终端文件描述符
+	fdIn := int(os.Stdin.Fd())
+	fdOut := int(os.Stdout.Fd())
+	width, height, err := term.GetSize(fdOut)
 	if err != nil {
 		width, height = 80, 40
 	}
@@ -273,11 +293,28 @@ func (c *Client) ShellWithSudo(ctx context.Context) error {
 	}
 
 	// 设置本地终端为 Raw 模式 (这行必须在任何输出之前执行，保证体验)
-	oldState, err := term.MakeRaw(fd)
+	oldState, err := term.MakeRaw(fdIn)
 	if err != nil {
 		return fmt.Errorf("can not set term to Raw : %v", err)
 	}
-	defer term.Restore(fd, oldState)
+	defer term.Restore(fdIn, oldState)
+
+	// ================= Windows 窗口大小自适应 =================
+	// Windows 不支持 SIGWINCH 信号，所以我们启动一个协程，每秒检查一次窗口大小
+	// 如果大小变了，就通知远程服务器调整。
+	go func() {
+		lastW, lastH := width, height
+		ticker := time.NewTicker(1 * time.Second)
+		defer ticker.Stop()
+
+		for range ticker.C {
+			currW, currH, _ := term.GetSize(fdOut)
+			if currW != lastW || currH != lastH {
+				session.WindowChange(currH, currW)
+				lastW, lastH = currW, currH
+			}
+		}
+	}()
 
 	// =================== 智能 Sudo 核心逻辑开始 ===================
 
@@ -307,73 +344,60 @@ func (c *Client) ShellWithSudo(ctx context.Context) error {
 		go io.Copy(stdin, os.Stdin)
 		return session.Wait()
 	}
-	// 第二步：智能等待密码提示符
-	var outputBuffer bytes.Buffer // 用于累积最近的输出以便匹配字符串
+	buf := make([]byte, 1024)
+	var outputHistory bytes.Buffer
+	passwordSent := false
 
-	// 设置一个超时机制，防止 sudo 不需要密码或者卡死导致程序永远等待
-	passwordPromptFound := make(chan bool)
-	timeout := time.After(10 * time.Second)
-	// 在“握手阶段”手动读取 stdout
-	bufferTooLarge := make(chan bool)
+	// 设置一个总体超时时间
+	done := make(chan struct{})
 
 	go func() {
-		// 我们创建一个缓冲区，读取远程的输出
-		buf := make([]byte, 1024)
-		for {
-			// 从远程读取数据
-			n, err := stdout.Read(buf)
-			if err != nil {
-				close(passwordPromptFound)
-				close(bufferTooLarge)
-				break
-			}
-			// 1. 重要：立即将读到的内容原样打印到屏幕，让用户看到 "[sudo] password for..."
-			// os.Stdout.Write(buf[:n])
-
-			// 2. 将内容存入临时 buffer 用于检查
-			// 为了防止 buffer 无限增长，实际生产中应该只保留最后几百个字节，这里简化处理
-			outputBuffer.Write(buf[:n])
-			text := outputBuffer.String()
-
-			// 3. 检测关键字
-			// 常见的提示符有: "Password:", "[sudo] password for user:", "输入密码:"
-			// 检测 "assword" (忽略大小写) 通常比较通用，且避开了首字母P的大小写问题
-			// 也可以加入中文 "密码" 支持
-			if strings.Contains(strings.ToLower(text), "assword") || strings.Contains(text, "密码") {
-				// 找到提示符了！发送密码
-				// stdin.Write([]byte(rootPass + "\n"))
-				passwordPromptFound <- true
-				// 此时不要 break，因为可能还有后续的回显（比如换行符），
-				// 但为了简化逻辑，我们假设密码发送后就可以转交控制权了。
-				// 更好的做法是再等一小会儿看有没有 "Try again" 错误，但这里先做基础版。
-				break
-			}
-			// 4. 超时保护逻辑 (可选)
-			// 如果读了太多内容还没提示符，或者时间太久，也可以强制跳出循环交还给用户
-			if outputBuffer.Len() > 500 {
-				// 缓冲区过大，可能已经进入了 shell 或者 sudo 免密成功了
-				// 清空 buffer 防止内存泄漏，继续在此循环或跳出视具体需求而定
-				// 针对本例，如果已经不需要密码（免密sudo），用户会看到提示符，我们直接把控制权交给用户即可
-				// 但如何判断免密成功比较难，通常通过超时或者检测 shell 提示符 (#/$).
-				bufferTooLarge <- true
-				break
-			}
-		}
+		// 这是一个简单的定时器，5秒后如果你还没输完密码逻辑，就强制结束握手进入透传模式
+		time.Sleep(5 * time.Second)
+		close(done)
 	}()
 
-	// 5. 等待密码提示符出现，并设置超时
-	select {
-	case <-passwordPromptFound:
-		// 找到了提示符，发送密码
-		_, err = stdin.Write([]byte(password + "\n"))
-		if err != nil {
-			return fmt.Errorf("failed to send password: %v", err)
+HandshakeLoop:
+	for {
+		select {
+		case <-done:
+			break HandshakeLoop
+		default:
+
+			n, err := stdout.Read(buf)
+			if err != nil {
+				break HandshakeLoop
+			}
+
+			if n <= 0 {
+				continue
+			}
+			chunk := buf[:n]
+			// 丢弃密码提示符
+			// os.Stdout.Write(chunk)
+			// ====================================================
+
+			if passwordSent {
+				continue
+			}
+			outputHistory.Write(chunk)
+			text := outputHistory.String()
+			// 只检测最近的 500 字符，防止 buffer 过大
+			if outputHistory.Len() > 500 {
+				outputHistory.Reset()
+			}
+
+			if strings.Contains(strings.ToLower(text), "assword") || strings.Contains(text, "密码") {
+				stdin.Write([]byte(password + "\n"))
+				passwordSent = true
+				// 密码发送后，我们可以选择跳出，也可以稍等一下看有无错误
+				// 这里选择直接跳出，把控制权交给 io.Copy 加快响应
+				break HandshakeLoop
+			}
+
 		}
-	case <-timeout:
-		return fmt.Errorf("timeout waiting for password prompt")
-	case <-bufferTooLarge:
-		return fmt.Errorf("buffer is too large when waiting for password prompt")
 	}
+
 	// =================== 智能 Sudo 核心逻辑结束 ===================
 
 	// 8. 交接控制权
@@ -383,7 +407,7 @@ func (c *Client) ShellWithSudo(ctx context.Context) error {
 	go io.Copy(os.Stderr, stderr)
 
 	// 主线程或者新协程处理用户输入
-	go io.Copy(stdin, os.Stdin)
+	io.Copy(stdin, os.Stdin)
 
 	return session.Wait()
 }
