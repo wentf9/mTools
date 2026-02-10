@@ -9,8 +9,37 @@ import (
 	"strings"
 	"syscall"
 
+	"example.com/MikuTools/pkg/config"
 	"golang.org/x/term"
 )
+
+// GetLocalSudoPassword 尝试从配置文件中获取本地 sudo 密码
+func GetLocalSudoPassword() string {
+	configPath, keyPath := GetConfigFilePath()
+	configStore := config.NewDefaultStore(configPath, keyPath)
+	cfg, err := configStore.Load()
+	if err != nil {
+		return ""
+	}
+	provider := config.NewProvider(cfg)
+
+	// 尝试查找别名为 "localhost" 或 "local" 的节点
+	nodeId := provider.Find("localhost")
+	if nodeId == "" {
+		nodeId = provider.Find("local")
+	}
+	if nodeId == "" {
+		// 尝试当前用户名
+		nodeId = provider.Find(GetCurrentUser())
+	}
+
+	if nodeId != "" {
+		if id, ok := provider.GetIdentity(nodeId); ok {
+			return id.Password
+		}
+	}
+	return ""
+}
 
 // ParseAddr 解析 user@host:port 格式的字符串
 func ParseAddr(input string) (string, string, uint16) {

@@ -8,6 +8,8 @@ type Executor interface {
 	Run(ctx context.Context, cmd string) (string, error)
 	// RunWithSudo 提权执行命令
 	RunWithSudo(ctx context.Context, cmd string) (string, error)
+	// InteractiveWithSudo 开启交互式提权会话 (如 sudo -s)
+	InteractiveWithSudo(ctx context.Context, args []string) error
 }
 
 // Transfer 定义文件传输接口

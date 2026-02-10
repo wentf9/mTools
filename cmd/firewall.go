@@ -74,7 +74,8 @@ func init() {
 func (o *FirewallOptions) RunOnHosts(ctx context.Context, action func(fw firewall.Firewall) (string, error)) error {
 	// 如果没有指定主机，默认本地模式
 	if o.Host == "" && o.HostFile == "" && o.CSVFile == "" {
-		exec := executor.NewLocalExecutor()
+		pwd := cmdutils.GetLocalSudoPassword()
+		exec := executor.NewLocalExecutor(pwd)
 		fw, err := firewall.DetectFirewall(ctx, exec)
 		if err != nil {
 			return err
