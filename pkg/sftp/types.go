@@ -2,7 +2,7 @@ package sftp
 
 const (
 	DefaultConcurrentFiles = 5
-	DefaultThreadsPerFile  = 4
+	DefaultThreadsPerFile  = 64
 	DefaultChunkSize       = 32 * 1024 // 32KB SFTP 默认包大小优化
 )
 

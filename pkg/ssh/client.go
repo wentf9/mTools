@@ -57,13 +57,26 @@ func (c *Client) Run(ctx context.Context, cmd string) (string, error) {
 	return startWithTimeout(ctx, session, cmd)
 }
 
+// RunScript 执行 Shell 脚本内容
+func (c *Client) RunScript(ctx context.Context, scriptContent string) (string, error) {
+	session, err := c.sshClient.NewSession()
+	if err != nil {
+		return "", err
+	}
+	defer session.Close()
+
+	session.Stdin = strings.NewReader(scriptContent)
+	// 使用 bash -s 从 stdin 读取脚本
+	return startWithTimeout(ctx, session, "bash -s")
+}
+
 // RunWithSudo 提权执行命令，自动注入密码，并返回干净的输出
 func (c *Client) RunWithSudo(ctx context.Context, command string) (string, error) {
 	switch c.node.SudoMode {
 	case "sudo":
-		return c.runWithSudo(ctx, command, c.identity.Password)
+		return c.runWithSudo(ctx, command, c.identity.Password, nil)
 	case "sudoer":
-		return c.runWithSudo(ctx, command, "")
+		return c.runWithSudo(ctx, command, "", nil)
 	case "su":
 		return c.runWithSu(command, c.node.SuPwd)
 	default:
@@ -71,8 +84,23 @@ func (c *Client) RunWithSudo(ctx context.Context, command string) (string, error
 	}
 }
 
+// RunScriptWithSudo 提权执行脚本
+func (c *Client) RunScriptWithSudo(ctx context.Context, scriptContent string) (string, error) {
+	switch c.node.SudoMode {
+	case "sudo":
+		return c.runWithSudo(ctx, "bash -s", c.identity.Password, strings.NewReader(scriptContent))
+	case "sudoer":
+		return c.runWithSudo(ctx, "bash -s", "", strings.NewReader(scriptContent))
+	case "su":
+		// su 模式下执行脚本比较复杂，暂时通过 bash -c 包裹
+		return c.runWithSu(fmt.Sprintf("bash -c '%s'", strings.ReplaceAll(scriptContent, "'", "'\\''")), c.node.SuPwd)
+	default:
+		return "", fmt.Errorf("unsupported sudo mode: %s", c.node.SudoMode)
+	}
+}
+
 // runWithSudo 执行 sudo 命令，自动注入密码，并返回干净的输出
-func (c *Client) runWithSudo(ctx context.Context, command string, password string) (string, error) {
+func (c *Client) runWithSudo(ctx context.Context, command string, password string, extraStdin io.Reader) (string, error) {
 	session, err := c.sshClient.NewSession()
 	if err != nil {
 		return "", err
@@ -80,10 +108,14 @@ func (c *Client) runWithSudo(ctx context.Context, command string, password strin
 	defer session.Close()
 
 	// 1. 设置输入流 (Stdin)
-	// 把 "密码 + 换行符" 准备好，放入 Stdin
-	// 当 sudo -S 启动时，会立刻从这里读走密码
 	if password != "" {
-		session.Stdin = strings.NewReader(password + "\n")
+		if extraStdin != nil {
+			session.Stdin = io.MultiReader(strings.NewReader(password+"\n"), extraStdin)
+		} else {
+			session.Stdin = strings.NewReader(password + "\n")
+		}
+	} else if extraStdin != nil {
+		session.Stdin = extraStdin
 	}
 
 	// 2. 构建命令

@@ -175,7 +175,7 @@ func startFirewallCmd(command []string) {
 	if len(csvHosts) > 0 {
 		// 使用CSV文件中的认证信息
 		for _, host := range csvHosts {
-			wg.Go(func() { executeHost(host.ip, host.user, host.password) }) // 1.25新特性,不支持低版本
+			wg.Go(func() { executeHost(host.IP, host.User, host.Password) }) // 1.25新特性,不支持低版本
 		}
 	} else {
 		// 使用命令行参数中的认证信息

@@ -1,315 +1,358 @@
-/*
-Copyright © 2025 NAME HERE <EMAIL ADDRESS>
-*/
 package cmd
 
 import (
+	"context"
 	"fmt"
 	"os"
-
-	"regexp"
-
-	"example.com/MikuTools/utils"
-	"github.com/spf13/cobra"
-
-	// "os/exec"
-	"bufio"
-	// "container/list"
-	"io"
 	"strings"
-	"sync"
+
+	"example.com/MikuTools/cmd/utils"
+	"example.com/MikuTools/pkg/config"
+	"example.com/MikuTools/pkg/models"
+	"example.com/MikuTools/pkg/ssh"
+	pkgutils "example.com/MikuTools/pkg/utils"
+	"github.com/spf13/cobra"
 )
 
-type hostInfo struct {
-	ip       string
-	user     string
-	password string
+type ExecOptions struct {
+	SshOptions
+	HostFile  string
+	CSVFile   string
+	CmdFile   string
+	ShellFile string
+	Command   string
+	TaskCount int
+	Su        bool
+	SuPwd     string
 }
 
-var (
-	ip        string
-	port      uint16
-	user      string
-	password  string
-	command   string
-	hostFile  string
-	cmdFile   string
-	shellFile string
-	csvFile   string
-	sudo      uint8
-	suPwd     string
-	// keyFile string
-)
+func NewExecOptions() *ExecOptions {
+	return &ExecOptions{
+		SshOptions: *NewSshOptions(),
+		TaskCount:  1,
+	}
+}
 
-// execCmd represents the exec command
-var execCmd = &cobra.Command{
-	Use:   "exec [-u user] -i ip -c command [-p password] [-S]",
-	Short: "对多台主机执行命令",
-	Long: `一条命令在多台主机执行
-	用法：
-	mtool exec -u user -i ip -c command
-	如果未通过-p选项显式提供密码,将会从终端输入或通过保存的密码文件读取密码
-	成功登录过的用户和ip组合的密码将会保存到密码文件中
-	密码采用对称加密算法加密保存,密码文件位置为~/.mtool_passwords.json`,
-	Run: func(cmd *cobra.Command, args []string) {
-		isShell := false
-		issu, _ := cmd.Flags().GetBool("su")
-		issudo, _ := cmd.Flags().GetBool("sudo")
-		if issu || issudo {
-			if issu {
-				sudo = 2
-			} else {
-				sudo = 1
+func NewCmdExec() *cobra.Command {
+	o := NewExecOptions()
+	cmd := &cobra.Command{
+		Use:   "exec [flags] [command]",
+		Short: "对一个或多个远程主机执行命令",
+		Long: `对一个或多个远程主机执行命令。支持批量执行和提权。
+用法示例:
+mtool exec -H host1,host2 -c "uptime"
+mtool exec -I hosts.txt -s script.sh
+mtool exec user@host "df -h"
+
+通过flags提供主机和用户信息时会覆盖参数提供的信息。`,
+		RunE: func(cmd *cobra.Command, args []string) error {
+			o.Complete(cmd, args)
+			if err := o.Validate(); err != nil {
+				return err
 			}
-		} else {
-			sudo = 0
-		}
-		if shellFile != "" {
-			if file, err := os.Open(shellFile); err == nil {
-				// 读取shell脚本内容
-				shellContent, err := io.ReadAll(file)
-				if err != nil {
-					fmt.Fprintf(os.Stderr, "读取shell脚本失败: %v\n", err)
-					os.Exit(1)
+			return o.Run()
+		},
+	}
+
+	// 基础连接参数
+	cmd.Flags().StringVarP(&o.Host, "host", "H", "", "目标主机,多个主机用逗号分隔")
+	cmd.Flags().Uint16VarP(&o.Port, "port", "P", 0, "SSH端口")
+	cmd.Flags().StringVarP(&o.User, "user", "u", "", "SSH用户名")
+	cmd.Flags().StringVarP(&o.Password, "password", "w", "", "SSH密码")
+	cmd.Flags().StringVarP(&o.KeyFile, "key", "i", "", "SSH私钥文件路径")
+	cmd.Flags().StringVarP(&o.KeyPass, "key_pass", "W", "", "SSH私钥密码")
+	cmd.Flags().StringVarP(&o.JumpHost, "jump", "j", "", "跳板机地址[user@]host[:port]")
+	cmd.Flags().StringVarP(&o.Alias, "alias", "a", "", "连接别名")
+
+	// 提权参数
+	cmd.Flags().BoolVarP(&o.Sudo, "sudo", "s", false, "使用sudo执行")
+	cmd.Flags().BoolVar(&o.Su, "su", false, "使用su切换到root执行")
+	cmd.Flags().StringVar(&o.SuPwd, "suPwd", "", "su切换root的密码")
+
+	// 执行参数
+	cmd.Flags().StringVarP(&o.Command, "cmd", "c", "", "要执行的命令")
+	cmd.Flags().StringVarP(&o.HostFile, "ifile", "I", "", "主机列表文件")
+	cmd.Flags().StringVar(&o.CSVFile, "csv", "", "CSV格式主机列表 (ip,user,password)")
+	cmd.Flags().StringVarP(&o.CmdFile, "cfile", "C", "", "包含命令的文件")
+	cmd.Flags().StringVar(&o.ShellFile, "shell", "", "本地Shell脚本文件")
+	cmd.Flags().IntVar(&o.TaskCount, "task", 1, "并行执行的主机数")
+
+	cmd.MarkFlagsMutuallyExclusive("password", "key")
+	cmd.MarkFlagsMutuallyExclusive("host", "ifile", "csv")
+	cmd.MarkFlagsMutuallyExclusive("cmd", "cfile", "shell")
+	cmd.MarkFlagsMutuallyExclusive("sudo", "su")
+
+	return cmd
+}
+
+func (o *ExecOptions) Complete(cmd *cobra.Command, args []string) {
+	o.args = args
+	if len(args) == 1 && o.Command == "" && o.CmdFile == "" && o.ShellFile == "" {
+		// 检查是否是 [user@]host 格式，或者是直接的命令
+		if strings.Contains(args[0], "@") || !strings.Contains(args[0], " ") {
+			// 可能是主机地址，尝试解析
+			u, h, p := utils.ParseAddr(args[0])
+			if h != "" {
+				if o.Host == "" {
+					o.Host = h
 				}
-				command = string(shellContent)
-				file.Close()
+				if o.User == "" {
+					o.User = u
+				}
+				if o.Port == 0 {
+					o.Port = p
+				}
 			} else {
-				fmt.Fprintf(os.Stderr, "打开shell脚本失败: %v\n", err)
-				os.Exit(1)
+				// 否则视为命令
+				o.Command = args[0]
 			}
-			isShell = true
-		}
-		sshCommand := utils.NewSSHCommand(command, sudo, isShell)
-		hosts, csvHosts, err := parseHosts(ip, hostFile, csvFile)
-		if err != nil {
-			fmt.Fprintf(os.Stderr, "解析主机列表失败: %v\n", err)
-			os.Exit(1)
-		}
-		concurrency := len(hosts)
-		if csvFile != "" {
-			concurrency = len(csvHosts)
-		}
-		ExecuteConcurrently(hosts, csvHosts, sshCommand, concurrency)
-	},
-}
-
-func bufferedReadIpFile(path string) []string {
-	var hosts []string
-	file, err := os.Open(path)
-	if err != nil {
-		fmt.Println(err)
-		os.Exit(1)
-	}
-	defer file.Close()
-	reader := bufio.NewReader(file)
-	// 预览前5字节（不移动读取指针）
-	// peekBytes, err := reader.Peek(5)
-	// fmt.Println("预览内容：", string(peekBytes))
-	reg := regexp.MustCompile(`\s`)
-	// 逐行读取
-	for {
-		line, err := reader.ReadString('\n') // 读取到换行符
-		if err == nil {
-			line = reg.ReplaceAllString(line, "")
-			if line == "" {
-				continue
-			}
-			hosts = append(hosts, line)
-		} else if err == io.EOF {
-			line = reg.ReplaceAllString(line, "")
-			if line != "" {
-				hosts = append(hosts, line)
-			}
-			break
 		} else {
-			fmt.Println(err)
-			os.Exit(1)
+			o.Command = args[0]
 		}
-	}
-	return hosts
-}
-
-func parseHosts(ip, hostFile, csvFile string) ([]string, []hostInfo, error) {
-	var hosts []string
-	var csvHosts []hostInfo
-	// 解析主机列表
-	if csvFile != "" {
-		var err error
-		csvHosts, err = readCSVFile(csvFile)
-		if err != nil {
-			return nil, nil, fmt.Errorf("读取CSV文件失败: %v", err)
-		}
-	} else {
-		if ip != "" {
-			hosts = strings.Split(ip, ",")
-		} else if hostFile != "" {
-			hosts = bufferedReadIpFile(hostFile)
-		}
-		for _, host := range hosts {
-			if !utils.IsValidIPv4(host) {
-				return nil, nil, fmt.Errorf("非法的ip地址: %s", host)
+	} else if len(args) > 1 {
+		// 可能是 host command ...
+		u, h, p := utils.ParseAddr(args[0])
+		if h != "" {
+			if o.Host == "" {
+				o.Host = h
+			}
+			if o.User == "" {
+				o.User = u
+			}
+			if o.Port == 0 {
+				o.Port = p
+			}
+			if o.Command == "" {
+				o.Command = strings.Join(args[1:], " ")
+			}
+		} else {
+			if o.Command == "" {
+				o.Command = strings.Join(args, " ")
 			}
 		}
 	}
-	return hosts, csvHosts, nil
 }
 
-func ExecuteConcurrently(hosts []string, csvHosts []hostInfo, cmd utils.Command, concurrency int) {
-	sem := make(chan struct{}, concurrency)
-	wg := sync.WaitGroup{}
-	currentOsUser := ""
-	if u := utils.GetCurrentUser(); u != "" {
-		currentOsUser = u
-		utils.Logger.Debug(fmt.Sprintf("当前系统用户: %s", currentOsUser))
+func (o *ExecOptions) Validate() error {
+	if o.Command == "" && o.CmdFile == "" && o.ShellFile == "" {
+		return fmt.Errorf("必须指定要执行的命令或脚本")
 	}
-	passwords, err := utils.LoadPasswords()
+	if o.Host == "" && o.HostFile == "" && o.CSVFile == "" {
+		return fmt.Errorf("必须指定目标主机")
+	}
+	return nil
+}
+
+func (o *ExecOptions) Run() error {
+	configPath, keyPath := utils.GetConfigFilePath()
+	configStore := config.NewDefaultStore(configPath, keyPath)
+	cfg, err := configStore.Load()
 	if err != nil {
-		fmt.Fprintf(os.Stderr, "could not load passwords: %v\n", err)
-		passwords = utils.NewPasswordStore()
+		return fmt.Errorf("加载配置文件失败: %v", err)
+	}
+	provider := config.NewProvider(cfg)
+	connector := ssh.NewConnector(provider)
+	defer connector.CloseAll()
+
+	// 准备执行内容
+	var execCmd string
+	var isScript bool
+	if o.ShellFile != "" {
+		content, err := os.ReadFile(o.ShellFile)
+		if err != nil {
+			return fmt.Errorf("读取脚本文件失败: %v", err)
+		}
+		execCmd = string(content)
+		isScript = true
+	} else if o.CmdFile != "" {
+		content, err := os.ReadFile(o.CmdFile)
+		if err != nil {
+			return fmt.Errorf("读取命令文件失败: %v", err)
+		}
+		execCmd = strings.TrimSpace(string(content))
+	} else {
+		execCmd = o.Command
 	}
 
-	passwordModified := false
+	hosts, csvHosts, err := utils.ParseHosts(o.Host, o.HostFile, o.CSVFile)
+	if err != nil {
+		return err
+	}
 
-	executeHost := func(h string, u string, p string) {
+	ctx := context.Background()
+	wp := pkgutils.NewWorkerPool(uint(o.TaskCount))
 
-		sem <- struct{}{}
-		defer func() { <-sem }()
+	// 结果收集（可选，目前直接打印）
 
-		hostPassword := p
-		if hostPassword == "" {
+	executeOnHost := func(h string, u string, pass string) {
+		wp.Execute(func() {
+			addr := utils.HostInfo{IP: h, User: u, Password: pass}
+			nodeId, updated, err := o.getOrCreateNode(provider, addr)
+			if err != nil {
+				fmt.Printf("[%s] 错误: %v\n", h, err)
+				return
+			}
+			if updated {
+				configStore.Save(cfg)
+			}
 
-			if storedPass, ok := passwords.GetPass(u, h); ok {
-				hostPassword = storedPass
-			} else {
-				// 如果没有保存的密码，从终端读取
-				if newPass, err := utils.ReadPasswordFromTerminal(fmt.Sprintf("请输入 %s@%s 的密码: ", u, h)); err == nil {
-					hostPassword = newPass
+			client, err := connector.Connect(ctx, nodeId)
+			if err != nil {
+				fmt.Printf("[%s] 连接失败: %v\n", h, err)
+				return
+			}
+
+			var output string
+			var execErr error
+
+			if isScript {
+				if o.Sudo || o.Su {
+					output, execErr = client.RunScriptWithSudo(ctx, execCmd)
 				} else {
-					fmt.Fprintf(os.Stderr, "读取密码失败: %v\n", err)
+					output, execErr = client.RunScript(ctx, execCmd)
 				}
-			}
-
-		}
-
-		if suPwd == "" {
-			suPwd = hostPassword
-		}
-
-		c := utils.SSHCli{
-			Host:  h,
-			Port:  port,
-			User:  u,
-			Pwd:   hostPassword,
-			SuPwd: suPwd,
-		}
-		err := c.Connect()
-		if err != nil {
-			fmt.Printf("[ERROR] %s\n------------\n", h)
-			fmt.Fprintf(os.Stderr, "连接到主机 %s 失败: %v\n", h, err)
-			return
-		}
-		defer c.Close()
-
-		// 如果有密码并且是新密码，保存它
-		if hostPassword != "" {
-			passwordModified = passwords.SaveOrUpdate(u, h, hostPassword)
-		}
-
-		result, err := cmd.Execute(&c)
-		if err != nil {
-			fmt.Printf("[ERROR] %s\n------------\n", h)
-			fmt.Fprintf(os.Stderr, "执行命令失败: %v\n%s", err, result)
-		} else {
-			fmt.Printf("[SUCCESS] %s\n------------\n%s", h, result)
-		}
-	}
-
-	if len(csvHosts) > 0 {
-		// 使用CSV文件中的认证信息
-		for _, host := range csvHosts {
-			wg.Go(func() { executeHost(host.ip, host.user, host.password) }) // 1.25新特性,不支持低版本
-		}
-	} else {
-		// 使用命令行参数中的认证信息
-		for _, h := range hosts {
-			if user == "" {
-				if currentOsUser == "" {
-					fmt.Fprintf(os.Stderr, "未指定用户,且当前系统用户无法获取\n")
-					os.Exit(1)
-				}
-				wg.Go(func() { executeHost(h, currentOsUser, password) })
 			} else {
-				wg.Go(func() { executeHost(h, user, password) })
+				if o.Sudo || o.Su {
+					output, execErr = client.RunWithSudo(ctx, execCmd)
+				} else {
+					output, execErr = client.Run(ctx, execCmd)
+				}
 			}
-		}
-	}
-	wg.Wait()
 
-	if passwordModified {
-		if err := passwords.Save2File(); err != nil {
-			fmt.Fprintf(os.Stderr, "保存密码到文件失败: %v", err)
-		} else {
-			utils.Logger.Info(fmt.Sprintf("密码已保存到文件: %s@%s", user, ip))
-		}
+			if execErr != nil {
+				fmt.Printf("[ERROR] %s\n------------\n%s\n错误: %v\n", h, output, execErr)
+			} else {
+				fmt.Printf("[SUCCESS] %s\n------------\n%s\n", h, output)
+			}
+		})
 	}
+
+	for _, h := range hosts {
+		executeOnHost(h, o.User, o.Password)
+	}
+	for _, ch := range csvHosts {
+		executeOnHost(ch.IP, ch.User, ch.Password)
+	}
+
+	wp.Wait()
+	return nil
 }
 
-// func createSSHClient(host string) (*ssh.Client, error) {
-// 	config := &ssh.ClientConfig{
-// 		User: user,
-// 		Auth: []ssh.AuthMethod{
-// 			ssh.Password(password),
-// 		},
-// 		HostKeyCallback: ssh.InsecureIgnoreHostKey(),
-// 		Timeout:         10 * time.Second,
-// 	}
-// 	return ssh.Dial("tcp", fmt.Sprintf("%s:%d", host, port), config)
-// }
+func (o *ExecOptions) getOrCreateNode(provider config.ConfigProvider, addr utils.HostInfo) (string, bool, error) {
+	host := addr.IP
+	user := addr.User
+	port := o.Port
 
-// func execCommand(host, command string) (string, error) {
-// 	client, err := createSSHClient(host)
-// 	if err != nil {
-// 		return "", err
-// 	}
-// 	defer client.Close()
+	if user == "" {
+		user = utils.GetCurrentUser()
+	}
+	if port == 0 {
+		port = 22
+	}
 
-// 	session, err := client.NewSession()
-// 	if err != nil {
-// 		return "", err
-// 	}
-// 	defer session.Close()
+	nodeId := provider.Find(host)
+	if nodeId == "" {
+		nodeId = provider.Find(fmt.Sprintf("%s@%s:%d", user, host, port))
+	}
 
-// 	output, err := session.CombinedOutput(command)
-// 	return string(output), err
-// }
+	if nodeId != "" {
+		updated := o.updateNode(nodeId, provider, addr.Password)
+		return nodeId, updated, nil
+	}
+
+	// 创建新节点
+	nodeId = fmt.Sprintf("%s@%s:%d", user, host, port)
+	sudoMode := "none"
+	if o.Sudo {
+		sudoMode = "sudo"
+	} else if o.Su {
+		sudoMode = "su"
+	}
+
+	node := models.Node{
+		HostRef:     fmt.Sprintf("%s:%d", host, port),
+		IdentityRef: fmt.Sprintf("%s@%s", user, host),
+		ProxyJump:   o.JumpHost,
+		SudoMode:    sudoMode,
+		SuPwd:       o.SuPwd,
+	}
+
+	if node.ProxyJump != "" {
+		jumpHost := provider.Find(node.ProxyJump)
+		if jumpHost == "" {
+			return "", false, fmt.Errorf("跳板机 %s 信息不存在", node.ProxyJump)
+		}
+		node.ProxyJump = jumpHost
+	}
+
+	identity := models.Identity{
+		User: user,
+	}
+
+	password := addr.Password
+	if password == "" && o.KeyFile == "" {
+		// 批量执行时，如果没密码，可能需要从终端读一次，但多主机并发读密码会有问题
+		// 理想情况下批量执行应该要求已保存密码或通过 flag 提供
+		// 这里简单处理
+		pass, err := utils.ReadPasswordFromTerminal(fmt.Sprintf("请输入 %s@%s 的密码: ", user, host))
+		if err != nil {
+			return "", false, err
+		}
+		password = pass
+	}
+
+	if password != "" {
+		identity.Password = password
+		identity.AuthType = "password"
+	} else if o.KeyFile != "" {
+		identity.KeyPath = o.KeyFile
+		identity.Passphrase = o.KeyPass
+		identity.AuthType = "key"
+	}
+
+	provider.AddNode(nodeId, node)
+	provider.AddHost(node.HostRef, models.Host{Address: host, Port: port})
+	provider.AddIdentity(node.IdentityRef, identity)
+
+	return nodeId, true, nil
+}
+
+func (o *ExecOptions) updateNode(nodeId string, provider config.ConfigProvider, password string) bool {
+	node, _ := provider.GetNode(nodeId)
+	identity, _ := provider.GetIdentity(nodeId)
+	updated := false
+
+	if password != "" {
+		identity.Password = password
+		identity.AuthType = "password"
+		updated = true
+	}
+
+	sudoMode := "none"
+	if o.Sudo {
+		sudoMode = "sudo"
+	} else if o.Su {
+		sudoMode = "su"
+	}
+
+	if sudoMode != "none" && node.SudoMode != sudoMode {
+		node.SudoMode = sudoMode
+		updated = true
+	}
+
+	if o.SuPwd != "" && node.SuPwd != o.SuPwd {
+		node.SuPwd = o.SuPwd
+		updated = true
+	}
+
+	if updated {
+		provider.AddNode(nodeId, node)
+		provider.AddIdentity(node.IdentityRef, identity)
+	}
+
+	return updated
+}
 
 func init() {
-	rootCmd.AddCommand(execCmd)
-
-	// Here you will define your flags and configuration settings.
-
-	// Cobra supports Persistent Flags which will work for this command
-	// and all subcommands, e.g.:
-	execCmd.Flags().StringVarP(&ip, "ip", "i", "", "需要执行命令的主机,使用英文逗号分隔,和ifile及csv只能选择一个")
-	execCmd.Flags().Uint16Var(&port, "port", 22, "ssh端口")
-	execCmd.Flags().StringVarP(&command, "cmd", "c", "", "待执行命令,和cfile及shell只能选择一个")
-	execCmd.Flags().StringVarP(&user, "user", "u", "", "ssh用户")
-	execCmd.Flags().StringVarP(&password, "passwd", "p", "", "ssh密码")
-	execCmd.Flags().StringVarP(&hostFile, "ifile", "I", "", "记录需要执行命令的主机的文件的路径,每个ip一行")
-	execCmd.Flags().StringVarP(&csvFile, "csv", "", "", "CSV文件路径,包含主机IP,用户名,密码,每行一条记录")
-	execCmd.Flags().StringVarP(&cmdFile, "cfile", "C", "", "记录需要执行的脚本文件的路径")
-	execCmd.Flags().StringVarP(&shellFile, "shell", "s", "", "需要执行的脚本文件的位置")
-	execCmd.Flags().BoolP("sudo", "S", false, "是否需要使用sudo切换到root执行,不要在命令中加入sudo")
-	execCmd.Flags().Bool("su", false, "是否需要使用su切换到root用户再执行,不要在命令中加入sudo")
-	execCmd.Flags().StringVar(&suPwd, "suPwd", "", "切换到root用户的密码")
-	execCmd.MarkFlagsOneRequired("ip", "ifile", "csv")
-	execCmd.MarkFlagsMutuallyExclusive("ip", "ifile", "csv")
-	execCmd.MarkFlagsOneRequired("cmd", "cfile", "shell")
-	execCmd.MarkFlagsMutuallyExclusive("cmd", "cfile", "shell")
-	execCmd.MarkFlagsMutuallyExclusive("sudo", "su")
-
-	// Cobra supports local flags which will only run when this command
-	// is called directly, e.g.:
-	// execCmd.Flags().BoolP("toggle", "t", false, "Help message for toggle")
+	rootCmd.AddCommand(NewCmdExec())
 }

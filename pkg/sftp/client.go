@@ -44,20 +44,26 @@ type Client struct {
 // New 基于现有的 SSH 连接创建一个 SFTP 客户端
 // 这里复用了 pkg/ssh 中已经建立好的连接 (包括跳板机隧道)
 func NewClient(sshCli *ssh.Client, opts ...Option) (*Client, error) {
-	// sftp.NewClient 会在 ssh 连接上打开一个新的 Subsystem
-	client, err := sftp.NewClient(sshCli.SSHClient())
-	if err != nil {
-		return nil, fmt.Errorf("failed to create sftp subsystem: %w", err)
-	}
 	sftpCli := &Client{
-		sftpClient: client,
-		sshClient:  sshCli,
-		config:     DefaultConfig(),
+		sshClient: sshCli,
+		config:    DefaultConfig(),
 	}
 	// 应用用户传入的配置
 	for _, opt := range opts {
 		opt(sftpCli)
 	}
+
+	// 使用配置初始化底层的 sftp.Client
+	client, err := sftp.NewClient(
+		sshCli.SSHClient(),
+		sftp.MaxConcurrentRequestsPerFile(sftpCli.config.ThreadsPerFile),
+		sftp.MaxPacket(32*1024), // 恢复为标准的 32KB 提高兼容性
+	)
+	if err != nil {
+		return nil, fmt.Errorf("failed to create sftp subsystem: %w", err)
+	}
+	sftpCli.sftpClient = client
+
 	return sftpCli, nil
 }
 

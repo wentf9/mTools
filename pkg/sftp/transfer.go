@@ -18,7 +18,7 @@ func (c *Client) Upload(ctx context.Context, localPath, remotePath string, progr
 	}
 
 	if info.IsDir() {
-		return c.uploadDirectory(ctx, localPath, remotePath, progress)
+		return c.UploadDirectory(ctx, localPath, remotePath, progress)
 	}
 	// 检查远程路径是否是目录
 	remoteStat, err := c.sftpClient.Stat(remotePath)
@@ -26,7 +26,7 @@ func (c *Client) Upload(ctx context.Context, localPath, remotePath string, progr
 		// 如果是目录，拼接文件名
 		remotePath = c.JoinPath(remotePath, filepath.Base(localPath))
 	}
-	return c.uploadFile(ctx, localPath, remotePath, info.Size(), info.Mode(), progress)
+	return c.UploadFile(ctx, localPath, remotePath, info.Size(), info.Mode(), progress)
 }
 
 // Download 下载入口：支持文件或目录
@@ -37,7 +37,7 @@ func (c *Client) Download(ctx context.Context, remotePath, localPath string, pro
 	}
 
 	if info.IsDir() {
-		return c.downloadDirectory(ctx, remotePath, localPath, progress)
+		return c.DownloadDirectory(ctx, remotePath, localPath, progress)
 	}
 
 	stat, err := os.Stat(localPath)
@@ -45,82 +45,63 @@ func (c *Client) Download(ctx context.Context, remotePath, localPath string, pro
 		localPath = filepath.Join(localPath, info.Name())
 	}
 
-	return c.downloadFile(ctx, remotePath, localPath, info.Size(), info.Mode(), progress)
+	return c.DownloadFile(ctx, remotePath, localPath, info.Size(), info.Mode(), progress)
 }
 
 // ================== 单文件多线程分块逻辑 ==================
 
-func (c *Client) uploadFile(ctx context.Context, localPath, remotePath string, size int64, mode os.FileMode, progress ProgressCallback) error {
-	// 1. 打开本地文件
+func (c *Client) UploadFile(ctx context.Context, localPath, remotePath string, size int64, mode os.FileMode, progress ProgressCallback) error {
 	srcFile, err := os.Open(localPath)
 	if err != nil {
 		return err
 	}
 	defer srcFile.Close()
 
-	// 2. 创建远程文件
 	dstFile, err := c.sftpClient.Create(remotePath)
 	if err != nil {
 		return err
 	}
 	defer dstFile.Close()
 
-	// 3. 只有1个线程或文件很小，直接流式传输（减少 overhead）
-	if c.config.ThreadsPerFile <= 1 || size < c.config.ChunkSize {
-		return c.streamTransfer(srcFile, dstFile, progress)
-	}
-
-	// 4. 设置权限
 	c.sftpClient.Chmod(remotePath, mode)
 
-	// 5. 多线程分块上传
+	// 如果文件极小或并发设为1，走简单流式传输
+	if size < c.config.ChunkSize || c.config.ThreadsPerFile <= 1 {
+		_, err = io.Copy(dstFile, srcFile)
+		return err
+	}
+
+	// 显式并发分块上传
 	g, ctx := errgroup.WithContext(ctx)
-
-	// 计算块数
-	// 这里我们不需要预先计算所有块，可以使用 offset 步进
 	chunkSize := c.config.ChunkSize
-
-	// 信号量限制并发数
+	// 使用信号量限制并发数
 	sem := make(chan struct{}, c.config.ThreadsPerFile)
 
 	for offset := int64(0); offset < size; offset += chunkSize {
-		offset := offset  // capture loop var
-		sem <- struct{}{} // acquire
+		currOffset := offset
+		currSize := chunkSize
+		if currOffset+currSize > size {
+			currSize = size - currOffset
+		}
 
+		sem <- struct{}{}
 		g.Go(func() error {
-			defer func() { <-sem }() // release
+			defer func() { <-sem }()
 
-			// 检查取消
-			select {
-			case <-ctx.Done():
-				return ctx.Err()
-			default:
-			}
-
-			// 计算当前块大小
-			currentChunkSize := chunkSize
-			if offset+currentChunkSize > size {
-				currentChunkSize = size - offset
-			}
-
-			// 读本地 (ReadAt 是并发安全的)
-			buf := make([]byte, currentChunkSize)
-			n, err := srcFile.ReadAt(buf, offset)
+			buf := make([]byte, currSize)
+			n, err := srcFile.ReadAt(buf, currOffset)
 			if err != nil && err != io.EOF {
-				return fmt.Errorf("read local at %d failed: %w", offset, err)
+				return err
 			}
-			if n == 0 {
+			if n <= 0 {
 				return nil
 			}
 
-			// 写远程 (WriteAt 是并发安全的)
-			// 注意 buf[:n] 避免 EOF 导致的 buffer 未填满问题
-			_, err = dstFile.WriteAt(buf[:n], offset)
+			_, err = dstFile.WriteAt(buf[:n], currOffset)
 			if err != nil {
-				return fmt.Errorf("write remote at %d failed: %w", offset, err)
+				return err
 			}
 
-			// 报告进度
 			if progress != nil {
 				progress(n)
 			}
@@ -131,7 +112,7 @@ func (c *Client) uploadFile(ctx context.Context, localPath, remotePath string, s
 	return g.Wait()
 }
 
-func (c *Client) downloadFile(ctx context.Context, remotePath, localPath string, size int64, mode os.FileMode, progress ProgressCallback) error {
+func (c *Client) DownloadFile(ctx context.Context, remotePath, localPath string, size int64, mode os.FileMode, progress ProgressCallback) error {
 	srcFile, err := c.sftpClient.Open(remotePath)
 	if err != nil {
 		return err
@@ -144,42 +125,38 @@ func (c *Client) downloadFile(ctx context.Context, remotePath, localPath string,
 	}
 	defer dstFile.Close()
 
-	if c.config.ThreadsPerFile <= 1 || size < c.config.ChunkSize {
-		return c.streamTransfer(srcFile, dstFile, progress)
-	}
-
 	os.Chmod(localPath, mode)
+
+	if size < c.config.ChunkSize || c.config.ThreadsPerFile <= 1 {
+		_, err = io.Copy(dstFile, srcFile)
+		return err
+	}
 
 	g, ctx := errgroup.WithContext(ctx)
 	chunkSize := c.config.ChunkSize
 	sem := make(chan struct{}, c.config.ThreadsPerFile)
 
 	for offset := int64(0); offset < size; offset += chunkSize {
-		offset := offset
+		currOffset := offset
+		currSize := chunkSize
+		if currOffset+currSize > size {
+			currSize = size - currOffset
+		}
+
 		sem <- struct{}{}
 		g.Go(func() error {
 			defer func() { <-sem }()
-			select {
-			case <-ctx.Done():
-				return ctx.Err()
-			default:
-			}
 
-			currentChunkSize := chunkSize
-			if offset+currentChunkSize > size {
-				currentChunkSize = size - offset
-			}
-
-			buf := make([]byte, currentChunkSize)
-			n, err := srcFile.ReadAt(buf, offset)
+			buf := make([]byte, currSize)
+			n, err := srcFile.ReadAt(buf, currOffset)
 			if err != nil && err != io.EOF {
 				return err
 			}
-			if n == 0 {
+			if n <= 0 {
 				return nil
 			}
 
-			_, err = dstFile.WriteAt(buf[:n], offset)
+			_, err = dstFile.WriteAt(buf[:n], currOffset)
 			if err != nil {
 				return err
 			}
@@ -190,11 +167,12 @@ func (c *Client) downloadFile(ctx context.Context, remotePath, localPath string,
 			return nil
 		})
 	}
+
 	return g.Wait()
 }
 
-// 简单的流式传输兜底
-func (c *Client) streamTransfer(r io.Reader, w io.Writer, progress ProgressCallback) error {
+// StreamTransfer 简单的流式传输兜底
+func (c *Client) StreamTransfer(r io.Reader, w io.Writer, progress ProgressCallback) error {
 	buf := make([]byte, 32*1024)
 	for {
 		n, err := r.Read(buf)
@@ -218,7 +196,7 @@ func (c *Client) streamTransfer(r io.Reader, w io.Writer, progress ProgressCallb
 
 // ================== 目录并发逻辑 ==================
 
-func (c *Client) uploadDirectory(ctx context.Context, localDir, remoteDir string, progress ProgressCallback) error {
+func (c *Client) UploadDirectory(ctx context.Context, localDir, remoteDir string, progress ProgressCallback) error {
 	// 1. 确保远程根目录存在
 	if err := c.sftpClient.MkdirAll(remoteDir); err != nil {
 		// MkdirAll 可能会因为目录已存在报错，可以忽略
@@ -264,7 +242,7 @@ func (c *Client) uploadDirectory(ctx context.Context, localDir, remoteDir string
 		sem <- struct{}{}
 		g.Go(func() error {
 			defer func() { <-sem }()
-			return c.uploadFile(ctx, loopPath, loopDest, loopInfo.Size(), loopInfo.Mode(), progress)
+			return c.UploadFile(ctx, loopPath, loopDest, loopInfo.Size(), loopInfo.Mode(), progress)
 		})
 
 		return nil
@@ -277,7 +255,7 @@ func (c *Client) uploadDirectory(ctx context.Context, localDir, remoteDir string
 	return g.Wait()
 }
 
-func (c *Client) downloadDirectory(ctx context.Context, remoteDir, localDir string, progress ProgressCallback) error {
+func (c *Client) DownloadDirectory(ctx context.Context, remoteDir, localDir string, progress ProgressCallback) error {
 	if err := os.MkdirAll(localDir, 0755); err != nil {
 		return err
 	}
@@ -317,7 +295,7 @@ func (c *Client) downloadDirectory(ctx context.Context, remoteDir, localDir stri
 		sem <- struct{}{}
 		g.Go(func() error {
 			defer func() { <-sem }()
-			return c.downloadFile(ctx, loopPath, loopDest, loopInfo.Size(), loopInfo.Mode(), progress)
+			return c.DownloadFile(ctx, loopPath, loopDest, loopInfo.Size(), loopInfo.Mode(), progress)
 		})
 	}
 
