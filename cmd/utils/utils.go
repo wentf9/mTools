@@ -50,10 +50,10 @@ func ParseAddr(input string) (string, string, uint16) {
 		input = input[:atIndex]
 	}
 	if atIndex := strings.Index(input, "@"); atIndex != -1 {
-		user = input[:atIndex]
+		user = strings.TrimSpace(input[:atIndex])
 		input = input[atIndex+1:]
 	}
-	host = input
+	host = strings.TrimSpace(input)
 
 	return user, host, port
 }

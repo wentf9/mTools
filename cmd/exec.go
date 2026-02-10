@@ -71,7 +71,7 @@ mtool exec user@host "df -h"
 	cmd.Flags().StringVarP(&o.HostFile, "ifile", "I", "", "主机列表文件")
 	cmd.Flags().StringVar(&o.CSVFile, "csv", "", "CSV格式主机列表 (ip,user,password)")
 	cmd.Flags().StringVar(&o.ShellFile, "shell", "", "本地Shell脚本文件")
-	cmd.Flags().IntVar(&o.TaskCount, "task", 1, "并行执行的主机数")
+	cmd.Flags().IntVar(&o.TaskCount, "task", 3, "并行执行的主机数")
 
 	cmd.MarkFlagsMutuallyExclusive("password", "key")
 	cmd.MarkFlagsMutuallyExclusive("host", "ifile", "csv")
@@ -246,9 +246,9 @@ func (o *ExecOptions) getOrCreateNode(provider config.ConfigProvider, addr utils
 		port = 22
 	}
 
-	nodeId := provider.Find(host)
+	nodeId := provider.Find(fmt.Sprintf("%s@%s:%d", user, host, port))
 	if nodeId == "" {
-		nodeId = provider.Find(fmt.Sprintf("%s@%s:%d", user, host, port))
+		nodeId = provider.Find(host)
 	}
 
 	if nodeId != "" {
