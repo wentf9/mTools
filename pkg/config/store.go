@@ -2,6 +2,7 @@ package config
 
 import (
 	"os"
+	"sync"
 
 	"example.com/MikuTools/pkg/crypto"
 	"example.com/MikuTools/pkg/models"
@@ -18,6 +19,7 @@ type Store interface {
 type defaultStore struct {
 	Path    string
 	KeyPath string // 用于加解密配置文件中的敏感字段
+	mu      sync.Mutex
 }
 
 func (s *defaultStore) Load() (*Configuration, error) {
@@ -72,6 +74,8 @@ func (s *defaultStore) Load() (*Configuration, error) {
 }
 
 func (s *defaultStore) Save(cfg *Configuration) error {
+	s.mu.Lock()
+	defer s.mu.Unlock()
 	// 初始化 Crypter
 	key, err := crypto.LoadOrGenerateKey(s.KeyPath)
 	if err != nil {

@@ -171,23 +171,56 @@ func (o *ExecOptions) Run() error {
 	ctx := context.Background()
 	wp := pkgutils.NewWorkerPool(uint(o.TaskCount))
 
-	// 结果收集（可选，目前直接打印）
+	// 提前处理所有主机的信息，确保串行读取密码和更新配置
+	type hostTask struct {
+		nodeId string
+		host   string
+		port   uint16
+		user   string
+		pass   string
+	}
+	var tasks []hostTask
+	configUpdated := false
 
-	executeOnHost := func(h string, p uint16, u string, pass string) {
+	for _, h := range hosts {
+		if h.User == "" {
+			h.User = o.User
+		}
+		if h.Password == "" {
+			h.Password = o.Password
+		}
+		if h.Port == 0 {
+			h.Port = o.Port
+		}
+
+		addr := utils.HostInfo{Host: h.Host, Port: h.Port, User: h.User, Password: h.Password}
+		nodeId, updated, err := o.getOrCreateNode(provider, addr)
+		if err != nil {
+			fmt.Printf("[%s] 错误: %v\n", h.Host, err)
+			continue
+		}
+		if updated {
+			configUpdated = true
+		}
+		tasks = append(tasks, hostTask{
+			nodeId: nodeId,
+			host:   h.Host,
+			port:   h.Port,
+			user:   h.User,
+			pass:   h.Password,
+		})
+	}
+
+	if configUpdated {
+		configStore.Save(cfg)
+	}
+
+	for _, task := range tasks {
+		t := task // capture range variable
 		wp.Execute(func() {
-			addr := utils.HostInfo{Host: h, Port: p, User: u, Password: pass}
-			nodeId, updated, err := o.getOrCreateNode(provider, addr)
+			client, err := connector.Connect(ctx, t.nodeId)
 			if err != nil {
-				fmt.Printf("[%s] 错误: %v\n", h, err)
-				return
-			}
-			if updated {
-				configStore.Save(cfg)
-			}
-
-			client, err := connector.Connect(ctx, nodeId)
-			if err != nil {
-				fmt.Printf("[%s] 连接失败: %v\n", h, err)
+				fmt.Printf("[%s] 连接失败: %v\n", t.host, err)
 				return
 			}
 
@@ -209,24 +242,11 @@ func (o *ExecOptions) Run() error {
 			}
 
 			if execErr != nil {
-				fmt.Printf("[ERROR] %s\n------------\n%s\n错误: %v\n", h, output, execErr)
+				fmt.Printf("[ERROR] %s\n------------\n%s\n错误: %v\n", t.host, output, execErr)
 			} else {
-				fmt.Printf("[SUCCESS] %s\n------------\n%s\n", h, output)
+				fmt.Printf("[SUCCESS] %s\n------------\n%s\n", t.host, output)
 			}
 		})
-	}
-
-	for _, h := range hosts {
-		if h.User == "" {
-			h.User = o.User
-		}
-		if h.Password == "" {
-			h.Password = o.Password
-		}
-		if h.Port == 0 {
-			h.Port = o.Port
-		}
-		executeOnHost(h.Host, h.Port, h.User, h.Password)
 	}
 
 	wp.Wait()

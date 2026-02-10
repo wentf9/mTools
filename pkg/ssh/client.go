@@ -7,6 +7,7 @@ import (
 	"io"
 	"os"
 	"strings"
+	"sync"
 	"time"
 
 	"example.com/MikuTools/pkg/models"
@@ -107,6 +108,10 @@ func (c *Client) RunScriptWithSudo(ctx context.Context, scriptContent string) (s
 
 // runWithSudo 执行 sudo 命令，自动注入密码，并返回干净的输出
 func (c *Client) runWithSudo(ctx context.Context, command string, password string, extraStdin io.Reader) (string, error) {
+	if password == "" && c.node.SudoMode == "sudo" {
+		return "", fmt.Errorf("sudo password is required but not provided")
+	}
+
 	session, err := c.sshClient.NewSession()
 	if err != nil {
 		return "", err
@@ -468,12 +473,14 @@ func cleanSuOutput(raw string) string {
 func startWithTimeout(ctx context.Context, session *ssh.Session, command string) (string, error) {
 	// 1. 准备输出流 (捕获 Stdout 和 Stderr)
 	var b bytes.Buffer
-	session.Stdout = &b
-	session.Stderr = &b
+	var mu sync.Mutex
+	syncWriter := &synchronizedWriter{mu: &mu, b: &b}
+	session.Stdout = syncWriter
+	session.Stderr = syncWriter
 
 	// 2. 使用 Start 异步启动命令
 	if err := session.Start(command); err != nil {
-		return "", fmt.Errorf("failed to start sudo command: %v", err)
+		return "", fmt.Errorf("failed to start command: %v", err)
 	}
 	// 3. 创建一个通道来接收 Wait 的结果
 	done := make(chan error, 1)
@@ -485,16 +492,34 @@ func startWithTimeout(ctx context.Context, session *ssh.Session, command string)
 	select {
 	case err := <-done:
 		// 命令完成
+		output := syncWriter.String()
 		if err != nil {
 			// 注意：如果密码错误，sudo 通常会报错并退出，这里会捕获到
-			return b.String(), fmt.Errorf("failed to run command: %v, output: %s", err, b.String())
+			return output, fmt.Errorf("failed to run command: %v, output: %s", err, output)
 		}
-		return b.String(), nil
+		return output, nil
 	case <-ctx.Done():
 		// 上下文取消，尝试终止命令
 		if killErr := session.Signal(ssh.SIGKILL); killErr != nil {
-			return b.String(), fmt.Errorf("failed to kill command after context done: %v", killErr)
+			return syncWriter.String(), fmt.Errorf("failed to kill command after context done: %v", killErr)
 		}
-		return b.String(), ctx.Err()
+		return syncWriter.String(), ctx.Err()
 	}
+}
+
+type synchronizedWriter struct {
+	mu *sync.Mutex
+	b  *bytes.Buffer
+}
+
+func (w *synchronizedWriter) Write(p []byte) (n int, err error) {
+	w.mu.Lock()
+	defer w.mu.Unlock()
+	return w.b.Write(p)
+}
+
+func (w *synchronizedWriter) String() string {
+	w.mu.Lock()
+	defer w.mu.Unlock()
+	return w.b.String()
 }
