@@ -292,8 +292,8 @@ func (c *Client) Shell(ctx context.Context) error {
 	go io.Copy(os.Stdout, stdout)
 	go io.Copy(os.Stderr, stderr)
 
-	// 主线程或者新协程处理用户输入
-	io.Copy(stdin, os.Stdin)
+	// 启动协程处理用户输入，避免阻塞 session.Wait()
+	go io.Copy(stdin, os.Stdin)
 
 	return session.Wait()
 }
@@ -444,8 +444,8 @@ HandshakeLoop:
 	go io.Copy(os.Stdout, stdout)
 	go io.Copy(os.Stderr, stderr)
 
-	// 主线程或者新协程处理用户输入
-	io.Copy(stdin, os.Stdin)
+	// 启动协程处理用户输入，避免退出时阻塞
+	go io.Copy(stdin, os.Stdin)
 
 	return session.Wait()
 }
