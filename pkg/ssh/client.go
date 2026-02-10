@@ -54,7 +54,10 @@ func (c *Client) Run(ctx context.Context, cmd string) (string, error) {
 	}
 	defer session.Close()
 
-	return startWithTimeout(ctx, session, cmd)
+	// 使用 bash -l -c 执行，以加载完整的环境变量 (如 PATH)
+	// ss -tlpn 等命令通常在 /usr/sbin 或 /sbin 下，普通非交互式 shell 可能找不到
+	wrappedCmd := fmt.Sprintf("bash -l -c '%s'", strings.ReplaceAll(cmd, "'", "'\\''"))
+	return startWithTimeout(ctx, session, wrappedCmd)
 }
 
 // RunScript 执行 Shell 脚本内容
@@ -66,17 +69,20 @@ func (c *Client) RunScript(ctx context.Context, scriptContent string) (string, e
 	defer session.Close()
 
 	session.Stdin = strings.NewReader(scriptContent)
-	// 使用 bash -s 从 stdin 读取脚本
-	return startWithTimeout(ctx, session, "bash -s")
+	// 使用 bash -l -s 从 stdin 读取脚本，以加载环境变量
+	return startWithTimeout(ctx, session, "bash -l -s")
 }
 
 // RunWithSudo 提权执行命令，自动注入密码，并返回干净的输出
 func (c *Client) RunWithSudo(ctx context.Context, command string) (string, error) {
+	// 使用 bash -l -c 执行，以加载完整的环境变量
+	wrappedCmd := fmt.Sprintf("bash -l -c '%s'", strings.ReplaceAll(command, "'", "'\\''"))
+
 	switch c.node.SudoMode {
 	case "sudo":
-		return c.runWithSudo(ctx, command, c.identity.Password, nil)
+		return c.runWithSudo(ctx, wrappedCmd, c.identity.Password, nil)
 	case "sudoer":
-		return c.runWithSudo(ctx, command, "", nil)
+		return c.runWithSudo(ctx, wrappedCmd, "", nil)
 	case "su":
 		return c.runWithSu(command, c.node.SuPwd)
 	default:
@@ -88,12 +94,12 @@ func (c *Client) RunWithSudo(ctx context.Context, command string) (string, error
 func (c *Client) RunScriptWithSudo(ctx context.Context, scriptContent string) (string, error) {
 	switch c.node.SudoMode {
 	case "sudo":
-		return c.runWithSudo(ctx, "bash -s", c.identity.Password, strings.NewReader(scriptContent))
+		return c.runWithSudo(ctx, "bash -l -s", c.identity.Password, strings.NewReader(scriptContent))
 	case "sudoer":
-		return c.runWithSudo(ctx, "bash -s", "", strings.NewReader(scriptContent))
+		return c.runWithSudo(ctx, "bash -l -s", "", strings.NewReader(scriptContent))
 	case "su":
-		// su 模式下执行脚本比较复杂，暂时通过 bash -c 包裹
-		return c.runWithSu(fmt.Sprintf("bash -c '%s'", strings.ReplaceAll(scriptContent, "'", "'\\''")), c.node.SuPwd)
+		// su 模式下执行脚本比较复杂，暂时通过 bash -l -c 包裹
+		return c.runWithSu(fmt.Sprintf("bash -l -c '%s'", strings.ReplaceAll(scriptContent, "'", "'\\''")), c.node.SuPwd)
 	default:
 		return "", fmt.Errorf("unsupported sudo mode: %s", c.node.SudoMode)
 	}
@@ -158,7 +164,7 @@ func (c *Client) runWithSu(command string, password string) (string, error) {
 	// 使用 su - root -c 'command'
 	// -c 参数允许只执行一行命令后立即退出，而不是卡在 shell 里
 	// 强制英文环境，确保提示词是 "Password:"
-	cmd := fmt.Sprintf("export LC_ALL=C; su - root -c '%s'", command)
+	cmd := fmt.Sprintf("export LC_ALL=C; su - root -c '%s'", strings.ReplaceAll(command, "'", "'\\''"))
 
 	if err := session.Start(cmd); err != nil {
 		return "", fmt.Errorf("failed to start command: %v", err)

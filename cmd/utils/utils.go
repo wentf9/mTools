@@ -2,6 +2,7 @@ package utils
 
 import (
 	"fmt"
+	"net"
 	"os/user"
 	"path/filepath"
 	"strconv"
@@ -74,4 +75,18 @@ func ReadPasswordFromTerminal(prompt string) (string, error) {
 		return "", err
 	}
 	return string(password), nil
+}
+
+// IsValidIPv4 检查给定的字符串是否是有效的IPv4地址
+// 返回true表示是有效的IPv4地址，false表示无效
+func IsValidIPv4(ipStr string) bool {
+	ip := net.ParseIP(ipStr)
+	return ip != nil && ip.To4() != nil
+}
+
+// IsValidCIDR 检查给定的字符串是否是有效的CIDR表示法
+// 返回true表示是有效的CIDR，false表示无效
+func IsValidCIDR(cidrStr string) bool {
+	_, _, err := net.ParseCIDR(cidrStr)
+	return err == nil
 }

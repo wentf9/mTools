@@ -8,7 +8,7 @@ import (
 	"net"
 	"time"
 
-	"example.com/MikuTools/utils"
+	cmdutils "example.com/MikuTools/cmd/utils"
 	ping "github.com/prometheus-community/pro-bing"
 	"github.com/spf13/cobra"
 )
@@ -32,7 +32,7 @@ var pingCmd = &cobra.Command{
 	Args: cobra.RangeArgs(1, 2),
 	RunE: func(cmd *cobra.Command, args []string) error {
 		ip := args[0]
-		if !utils.IsValidIPv4(ip) {
+		if !cmdutils.IsValidIPv4(ip) {
 			if resolve, err := net.ResolveIPAddr("ip", ip); err != nil {
 				return fmt.Errorf("提供的主机名无法解析为ip地址: %v", err)
 			} else {

@@ -8,7 +8,7 @@ import (
 	"os"
 	"time"
 
-	"example.com/MikuTools/utils"
+	cmdutils "example.com/MikuTools/cmd/utils"
 	"github.com/spf13/cobra"
 	"golang.org/x/term"
 )
@@ -35,7 +35,7 @@ var ncCmd = &cobra.Command{
 		if net.ParseIP(args[0]) == nil {
 			return fmt.Errorf("无效的IP地址: %s", args[0])
 		}
-		if port := utils.ParsePort(args[1]); port == 0 {
+		if port := cmdutils.ParsePort(args[1]); port == 0 {
 			return fmt.Errorf("无效的端口号: %s", args[1])
 		}
 		return nil
@@ -76,7 +76,7 @@ var ncCmd = &cobra.Command{
 		fmt.Fprintf(os.Stderr, "已连接到 %s\n", addr)
 		defer conn.Close()
 		if term.IsTerminal(0) {
-			utils.Logger.Debug("检测到标准输入是交互式终端")
+
 			fmt.Fprintf(os.Stderr, "警告: 你正在交互式终端中运行此命令,将不会发送数据,建议通过管道或重定向将数据传输到此命令\n")
 			return nil
 		}
@@ -85,7 +85,7 @@ var ncCmd = &cobra.Command{
 		for {
 			n, err := reader.Read(buffer)
 			if n > 0 {
-				utils.Logger.Debug(fmt.Sprintf("读取到 %d 字节数据", n))
+
 				_, err := conn.Write(buffer[:n])
 				if err != nil {
 					return fmt.Errorf("写入连接失败: %w", err)
@@ -93,7 +93,7 @@ var ncCmd = &cobra.Command{
 			}
 			if err != nil {
 				if err == io.EOF {
-					utils.Logger.Debug("标准输入读取到EOF,结束发送")
+
 					break
 				}
 				return fmt.Errorf("读取输入失败: %w", err)

@@ -8,8 +8,6 @@ import (
 	"path/filepath"
 	"regexp"
 	"strings"
-
-	"example.com/MikuTools/utils"
 )
 
 type HostInfo struct {
@@ -71,7 +69,7 @@ func ReadCSVFile(path string) ([]HostInfo, error) {
 		user := strings.Trim(strings.TrimSpace(fields[1]), "\"'")
 		password := strings.Trim(strings.TrimSpace(fields[2]), "\"'")
 
-		if !utils.IsValidIPv4(ip) {
+		if !IsValidIPv4(ip) {
 			return nil, fmt.Errorf("无效的IP地址: %s", ip)
 		}
 
@@ -139,7 +137,7 @@ func ParseHosts(ip, hostFile, csvFile string) ([]string, []HostInfo, error) {
 			hosts = BufferedReadIpFile(hostFile)
 		}
 		for _, host := range hosts {
-			if !utils.IsValidIPv4(host) {
+			if !IsValidIPv4(host) {
 				return nil, nil, fmt.Errorf("非法的ip地址: %s", host)
 			}
 		}

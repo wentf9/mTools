@@ -2,12 +2,15 @@ package executor
 
 import "context"
 
+// Executor 定义命令执行接口
 type Executor interface {
-	// Execute 执行命令并返回输出
+	// Run 执行命令并返回标准输出内容
 	Run(ctx context.Context, cmd string) (string, error)
-	RunWithSudo(ctx context.Context, command string, password string) (string, error)
+	// RunWithSudo 提权执行命令
+	RunWithSudo(ctx context.Context, cmd string) (string, error)
 }
 
+// Transfer 定义文件传输接口
 type Transfer interface {
 	// Copy 复制文件 (为了统一 SCP 和 本地复制)
 	Copy(ctx context.Context, src, dst string) error

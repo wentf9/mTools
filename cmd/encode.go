@@ -2,12 +2,14 @@ package cmd
 
 import (
 	"encoding/base64"
+	"encoding/json"
 	"fmt"
 	"io"
 	"net/url"
 	"os"
+	"strconv"
+	"strings"
 
-	"example.com/MikuTools/utils"
 	"github.com/spf13/cobra"
 	"golang.org/x/term"
 )
@@ -118,13 +120,13 @@ var utf8Cmd = &cobra.Command{
 		}
 		for _, str := range args {
 			if isDecode {
-				if out, err := utils.Utf8ToString(str); err != nil {
+				if out, err := utf8ToString(str); err != nil {
 					fmt.Fprintln(os.Stderr, err)
 				} else {
 					fmt.Println(out)
 				}
 			} else {
-				fmt.Println(utils.StringToUTF8(str))
+				fmt.Println(stringToUTF8(str))
 			}
 		}
 	},
@@ -142,13 +144,13 @@ var unicodeCmd = &cobra.Command{
 		}
 		for _, str := range args {
 			if isDecode {
-				if out, err := utils.UnicodeToString(str); err != nil {
+				if out, err := unicodeToString(str); err != nil {
 					fmt.Fprintln(os.Stderr, err)
 				} else {
 					fmt.Println(out)
 				}
 			} else {
-				fmt.Println(utils.StringToUnicode(str))
+				fmt.Println(stringToUnicode(str))
 			}
 		}
 	},
@@ -165,7 +167,7 @@ func argsValidator(cmd *cobra.Command, args []string) error {
 	if err != nil {
 		return fmt.Errorf("从管道或重定向中读取参数失败: %w", err)
 	}
-	utils.Logger.Debug(fmt.Sprintf("从管道或重定向中读取到输入数据: %s", string(input)))
+
 	stdinData = string(input)
 	if stdinData == "" && len(args) < 1 {
 		return fmt.Errorf("需要至少一个参数")
@@ -183,4 +185,82 @@ func init() {
 	encodeCmd.PersistentFlags().BoolVarP(&isDecode, "decode", "d", false, "切换到解码模式")
 
 	base64Cmd.Flags().BoolP("url", "u", false, "切换到url模式(base64串中只包含URL安全字符)")
+}
+
+func stringToUnicode(s string) string {
+	var result strings.Builder
+	for _, r := range s {
+		if r <= 0xFFFF {
+			result.WriteString(fmt.Sprintf("\\u%04x", r))
+		} else {
+			// 处理超过U+FFFF的字符（如emoji）
+			result.WriteString(fmt.Sprintf("\\U%08x", r))
+		}
+	}
+	return result.String()
+}
+
+func unicodeToString(s string) (string, error) {
+	// 使用json.Unmarshal来处理Unicode转义序列
+	str := "\"" + s + "\""
+	var result string
+	err := json.Unmarshal([]byte(str), &result)
+	if err != nil {
+		return "", fmt.Errorf("无效的Unicode序列: %v", err)
+	}
+	return result, nil
+}
+
+// 将字符串转换为UTF-8编码（&#x...;格式）
+func stringToUTF8(s string) string {
+	var result strings.Builder
+	for _, r := range s {
+		result.WriteString(fmt.Sprintf("&#x%X;", r))
+	}
+	return result.String()
+}
+
+// 将UTF-8编码（&#x...;格式）转换回字符串
+func utf8ToString(s string) (string, error) {
+	var result strings.Builder
+	parts := strings.Split(s, "&#x")
+
+	for i, part := range parts {
+		if i == 0 {
+			// 第一个部分可能不是编码
+			if part != "" && !strings.HasPrefix(s, "&#x") {
+				result.WriteString(part)
+			}
+			continue
+		}
+
+		// 查找分号位置
+		semicolonPos := strings.Index(part, ";")
+		if semicolonPos == -1 {
+			return "", fmt.Errorf("无效的UTF-8编码格式: 缺少分号")
+		}
+
+		// 提取十六进制数字部分
+		hexStr := part[:semicolonPos]
+		// 将十六进制字符串转换为整数
+		codePoint, err := strconv.ParseInt(hexStr, 16, 32)
+		if err != nil {
+			return "", fmt.Errorf("无效的十六进制数字: %s", hexStr)
+		}
+
+		// 将代码点转换为字符
+		result.WriteRune(rune(codePoint))
+
+		// 添加剩余部分（如果有）
+		if len(part) > semicolonPos+1 {
+			result.WriteString(part[semicolonPos+1:])
+		}
+	}
+
+	// 如果没有找到任何编码，直接返回原字符串
+	if result.Len() == 0 {
+		return s, nil
+	}
+
+	return result.String(), nil
 }

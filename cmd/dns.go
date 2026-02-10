@@ -5,7 +5,6 @@ import (
 	"net"
 	"sync"
 
-	"example.com/MikuTools/utils"
 	"github.com/spf13/cobra"
 )
 
@@ -14,7 +13,7 @@ var dnsCmd = &cobra.Command{
 	Use:   "dns domain1 domain2 ...",
 	Short: "dns查询",
 	Long:  `dns查询`,
-	Args:  utils.AtLeastOneArgs(),
+
 	Run: func(cmd *cobra.Command, args []string) {
 		wg := sync.WaitGroup{}
 		for _, domain := range args {

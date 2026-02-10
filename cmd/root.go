@@ -8,7 +8,7 @@ import (
 
 	"example.com/MikuTools/cmd/version"
 	"example.com/MikuTools/global"
-	"example.com/MikuTools/utils"
+	utils "example.com/MikuTools/pkg/logger"
 	"github.com/spf13/cobra"
 )
 
