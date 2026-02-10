@@ -51,7 +51,7 @@ mtool sftp user@host[:port] [-P password] [--task maxTask] [--thread maxThread]
 	cmd.Flags().IntVar(&o.maxThread, "thread", 0, "单个文件同时下载线程")
 	cmd.Flags().StringVarP(&o.Password, "password", "P", "", "SSH密码")
 	cmd.Flags().StringVarP(&o.KeyFile, "key", "i", "", "SSH私钥文件路径")
-	cmd.Flags().StringVarP(&o.KeyPass, "key_pass", "W", "", "SSH私钥密码")
+	cmd.Flags().StringVarP(&o.KeyPass, "key_pass", "w", "", "SSH私钥密码")
 	cmd.Flags().StringVarP(&o.JumpHost, "jump", "j", "", "跳板机地址[user@]host[:port]")
 	cmd.Flags().StringVarP(&o.Alias, "alias", "a", "", "连接别名")
 	cmd.MarkFlagsMutuallyExclusive("password", "key")

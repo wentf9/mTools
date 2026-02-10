@@ -64,11 +64,11 @@ func NewCmdScp() *cobra.Command {
 
 	// 基础连接参数
 	cmd.Flags().StringVarP(&o.Host, "host", "H", "", "目标主机,多个主机用逗号分隔")
-	cmd.Flags().Uint16VarP(&o.Port, "port", "P", 0, "SSH端口")
+	cmd.Flags().Uint16VarP(&o.Port, "port", "p", 0, "SSH端口")
 	cmd.Flags().StringVarP(&o.User, "user", "u", "", "SSH用户名")
-	cmd.Flags().StringVarP(&o.Password, "password", "w", "", "SSH密码")
+	cmd.Flags().StringVarP(&o.Password, "password", "P", "", "SSH密码")
 	cmd.Flags().StringVarP(&o.KeyFile, "key", "i", "", "SSH私钥文件路径")
-	cmd.Flags().StringVarP(&o.KeyPass, "key_pass", "W", "", "SSH私钥密码")
+	cmd.Flags().StringVarP(&o.KeyPass, "key_pass", "w", "", "SSH私钥密码")
 	cmd.Flags().StringVarP(&o.JumpHost, "jump", "j", "", "跳板机地址[user@]host[:port]")
 	cmd.Flags().StringVarP(&o.Alias, "alias", "a", "", "连接别名")
 
@@ -80,7 +80,7 @@ func NewCmdScp() *cobra.Command {
 	cmd.Flags().BoolVarP(&o.Recursive, "recursive", "r", false, "递归复制目录")
 	cmd.Flags().BoolVarP(&o.Progress, "progress", "v", false, "显示传输进度")
 	cmd.Flags().BoolVarP(&o.Force, "force", "f", false, "强制覆盖远程文件")
-	cmd.Flags().IntVar(&o.TaskCount, "task", 1, "并行传输的主机数")
+	cmd.Flags().IntVar(&o.TaskCount, "task", 3, "并行传输的主机数")
 	cmd.Flags().IntVar(&o.ThreadCount, "thread", 4, "单个文件传输的并发线程数")
 
 	cmd.MarkFlagsMutuallyExclusive("password", "key")
@@ -370,7 +370,7 @@ func (o *ScpOptions) runRemoteToRemote(ctx context.Context, src, dst PathInfo, p
 }
 
 func (o *ScpOptions) runBatch(ctx context.Context, provider config.ConfigProvider, connector *ssh.Connector, configStore config.Store, cfg *config.Configuration) error {
-	hosts, csvHosts, err := cmdutils.ParseHosts(o.Host, o.HostFile, o.CSVFile)
+	hosts, err := cmdutils.ParseHosts(o.Host, o.HostFile, o.CSVFile)
 	if err != nil {
 		return err
 	}
@@ -379,20 +379,18 @@ func (o *ScpOptions) runBatch(ctx context.Context, provider config.ConfigProvide
 
 	// 处理 普通主机列表
 	for _, h := range hosts {
-		h := h
+		if h.User == "" {
+			h.User = o.User
+		}
+		if h.Password == "" {
+			h.Password = o.Password
+		}
+		if h.Port == 0 {
+			h.Port = o.Port
+		}
 		wp.Execute(func() {
-			addr := PathInfo{Host: h, User: o.User, Port: o.Port, IsRemote: true}
-			o.executeTransfer(ctx, h, addr, o.Password, provider, connector, configStore, cfg)
-		})
-	}
-
-	// 处理 CSV 主机列表
-	for _, ch := range csvHosts {
-		ch := ch
-		wp.Execute(func() {
-			// CSV 中的信息优先级高
-			addr := PathInfo{Host: ch.IP, User: ch.User, IsRemote: true}
-			o.executeTransfer(ctx, ch.IP, addr, ch.Password, provider, connector, configStore, cfg)
+			addr := PathInfo{Host: h.Host, User: h.User, Port: h.Port, IsRemote: true}
+			o.executeTransfer(ctx, h.Host, addr, h.Password, provider, connector, configStore, cfg)
 		})
 	}
 

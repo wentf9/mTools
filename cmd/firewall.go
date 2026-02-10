@@ -103,7 +103,7 @@ func (o *FirewallOptions) RunOnHosts(ctx context.Context, action func(fw firewal
 	connector := ssh.NewConnector(provider)
 	defer connector.CloseAll()
 
-	hosts, csvHosts, err := cmdutils.ParseHosts(o.Host, o.HostFile, o.CSVFile)
+	hosts, err := cmdutils.ParseHosts(o.Host, o.HostFile, o.CSVFile)
 	if err != nil {
 		return err
 	}
@@ -150,10 +150,7 @@ func (o *FirewallOptions) RunOnHosts(ctx context.Context, action func(fw firewal
 	}
 
 	for _, h := range hosts {
-		executeOnHost(h)
-	}
-	for _, ch := range csvHosts {
-		executeOnHost(ch.IP)
+		executeOnHost(fmt.Sprintf("%s@%s:%d", h.User, h.Host, h.Port))
 	}
 
 	wp.Wait()

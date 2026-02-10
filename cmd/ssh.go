@@ -57,11 +57,11 @@ mtool -h host -u user
 		},
 	}
 	cmd.Flags().StringVarP(&o.Host, "host", "H", "", "目标主机/连接别名")
-	cmd.Flags().Uint16VarP(&o.Port, "port", "P", 0, "SSH端口")
+	cmd.Flags().Uint16VarP(&o.Port, "port", "p", 0, "SSH端口")
 	cmd.Flags().StringVarP(&o.User, "user", "u", "", "SSH用户名")
-	cmd.Flags().StringVarP(&o.Password, "password", "w", "", "SSH密码")
+	cmd.Flags().StringVarP(&o.Password, "password", "P", "", "SSH密码")
 	cmd.Flags().StringVarP(&o.KeyFile, "key", "i", "", "SSH私钥文件路径")
-	cmd.Flags().StringVarP(&o.KeyPass, "key_pass", "W", "", "SSH私钥密码")
+	cmd.Flags().StringVarP(&o.KeyPass, "key_pass", "w", "", "SSH私钥密码")
 	cmd.Flags().BoolVarP(&o.Sudo, "sudo", "s", false, "是否请求sudo权限")
 	cmd.Flags().StringVarP(&o.JumpHost, "jump", "j", "", "跳板机地址[user@]host[:port]")
 	cmd.Flags().StringVarP(&o.Alias, "alias", "a", "", "连接别名")

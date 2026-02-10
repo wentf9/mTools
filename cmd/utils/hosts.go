@@ -11,7 +11,8 @@ import (
 )
 
 type HostInfo struct {
-	IP       string
+	Host     string
+	Port     uint16
 	User     string
 	Password string
 }
@@ -61,20 +62,20 @@ func ReadCSVFile(path string) ([]HostInfo, error) {
 		// 分割CSV行
 		fields := strings.Split(line, ",")
 		if len(fields) < 3 {
-			return nil, fmt.Errorf("CSV格式错误,每行需要包含: IP,用户名,密码")
+			return nil, fmt.Errorf("CSV格式错误,每行需要包含: host[:port],用户名,密码")
 		}
 
 		// 移除字段中的引号和空白
-		ip := strings.Trim(strings.TrimSpace(fields[0]), "\"'")
+		hostStr := strings.Trim(strings.TrimSpace(fields[0]), "\"'")
 		user := strings.Trim(strings.TrimSpace(fields[1]), "\"'")
 		password := strings.Trim(strings.TrimSpace(fields[2]), "\"'")
-
-		if !IsValidIPv4(ip) {
-			return nil, fmt.Errorf("无效的IP地址: %s", ip)
-		}
-
+		host, port := ParseHost(hostStr)
+		// if _, err := net.ResolveIPAddr("ip", host); err != nil {
+		// 	return nil, fmt.Errorf("无法从 %s 解析出有效的ip地址: %v", host, err)
+		// }
 		hosts = append(hosts, HostInfo{
-			IP:       ip,
+			Host:     host,
+			Port:     port,
 			User:     user,
 			Password: password,
 		})
@@ -121,14 +122,14 @@ func BufferedReadIpFile(path string) []string {
 	return hosts
 }
 
-func ParseHosts(ip, hostFile, csvFile string) ([]string, []HostInfo, error) {
+func ParseHosts(ip, hostFile, csvFile string) ([]HostInfo, error) {
 	var hosts []string
-	var csvHosts []HostInfo
+	var HostsInfo []HostInfo
 	if csvFile != "" {
 		var err error
-		csvHosts, err = ReadCSVFile(csvFile)
+		HostsInfo, err = ReadCSVFile(csvFile)
 		if err != nil {
-			return nil, nil, err
+			return nil, err
 		}
 	} else {
 		if ip != "" {
@@ -137,10 +138,16 @@ func ParseHosts(ip, hostFile, csvFile string) ([]string, []HostInfo, error) {
 			hosts = BufferedReadIpFile(hostFile)
 		}
 		for _, host := range hosts {
-			if !IsValidIPv4(host) {
-				return nil, nil, fmt.Errorf("非法的ip地址: %s", host)
-			}
+			u, h, p := ParseAddr(host)
+			// if _, err := net.ResolveIPAddr("ip", h); err != nil {
+			// 	return nil, fmt.Errorf("无法从 %s 解析出有效的ip地址: %v", host, err)
+			// }
+			HostsInfo = append(HostsInfo, HostInfo{
+				Host: h,
+				Port: p,
+				User: u,
+			})
 		}
 	}
-	return hosts, csvHosts, nil
+	return HostsInfo, nil
 }

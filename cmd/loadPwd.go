@@ -49,23 +49,23 @@ func runLoadPwd(hosts []cmdutils.HostInfo) error {
 	o := NewExecOptions() // Use for getOrCreateNode helper logic if needed, but let's just do it here
 
 	for _, host := range hosts {
-		host := host
+
 		wp.Execute(func() {
 			nodeId, _, err := o.getOrCreateNode(provider, host)
 			if err != nil {
-				fmt.Printf("[%s] 错误: %v\n", host.IP, err)
+				fmt.Printf("[%s] 错误: %v\n", host.Host, err)
 				return
 			}
 
 			// 验证连接
 			client, err := connector.Connect(ctx, nodeId)
 			if err != nil {
-				fmt.Printf("[%s] 验证失败: %v\n", host.IP, err)
+				fmt.Printf("[%s] 验证失败: %v\n", host.Host, err)
 				return
 			}
 			client.Close()
 
-			fmt.Printf("[%s] 验证通过并已保存\n", host.IP)
+			fmt.Printf("[%s] 验证通过并已保存\n", host.Host)
 
 		})
 	}

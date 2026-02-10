@@ -58,6 +58,18 @@ func ParseAddr(input string) (string, string, uint16) {
 	return user, host, port
 }
 
+// ParseHost 解析 host:port 格式的字符串
+func ParseHost(input string) (string, uint16) {
+	var host string = ""
+	var port uint16 = 0
+	if atIndex := strings.Index(input, ":"); atIndex != -1 {
+		port = ParsePort(input[atIndex+1:])
+		input = input[:atIndex]
+	}
+	host = input
+	return host, port
+}
+
 // ParsePort 解析端口字符串
 // 如果输入为空字符串，则返回0
 func ParsePort(input string) uint16 {
@@ -106,11 +118,11 @@ func ReadPasswordFromTerminal(prompt string) (string, error) {
 	return string(password), nil
 }
 
-// IsValidIPv4 检查给定的字符串是否是有效的IPv4地址
-// 返回true表示是有效的IPv4地址，false表示无效
-func IsValidIPv4(ipStr string) bool {
+// IsValidIP 检查给定的字符串是否是有效的IPv4/IPv6地址
+// 返回true表示是有效的IP地址，false表示无效
+func IsValidIP(ipStr string) bool {
 	ip := net.ParseIP(ipStr)
-	return ip != nil && ip.To4() != nil
+	return ip != nil
 }
 
 // IsValidCIDR 检查给定的字符串是否是有效的CIDR表示法

@@ -96,6 +96,9 @@ func (c *Connector) Connect(ctx context.Context, nodeName string) (*Client, erro
 		}
 
 		// 5. 建立底层 TCP 连接 (通过 Dialer)
+		if host.Port == 0 {
+			host.Port = 22
+		}
 		targetAddr := fmt.Sprintf("%s:%d", host.Address, host.Port)
 		conn, err := dialer.DialContext(ctx, "tcp", targetAddr)
 		if err != nil {
