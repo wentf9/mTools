@@ -94,6 +94,34 @@ func (cp Provider) AddIdentity(identityId string, identity models.Identity) {
 	cp.cfg.Identities.Set(identityId, identity)
 }
 
+func (cp Provider) DeleteNode(nodeId string) {
+	if _, ok := cp.cfg.Nodes.Get(nodeId); ok {
+		// 这里简单处理，暂时不删除引用的 Host 和 Identity，因为可能被多个 Node 引用
+		// 但实际上目前的实现中，HostRef 和 IdentityRef 往往是唯一的
+		cp.cfg.Nodes.Remove(nodeId)
+
+		// 从索引中删除
+		for _, key := range cp.lookupIndex.Keys() {
+			if val, ok := cp.lookupIndex.Get(key); ok && val == nodeId {
+				cp.lookupIndex.Remove(key)
+			}
+		}
+
+		// 如果 Host 和 Identity 没有被其他 Node 引用，也可以考虑删除，但为了安全起见暂时保留
+		// 或者根据业务逻辑决定是否级联删除
+	}
+}
+
+func (cp Provider) ListNodes() map[string]models.Node {
+	nodes := make(map[string]models.Node)
+	for _, k := range cp.cfg.Nodes.Keys() {
+		if v, ok := cp.cfg.Nodes.Get(k); ok {
+			nodes[k] = v
+		}
+	}
+	return nodes
+}
+
 func (cp Provider) init() {
 	for _, nodeId := range cp.cfg.Nodes.Keys() {
 		cp.add(nodeId)

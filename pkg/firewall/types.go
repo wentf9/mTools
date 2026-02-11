@@ -8,8 +8,8 @@ import (
 type Action string
 
 const (
-	ActionAllow Action = "allow"
-	ActionDeny  Action = "deny"
+	ActionAllow  Action = "allow"
+	ActionDeny   Action = "deny"
 	ActionReject Action = "reject"
 	ActionDrop   Action = "drop"
 )

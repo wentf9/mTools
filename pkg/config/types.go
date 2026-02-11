@@ -20,5 +20,7 @@ type ConfigProvider interface {
 	AddHost(name string, host models.Host)
 	AddIdentity(name string, identity models.Identity)
 	AddNode(name string, node models.Node)
+	DeleteNode(name string)
+	ListNodes() map[string]models.Node
 	Find(input string) string
 }

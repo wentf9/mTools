@@ -46,13 +46,13 @@ func (b *NftablesBackend) AddRule(ctx context.Context, rule Rule) (string, error
 	if rule.Port != "" {
 		cmd += fmt.Sprintf("dport %s ", rule.Port)
 	}
-	
+
 	target := "accept"
 	if rule.Action == ActionDeny || rule.Action == ActionDrop {
 		target = "drop"
 	}
 	cmd += target
-	
+
 	return b.exec.RunWithSudo(ctx, cmd)
 }
 

@@ -41,7 +41,7 @@ func (e *LocalExecutor) RunWithSudo(ctx context.Context, cmd string) (string, er
 	// -p '' 隐藏提示符
 	sudoCmd := fmt.Sprintf("sudo -S -p '' %s", cmd)
 	c := exec.CommandContext(ctx, "bash", "-c", sudoCmd)
-	
+
 	stdin, err := c.StdinPipe()
 	if err != nil {
 		return "", err
@@ -68,7 +68,7 @@ func (e *LocalExecutor) InteractiveWithSudo(ctx context.Context, args []string) 
 	sudoArgs = append(sudoArgs, args...)
 
 	c := exec.CommandContext(ctx, "sudo", sudoArgs...)
-	
+
 	if e.password != "" {
 		stdin, err := c.StdinPipe()
 		if err != nil {
