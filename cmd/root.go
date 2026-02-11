@@ -7,7 +7,6 @@ import (
 	"os"
 
 	"example.com/MikuTools/cmd/version"
-	"example.com/MikuTools/global"
 	utils "example.com/MikuTools/pkg/logger"
 	"github.com/spf13/cobra"
 )
@@ -40,11 +39,7 @@ var rootCmd = &cobra.Command{
 			utils.Logger.Debug("调试模式已开启")
 			utils.Logger.Debug("日志级别已设置为 DEBUG")
 		}
-		if global.IsTerminal {
-			utils.Logger.Debug("当前为交互式环境")
-		} else {
-			utils.Logger.Debug("当前为重定向或管道环境")
-		}
+
 	},
 }
 
