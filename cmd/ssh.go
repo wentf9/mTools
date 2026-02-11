@@ -24,6 +24,7 @@ type SshOptions struct {
 	Sudo     bool
 	Alias    string
 	JumpHost string
+	Tags     []string
 	args     []string
 }
 
@@ -65,6 +66,7 @@ mtool -h host -u user
 	cmd.Flags().BoolVarP(&o.Sudo, "sudo", "s", false, "是否请求sudo权限")
 	cmd.Flags().StringVarP(&o.JumpHost, "jump", "j", "", "跳板机地址[user@]host[:port]")
 	cmd.Flags().StringVarP(&o.Alias, "alias", "a", "", "连接别名")
+	cmd.Flags().StringSliceVarP(&o.Tags, "tag", "t", []string{}, "为节点添加标签(分组)")
 	cmd.MarkFlagsMutuallyExclusive("password", "key")
 	return cmd
 }
@@ -129,6 +131,7 @@ func (o *SshOptions) Run() error {
 			IdentityRef: fmt.Sprintf("%s@%s", o.User, o.Host),
 			ProxyJump:   o.JumpHost,
 			SudoMode:    "sudo",
+			Tags:        o.Tags,
 		}
 		if node.ProxyJump != "" {
 			jumpHost := provider.Find(node.ProxyJump)
@@ -196,7 +199,7 @@ func update(nodeId string, o *SshOptions, provider config.ConfigProvider) bool {
 	identityUpdated := false
 	node, _ := provider.GetNode(nodeId)
 	identity, _ := provider.GetIdentity(nodeId)
-	if o.Password != "" || o.KeyFile != "" || o.JumpHost != "" || o.Sudo || o.Alias != "" {
+	if o.Password != "" || o.KeyFile != "" || o.JumpHost != "" || o.Sudo || o.Alias != "" || len(o.Tags) > 0 {
 		if o.JumpHost != "" {
 			jumpHost := provider.Find(o.JumpHost)
 			if jumpHost != "" && jumpHost != node.ProxyJump {
@@ -211,6 +214,19 @@ func update(nodeId string, o *SshOptions, provider config.ConfigProvider) bool {
 		if o.Alias != "" {
 			node.Alias = append(node.Alias, o.Alias)
 			nodeUpdated = true
+		}
+		if len(o.Tags) > 0 {
+			// 添加新标签，去重
+			tagMap := make(map[string]bool)
+			for _, t := range node.Tags {
+				tagMap[t] = true
+			}
+			for _, t := range o.Tags {
+				if !tagMap[t] {
+					node.Tags = append(node.Tags, t)
+					nodeUpdated = true
+				}
+			}
 		}
 		if o.Password != "" {
 			identity.Password = o.Password

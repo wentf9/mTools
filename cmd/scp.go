@@ -29,6 +29,7 @@ type ScpOptions struct {
 	Dest        string
 	HostFile    string
 	CSVFile     string
+	Tag         string
 }
 
 func NewScpOptions() *ScpOptions {
@@ -50,9 +51,11 @@ func NewCmdScp() *cobra.Command {
 2. 从远程下载到本地: mtool scp user@host:remote_path local_path
 3. 远程到远程传输: mtool scp user1@host1:path1 user2@host2:path2
 4. 批量上传到多台主机: mtool scp local_path --dest remote_path -H host1,host2
+5. 按分组传输: mtool scp local_path --dest remote_path -t web
 
 通过flags提供主机和用户信息时会覆盖参数提供的信息。
-如果未通过-w选项显式提供密码, 将会从终端输入或通过保存的配置文件读取。`,
+如果未通过-w选项显式提供密码, 将会从终端输入或通过保存的配置文件读取。
+使用 --tag 时会忽略其他主机指定方式。`,
 		RunE: func(cmd *cobra.Command, args []string) error {
 			o.Complete(cmd, args)
 			if err := o.Validate(); err != nil {
@@ -77,6 +80,7 @@ func NewCmdScp() *cobra.Command {
 	cmd.Flags().StringVar(&o.Dest, "dest", "", "目标路径 (批量模式使用)")
 	cmd.Flags().StringVarP(&o.HostFile, "ifile", "I", "", "主机列表文件路径")
 	cmd.Flags().StringVar(&o.CSVFile, "csv", "", "CSV文件路径 (ip,user,password)")
+	cmd.Flags().StringVarP(&o.Tag, "tag", "t", "", "按分组(标签)传输")
 	cmd.Flags().BoolVarP(&o.Recursive, "recursive", "r", false, "递归复制目录")
 	cmd.Flags().BoolVarP(&o.Progress, "progress", "v", false, "显示传输进度")
 	cmd.Flags().BoolVarP(&o.Force, "force", "f", false, "强制覆盖远程文件")
@@ -84,7 +88,7 @@ func NewCmdScp() *cobra.Command {
 	cmd.Flags().IntVar(&o.ThreadCount, "thread", 4, "单个文件传输的并发线程数")
 
 	cmd.MarkFlagsMutuallyExclusive("password", "key")
-	cmd.MarkFlagsMutuallyExclusive("host", "ifile", "csv")
+	cmd.MarkFlagsMutuallyExclusive("host", "ifile", "csv", "tag")
 	return cmd
 }
 
@@ -108,8 +112,8 @@ func (o *ScpOptions) Validate() error {
 	if o.Source == "" {
 		return fmt.Errorf("必须指定源路径")
 	}
-	if o.Dest == "" && o.Host == "" {
-		return fmt.Errorf("必须指定目标路径或目标主机")
+	if o.Dest == "" && o.Host == "" && o.Tag == "" {
+		return fmt.Errorf("必须指定目标路径或目标主机/标签组")
 	}
 	return nil
 }
@@ -166,8 +170,8 @@ func (o *ScpOptions) Run() error {
 
 	ctx := context.Background()
 
-	// 1. 批量上传模式 (-H host1,host2 或 -I hostfile 或 --csv file)
-	if (o.Host != "" && strings.Contains(o.Host, ",")) || o.HostFile != "" || o.CSVFile != "" {
+	// 1. 批量上传模式 (-H host1,host2 或 -I hostfile 或 --csv file 或 --tag tag)
+	if o.Tag != "" || (o.Host != "" && strings.Contains(o.Host, ",")) || o.HostFile != "" || o.CSVFile != "" {
 		return o.runBatch(ctx, provider, connector, configStore, cfg)
 	}
 
@@ -370,28 +374,44 @@ func (o *ScpOptions) runRemoteToRemote(ctx context.Context, src, dst PathInfo, p
 }
 
 func (o *ScpOptions) runBatch(ctx context.Context, provider config.ConfigProvider, connector *ssh.Connector, configStore config.Store, cfg *config.Configuration) error {
-	hosts, err := cmdutils.ParseHosts(o.Host, o.HostFile, o.CSVFile)
-	if err != nil {
-		return err
-	}
-
 	wp := pkgutils.NewWorkerPool(uint(o.TaskCount))
 
-	// 处理 普通主机列表
-	for _, h := range hosts {
-		if h.User == "" {
-			h.User = o.User
+	if o.Tag != "" {
+		nodes := provider.GetNodesByTag(o.Tag)
+		if len(nodes) == 0 {
+			return fmt.Errorf("标签组 %s 为空或不存在", o.Tag)
 		}
-		if h.Password == "" {
-			h.Password = o.Password
+		for nodeId := range nodes {
+			nid := nodeId // capture
+			hostObj, _ := provider.GetHost(nid)
+			identity, _ := provider.GetIdentity(nid)
+			wp.Execute(func() {
+				addr := PathInfo{Host: hostObj.Address, User: identity.User, Port: hostObj.Port, IsRemote: true}
+				o.executeTransfer(ctx, nid, addr, identity.Password, provider, connector, configStore, cfg)
+			})
 		}
-		if h.Port == 0 {
-			h.Port = o.Port
+	} else {
+		hosts, err := cmdutils.ParseHosts(o.Host, o.HostFile, o.CSVFile)
+		if err != nil {
+			return err
 		}
-		wp.Execute(func() {
-			addr := PathInfo{Host: h.Host, User: h.User, Port: h.Port, IsRemote: true}
-			o.executeTransfer(ctx, h.Host, addr, h.Password, provider, connector, configStore, cfg)
-		})
+
+		// 处理 普通主机列表
+		for _, h := range hosts {
+			if h.User == "" {
+				h.User = o.User
+			}
+			if h.Password == "" {
+				h.Password = o.Password
+			}
+			if h.Port == 0 {
+				h.Port = o.Port
+			}
+			wp.Execute(func() {
+				addr := PathInfo{Host: h.Host, User: h.User, Port: h.Port, IsRemote: true}
+				o.executeTransfer(ctx, h.Host, addr, h.Password, provider, connector, configStore, cfg)
+			})
+		}
 	}
 
 	wp.Wait()
