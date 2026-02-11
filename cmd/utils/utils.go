@@ -43,15 +43,20 @@ func GetLocalSudoPassword() string {
 
 // ParseAddr 解析 user@host:port 格式的字符串
 func ParseAddr(input string) (string, string, uint16) {
+	input = strings.TrimSpace(input)
 	var user, host string = "", ""
 	var port uint16 = 0
-	if atIndex := strings.Index(input, ":"); atIndex != -1 {
-		port = ParsePort(input[atIndex+1:])
-		input = input[:atIndex]
+	if atIndex := strings.LastIndex(input, ":"); atIndex != -1 {
+		// 确保冒号后面是数字，防止 IPv6 干扰 (虽然简单处理可能不够)
+		p := ParsePort(input[atIndex+1:])
+		if p != 0 {
+			port = p
+			input = strings.TrimSpace(input[:atIndex])
+		}
 	}
 	if atIndex := strings.Index(input, "@"); atIndex != -1 {
 		user = strings.TrimSpace(input[:atIndex])
-		input = input[atIndex+1:]
+		input = strings.TrimSpace(input[atIndex+1:])
 	}
 	host = strings.TrimSpace(input)
 

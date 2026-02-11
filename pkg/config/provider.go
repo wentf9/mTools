@@ -83,6 +83,7 @@ func (cp Provider) GetIdentity(nodeId string) (models.Identity, bool) {
 
 func (cp Provider) AddNode(nodeId string, node models.Node) {
 	cp.cfg.Nodes.Set(nodeId, node)
+	cp.add(nodeId)
 }
 
 func (cp Provider) AddHost(hostId string, host models.Host) {

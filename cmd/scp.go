@@ -455,6 +455,9 @@ func (o *ScpOptions) getOrCreateNodeForPath(provider config.ConfigProvider, path
 		port = 22
 	}
 
+	host = strings.TrimSpace(host)
+	user = strings.TrimSpace(user)
+
 	nodeId := provider.Find(host)
 	if nodeId == "" {
 		nodeId = provider.Find(fmt.Sprintf("%s@%s:%d", user, host, port))
@@ -483,7 +486,7 @@ func (o *ScpOptions) getOrCreateNodeForPath(provider config.ConfigProvider, path
 	}
 
 	if o.Alias != "" {
-		node.Alias = append(node.Alias, o.Alias)
+		node.Alias = append(node.Alias, strings.TrimSpace(o.Alias))
 	}
 
 	identity := models.Identity{
@@ -512,9 +515,9 @@ func (o *ScpOptions) getOrCreateNodeForPath(provider config.ConfigProvider, path
 		identity.AuthType = "key"
 	}
 
-	provider.AddNode(nodeId, node)
 	provider.AddHost(node.HostRef, models.Host{Address: host, Port: port})
 	provider.AddIdentity(node.IdentityRef, identity)
+	provider.AddNode(nodeId, node)
 
 	return nodeId, true, nil
 }

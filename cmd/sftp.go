@@ -6,6 +6,8 @@ import (
 	"os"
 	"time"
 
+	"strings"
+
 	"example.com/MikuTools/cmd/utils"
 	"example.com/MikuTools/pkg/config"
 	"example.com/MikuTools/pkg/models"
@@ -89,15 +91,15 @@ func (o *SftpOptions) Run() error {
 			}
 			node.ProxyJump = jumpHost
 		}
-		host := models.Host{
-			Address: o.Host,
+		hostObj := models.Host{
+			Address: strings.TrimSpace(o.Host),
 			Port:    o.Port,
 		}
 		if o.Alias != "" {
-			node.Alias = append(node.Alias, o.Alias)
+			node.Alias = append(node.Alias, strings.TrimSpace(o.Alias))
 		}
 		identity := models.Identity{
-			User: o.User,
+			User: strings.TrimSpace(o.User),
 		}
 		if o.Password == "" && o.KeyFile == "" {
 			if pass, err := utils.ReadPasswordFromTerminal("请输入密码: "); err != nil {
@@ -114,9 +116,9 @@ func (o *SftpOptions) Run() error {
 			identity.Passphrase = o.KeyPass
 			identity.AuthType = "key"
 		}
-		provider.AddNode(nodeId, node)
-		provider.AddHost(node.HostRef, host)
+		provider.AddHost(node.HostRef, hostObj)
 		provider.AddIdentity(node.IdentityRef, identity)
+		provider.AddNode(nodeId, node)
 	}
 	connector := ssh.NewConnector(provider)
 	ctx, cancel := context.WithTimeout(context.Background(), 10*time.Second)

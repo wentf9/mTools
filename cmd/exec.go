@@ -82,32 +82,22 @@ mtool exec user@host "df -h"
 
 func (o *ExecOptions) Complete(cmd *cobra.Command, args []string) {
 	o.args = args
-	if len(args) == 1 && o.Command == "" && o.ShellFile == "" {
-		// 检查是否是 [user@]host 格式，或者是直接的命令
-		if strings.Contains(args[0], "@") || !strings.Contains(args[0], " ") {
-			// 可能是主机地址，尝试解析
-			u, h, p := utils.ParseAddr(args[0])
-			if h != "" {
-				if o.Host == "" {
-					o.Host = h
-				}
-				if o.User == "" {
-					o.User = u
-				}
-				if o.Port == 0 {
-					o.Port = p
-				}
-			} else {
-				// 否则视为命令
-				o.Command = args[0]
-			}
-		} else {
-			o.Command = args[0]
+	if len(args) == 0 {
+		return
+	}
+
+	if o.Command == "" && o.ShellFile == "" {
+		hostPart := args[0]
+		cmdIdx := 1
+		// 支持 "iaas @10.238.221.45" 这种中间带空格的格式
+		if len(args) > 1 && strings.HasPrefix(args[1], "@") {
+			hostPart = args[0] + args[1]
+			cmdIdx = 2
 		}
-	} else if len(args) > 1 {
-		// 可能是 host command ...
-		u, h, p := utils.ParseAddr(args[0])
-		if h != "" {
+
+		u, h, p := utils.ParseAddr(hostPart)
+		// 如果解析出了主机，且不包含空格或者是 [user@]host 格式
+		if h != "" && (strings.Contains(hostPart, "@") || !strings.Contains(hostPart, " ")) {
 			if o.Host == "" {
 				o.Host = h
 			}
@@ -117,12 +107,31 @@ func (o *ExecOptions) Complete(cmd *cobra.Command, args []string) {
 			if o.Port == 0 {
 				o.Port = p
 			}
-			if o.Command == "" {
-				o.Command = strings.Join(args[1:], " ")
+			if o.Command == "" && len(args) > cmdIdx {
+				o.Command = strings.Join(args[cmdIdx:], " ")
 			}
 		} else {
+			// 否则第一个参数不是主机，可能是命令的一部分
 			if o.Command == "" {
 				o.Command = strings.Join(args, " ")
+			}
+		}
+	} else {
+		// 已经有命令了，检查第一个参数是否是主机
+		if o.Host == "" && len(args) > 0 {
+			hostPart := args[0]
+			if len(args) > 1 && strings.HasPrefix(args[1], "@") {
+				hostPart = args[0] + args[1]
+			}
+			u, h, p := utils.ParseAddr(hostPart)
+			if h != "" {
+				o.Host = h
+				if o.User == "" {
+					o.User = u
+				}
+				if o.Port == 0 {
+					o.Port = p
+				}
 			}
 		}
 	}
@@ -254,9 +263,8 @@ func (o *ExecOptions) Run() error {
 }
 
 func (o *ExecOptions) getOrCreateNode(provider config.ConfigProvider, addr utils.HostInfo) (string, bool, error) {
-	host := addr.Host
-	user := addr.User
-
+	host := strings.TrimSpace(addr.Host)
+	user := strings.TrimSpace(addr.User)
 	port := addr.Port
 
 	if user == "" {
@@ -323,9 +331,9 @@ func (o *ExecOptions) getOrCreateNode(provider config.ConfigProvider, addr utils
 		identity.AuthType = "key"
 	}
 
-	provider.AddNode(nodeId, node)
 	provider.AddHost(node.HostRef, models.Host{Address: host, Port: port})
 	provider.AddIdentity(node.IdentityRef, identity)
+	provider.AddNode(nodeId, node)
 
 	return nodeId, true, nil
 }

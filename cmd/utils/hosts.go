@@ -133,15 +133,15 @@ func ParseHosts(ip, hostFile, csvFile string) ([]HostInfo, error) {
 		}
 	} else {
 		if ip != "" {
-			hosts = strings.Split(ip, ",")
+			parts := strings.Split(ip, ",")
+			for _, p := range parts {
+				hosts = append(hosts, strings.TrimSpace(p))
+			}
 		} else if hostFile != "" {
 			hosts = BufferedReadIpFile(hostFile)
 		}
 		for _, host := range hosts {
 			u, h, p := ParseAddr(host)
-			// if _, err := net.ResolveIPAddr("ip", h); err != nil {
-			// 	return nil, fmt.Errorf("无法从 %s 解析出有效的ip地址: %v", host, err)
-			// }
 			HostsInfo = append(HostsInfo, HostInfo{
 				Host: h,
 				Port: p,
