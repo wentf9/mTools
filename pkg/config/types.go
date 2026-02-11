@@ -22,5 +22,6 @@ type ConfigProvider interface {
 	AddNode(name string, node models.Node)
 	DeleteNode(name string)
 	ListNodes() map[string]models.Node
+	GetNodesByTag(tag string) map[string]models.Node
 	Find(input string) string
 }

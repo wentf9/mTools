@@ -27,12 +27,14 @@ func NewCmdInventory() *cobra.Command {
 	cmd.AddCommand(NewCmdInventoryList())
 	cmd.AddCommand(NewCmdInventoryAdd())
 	cmd.AddCommand(NewCmdInventoryDelete())
+	cmd.AddCommand(NewCmdInventoryTags())
 
 	return cmd
 }
 
 func NewCmdInventoryList() *cobra.Command {
-	return &cobra.Command{
+	var tagFilter string
+	cmd := &cobra.Command{
 		Use:   "list",
 		Short: "列出所有存储的节点",
 		Run: func(cmd *cobra.Command, args []string) {
@@ -45,10 +47,19 @@ func NewCmdInventoryList() *cobra.Command {
 			}
 
 			provider := config.NewProvider(cfg)
-			nodes := provider.ListNodes()
+			var nodes map[string]models.Node
+			if tagFilter != "" {
+				nodes = provider.GetNodesByTag(tagFilter)
+			} else {
+				nodes = provider.ListNodes()
+			}
 
 			if len(nodes) == 0 {
-				fmt.Println("没有找到已存储的节点。")
+				if tagFilter != "" {
+					fmt.Printf("没有找到带有标签 %s 的节点。\n", tagFilter)
+				} else {
+					fmt.Println("没有找到已存储的节点。")
+				}
 				return
 			}
 
@@ -76,6 +87,53 @@ func NewCmdInventoryList() *cobra.Command {
 					node.ProxyJump,
 					strings.Join(node.Tags, ", "),
 				)
+			}
+			w.Flush()
+		},
+	}
+	cmd.Flags().StringVarP(&tagFilter, "tag", "t", "", "按标签筛选节点")
+	return cmd
+}
+
+func NewCmdInventoryTags() *cobra.Command {
+	return &cobra.Command{
+		Use:   "tags",
+		Short: "列出所有标签及对应的节点数量",
+		Run: func(cmd *cobra.Command, args []string) {
+			configPath, keyPath := utils.GetConfigFilePath()
+			configStore := config.NewDefaultStore(configPath, keyPath)
+			cfg, err := configStore.Load()
+			if err != nil {
+				fmt.Printf("加载配置文件失败: %v\n", err)
+				return
+			}
+
+			provider := config.NewProvider(cfg)
+			nodes := provider.ListNodes()
+
+			tagMap := make(map[string]int)
+			for _, node := range nodes {
+				for _, tag := range node.Tags {
+					tagMap[tag]++
+				}
+			}
+
+			if len(tagMap) == 0 {
+				fmt.Println("当前没有已定义的标签。")
+				return
+			}
+
+			w := tabwriter.NewWriter(os.Stdout, 0, 0, 3, ' ', 0)
+			fmt.Fprintln(w, "标签\t节点数量")
+
+			tags := make([]string, 0, len(tagMap))
+			for t := range tagMap {
+				tags = append(tags, t)
+			}
+			sort.Strings(tags)
+
+			for _, t := range tags {
+				fmt.Fprintf(w, "%s\t%d\n", t, tagMap[t])
 			}
 			w.Flush()
 		},

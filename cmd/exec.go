@@ -20,6 +20,7 @@ type ExecOptions struct {
 	CSVFile   string
 	ShellFile string
 	Command   string
+	Tag       string
 	TaskCount int
 	SuPwd     string
 }
@@ -39,10 +40,12 @@ func NewCmdExec() *cobra.Command {
 		Long: `对一个或多个远程主机执行命令。支持批量执行和提权。
 用法示例:
 mtool exec -H host1,host2 -c "uptime"
+mtool exec -t web -c "uptime"
 mtool exec -I hosts.txt --shell script.sh
 mtool exec user@host "df -h"
 
-通过flags提供主机和用户信息时会覆盖参数提供的信息。`,
+通过flags提供主机和用户信息时会覆盖参数提供的信息。
+使用 --tag 时会忽略其他主机指定方式。`,
 		RunE: func(cmd *cobra.Command, args []string) error {
 			o.Complete(cmd, args)
 			if err := o.Validate(); err != nil {
@@ -70,11 +73,12 @@ mtool exec user@host "df -h"
 	cmd.Flags().StringVarP(&o.Command, "cmd", "c", "", "要执行的命令")
 	cmd.Flags().StringVarP(&o.HostFile, "ifile", "I", "", "主机列表文件")
 	cmd.Flags().StringVar(&o.CSVFile, "csv", "", "CSV格式主机列表 (ip,user,password)")
+	cmd.Flags().StringVarP(&o.Tag, "tag", "t", "", "按分组(标签)执行")
 	cmd.Flags().StringVar(&o.ShellFile, "shell", "", "本地Shell脚本文件")
 	cmd.Flags().IntVar(&o.TaskCount, "task", 3, "并行执行的主机数")
 
 	cmd.MarkFlagsMutuallyExclusive("password", "key")
-	cmd.MarkFlagsMutuallyExclusive("host", "ifile", "csv")
+	cmd.MarkFlagsMutuallyExclusive("host", "ifile", "csv", "tag")
 	cmd.MarkFlagsMutuallyExclusive("cmd", "shell")
 
 	return cmd
@@ -89,6 +93,13 @@ func (o *ExecOptions) Complete(cmd *cobra.Command, args []string) {
 	if o.Command == "" && o.ShellFile == "" {
 		hostPart := args[0]
 		cmdIdx := 1
+
+		// 如果指定了 tag，args 全部视为命令内容
+		if o.Tag != "" {
+			o.Command = strings.Join(args, " ")
+			return
+		}
+
 		// 支持 "iaas @10.238.221.45" 这种中间带空格的格式
 		if len(args) > 1 && strings.HasPrefix(args[1], "@") {
 			hostPart = args[0] + args[1]
@@ -118,7 +129,7 @@ func (o *ExecOptions) Complete(cmd *cobra.Command, args []string) {
 		}
 	} else {
 		// 已经有命令了，检查第一个参数是否是主机
-		if o.Host == "" && len(args) > 0 {
+		if o.Host == "" && o.Tag == "" && len(args) > 0 {
 			hostPart := args[0]
 			if len(args) > 1 && strings.HasPrefix(args[1], "@") {
 				hostPart = args[0] + args[1]
@@ -141,8 +152,8 @@ func (o *ExecOptions) Validate() error {
 	if o.Command == "" && o.ShellFile == "" {
 		return fmt.Errorf("必须指定要执行的命令或脚本")
 	}
-	if o.Host == "" && o.HostFile == "" && o.CSVFile == "" {
-		return fmt.Errorf("必须指定目标主机")
+	if o.Host == "" && o.HostFile == "" && o.CSVFile == "" && o.Tag == "" {
+		return fmt.Errorf("必须指定目标主机或标签组")
 	}
 	return nil
 }
@@ -172,15 +183,9 @@ func (o *ExecOptions) Run() error {
 		execCmd = o.Command
 	}
 
-	hosts, err := utils.ParseHosts(o.Host, o.HostFile, o.CSVFile)
-	if err != nil {
-		return err
-	}
-
 	ctx := context.Background()
 	wp := pkgutils.NewWorkerPool(uint(o.TaskCount))
 
-	// 提前处理所有主机的信息，确保串行读取密码和更新配置
 	type hostTask struct {
 		nodeId string
 		host   string
@@ -191,33 +196,56 @@ func (o *ExecOptions) Run() error {
 	var tasks []hostTask
 	configUpdated := false
 
-	for _, h := range hosts {
-		if h.User == "" {
-			h.User = o.User
+	if o.Tag != "" {
+		nodes := provider.GetNodesByTag(o.Tag)
+		if len(nodes) == 0 {
+			return fmt.Errorf("标签组 %s 为空或不存在", o.Tag)
 		}
-		if h.Password == "" {
-			h.Password = o.Password
+		for nodeId := range nodes {
+			hostObj, _ := provider.GetHost(nodeId)
+			identity, _ := provider.GetIdentity(nodeId)
+			tasks = append(tasks, hostTask{
+				nodeId: nodeId,
+				host:   hostObj.Address,
+				port:   hostObj.Port,
+				user:   identity.User,
+				pass:   identity.Password,
+			})
 		}
-		if h.Port == 0 {
-			h.Port = o.Port
+	} else {
+		hosts, err := utils.ParseHosts(o.Host, o.HostFile, o.CSVFile)
+		if err != nil {
+			return err
 		}
 
-		addr := utils.HostInfo{Host: h.Host, Port: h.Port, User: h.User, Password: h.Password}
-		nodeId, updated, err := o.getOrCreateNode(provider, addr)
-		if err != nil {
-			fmt.Printf("[%s] 错误: %v\n", h.Host, err)
-			continue
+		for _, h := range hosts {
+			if h.User == "" {
+				h.User = o.User
+			}
+			if h.Password == "" {
+				h.Password = o.Password
+			}
+			if h.Port == 0 {
+				h.Port = o.Port
+			}
+
+			addr := utils.HostInfo{Host: h.Host, Port: h.Port, User: h.User, Password: h.Password}
+			nodeId, updated, err := o.getOrCreateNode(provider, addr)
+			if err != nil {
+				fmt.Printf("[%s] 错误: %v\n", h.Host, err)
+				continue
+			}
+			if updated {
+				configUpdated = true
+			}
+			tasks = append(tasks, hostTask{
+				nodeId: nodeId,
+				host:   h.Host,
+				port:   h.Port,
+				user:   h.User,
+				pass:   h.Password,
+			})
 		}
-		if updated {
-			configUpdated = true
-		}
-		tasks = append(tasks, hostTask{
-			nodeId: nodeId,
-			host:   h.Host,
-			port:   h.Port,
-			user:   h.User,
-			pass:   h.Password,
-		})
 	}
 
 	if configUpdated {

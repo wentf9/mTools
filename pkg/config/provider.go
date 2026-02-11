@@ -2,6 +2,7 @@ package config
 
 import (
 	"fmt"
+	"slices"
 
 	"example.com/MikuTools/pkg/models"
 	"example.com/MikuTools/pkg/utils/concurrent"
@@ -120,6 +121,17 @@ func (cp Provider) ListNodes() map[string]models.Node {
 		}
 	}
 	return nodes
+}
+
+func (cp Provider) GetNodesByTag(tag string) map[string]models.Node {
+	result := make(map[string]models.Node)
+	for _, nodeId := range cp.cfg.Nodes.Keys() {
+		node, _ := cp.cfg.Nodes.Get(nodeId)
+		if slices.Contains(node.Tags, tag) {
+			result[nodeId] = node
+		}
+	}
+	return result
 }
 
 func (cp Provider) init() {
