@@ -56,6 +56,7 @@ mtool sftp user@host[:port] [-P password] [--task maxTask] [--thread maxThread]
 	cmd.Flags().StringVarP(&o.KeyPass, "key_pass", "w", "", "SSH私钥密码")
 	cmd.Flags().StringVarP(&o.JumpHost, "jump", "j", "", "跳板机地址[user@]host[:port]")
 	cmd.Flags().StringVarP(&o.Alias, "alias", "a", "", "连接别名")
+	cmd.Flags().StringSliceVarP(&o.Tags, "tag", "t", []string{}, "为节点添加标签(分组)")
 	cmd.MarkFlagsMutuallyExclusive("password", "key")
 	return cmd
 }
@@ -83,6 +84,7 @@ func (o *SftpOptions) Run() error {
 			IdentityRef: fmt.Sprintf("%s@%s", o.User, o.Host),
 			ProxyJump:   o.JumpHost,
 			SudoMode:    "sudo",
+			Tags:        o.Tags,
 		}
 		if node.ProxyJump != "" {
 			jumpHost := provider.Find(node.ProxyJump)
@@ -157,30 +159,3 @@ func (o *SftpOptions) Run() error {
 func init() {
 	rootCmd.AddCommand(NewCmdSftp())
 }
-
-// func runSFTPWithProgress(localPath, remotePath string, cfg sftp.TransferConfig) {
-// 	// ... setup connector ...
-// 	var sftpCli sftp.Client
-// 	// 1. 计算总大小 (本地上传为例)
-// 	var totalSize int64 = 0
-// 	filepath.Walk(localPath, func(_ string, info os.FileInfo, _ error) error {
-// 		if !info.IsDir() {
-// 			totalSize += info.Size()
-// 		}
-// 		return nil
-// 	})
-
-// 	// 2. 初始化进度条
-// 	bar := progressbar.DefaultBytes(totalSize, "Uploading")
-
-// 	// 3. 定义回调函数 (原子操作)
-// 	callback := func(n int) {
-// 		bar.Add(n) // progressbar 库通常是线程安全的，如果是 atomic 可以直接 Add
-// 	}
-
-// 	// 4. 开始传输
-// 	err := sftpCli.Upload(ctx, localPath, remotePath, cfg, callback)
-// 	if err != nil {
-// 		// handle error
-// 	}
-// }

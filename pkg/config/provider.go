@@ -134,6 +134,20 @@ func (cp Provider) GetNodesByTag(tag string) map[string]models.Node {
 	return result
 }
 
+func (cp Provider) ListIdentities() map[string]models.Identity {
+	identities := make(map[string]models.Identity)
+	for _, k := range cp.cfg.Identities.Keys() {
+		if v, ok := cp.cfg.Identities.Get(k); ok {
+			identities[k] = v
+		}
+	}
+	return identities
+}
+
+func (cp Provider) DeleteIdentity(name string) {
+	cp.cfg.Identities.Remove(name)
+}
+
 func (cp Provider) init() {
 	for _, nodeId := range cp.cfg.Nodes.Keys() {
 		cp.add(nodeId)
