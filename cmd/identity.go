@@ -96,10 +96,10 @@ func NewCmdIdentityEdit() *cobra.Command {
 		},
 	}
 
-	cmd.Flags().StringVar(&user, "user", "", "修改用户名")
-	cmd.Flags().StringVar(&password, "password", "", "修改密码")
-	cmd.Flags().StringVar(&keyPath, "key", "", "修改私钥路径")
-	cmd.Flags().StringVar(&keyPass, "key-pass", "", "修改私钥密码")
+	cmd.Flags().StringVarP(&user, "user", "u", "", "修改用户名")
+	cmd.Flags().StringVarP(&password, "password", "p", "", "修改密码")
+	cmd.Flags().StringVarP(&keyPath, "key", "k", "", "修改私钥路径")
+	cmd.Flags().StringVarP(&keyPass, "key-pass", "w", "", "修改私钥密码")
 
 	return cmd
 }
@@ -220,11 +220,11 @@ func NewCmdIdentityAdd() *cobra.Command {
 		},
 	}
 
-	cmd.Flags().StringVar(&name, "name", "", "认证信息别名")
-	cmd.Flags().StringVar(&user, "user", "", "用户名")
-	cmd.Flags().StringVar(&password, "password", "", "密码")
-	cmd.Flags().StringVar(&keyPath, "key", "", "私钥路径")
-	cmd.Flags().StringVar(&keyPass, "key-pass", "", "私钥密码")
+	cmd.Flags().StringVarP(&name, "name", "n", "", "认证信息别名")
+	cmd.Flags().StringVarP(&user, "user", "u", "", "用户名")
+	cmd.Flags().StringVarP(&password, "password", "p", "", "密码")
+	cmd.Flags().StringVarP(&keyPath, "key", "k", "", "私钥路径")
+	cmd.Flags().StringVarP(&keyPass, "key-pass", "w", "", "私钥密码")
 
 	return cmd
 }

@@ -143,14 +143,14 @@ func NewCmdInventoryEdit() *cobra.Command {
 		},
 	}
 
-	cmd.Flags().StringVar(&address, "address", "", "修改主机 IP 或域名")
-	cmd.Flags().Uint16Var(&port, "port", 0, "修改 SSH 端口")
-	cmd.Flags().StringVar(&user, "user", "", "修改 SSH 用户名")
-	cmd.Flags().StringVar(&password, "password", "", "修改 SSH 密码")
-	cmd.Flags().StringVar(&keyPath, "key", "", "修改 SSH 私钥路径")
-	cmd.Flags().StringVar(&keyPass, "key-pass", "", "修改私钥密码")
-	cmd.Flags().StringSliceVar(&alias, "alias", []string{}, "修改节点别名 (覆盖原有别名)")
-	cmd.Flags().StringVar(&jump, "jump", "", "修改跳板机名称")
+	cmd.Flags().StringVarP(&address, "address", "H", "", "修改主机 IP 或域名")
+	cmd.Flags().Uint16VarP(&port, "port", "p", 0, "修改 SSH 端口")
+	cmd.Flags().StringVarP(&user, "user", "u", "", "修改 SSH 用户名")
+	cmd.Flags().StringVarP(&password, "password", "P", "", "修改 SSH 密码")
+	cmd.Flags().StringVarP(&keyPath, "key", "k", "", "修改 SSH 私钥路径")
+	cmd.Flags().StringVarP(&keyPass, "key-pass", "w", "", "修改私钥密码")
+	cmd.Flags().StringSliceVarP(&alias, "alias", "a", []string{}, "修改节点别名 (覆盖原有别名)")
+	cmd.Flags().StringVarP(&jump, "jump", "j", "", "修改跳板机名称")
 
 	return cmd
 }
@@ -173,7 +173,7 @@ func NewCmdInventoryTag() *cobra.Command {
 func NewCmdInventoryTagAdd() *cobra.Command {
 	return &cobra.Command{
 		Use:   "add [tag_name] [node1,node2...]",
-		Short: "将指定节点加入标签组",
+		Short: "将节点加入标签组",
 		Args:  cobra.ExactArgs(2),
 		RunE: func(cmd *cobra.Command, args []string) error {
 			tagName := strings.TrimSpace(args[0])
@@ -237,7 +237,7 @@ func NewCmdInventoryTagAdd() *cobra.Command {
 func NewCmdInventoryTagRemove() *cobra.Command {
 	return &cobra.Command{
 		Use:   "remove [tag_name] [node1,node2...]",
-		Short: "从指定节点移除标签",
+		Short: "从指定标签移除节点",
 		Args:  cobra.ExactArgs(2),
 		RunE: func(cmd *cobra.Command, args []string) error {
 			tagName := strings.TrimSpace(args[0])
@@ -511,16 +511,16 @@ func NewCmdInventoryAdd() *cobra.Command {
 		},
 	}
 
-	cmd.Flags().StringVar(&address, "address", "", "主机 IP 或域名")
-	cmd.Flags().Uint16Var(&port, "port", 22, "SSH 端口")
-	cmd.Flags().StringVar(&user, "user", "", "SSH 用户名")
-	cmd.Flags().StringVar(&password, "password", "", "SSH 密码")
-	cmd.Flags().StringVar(&keyPath, "key", "", "SSH 私钥路径")
-	cmd.Flags().StringVar(&keyPass, "key-pass", "", "SSH 私钥密码")
+	cmd.Flags().StringVarP(&address, "address", "H", "", "主机 IP 或域名")
+	cmd.Flags().Uint16VarP(&port, "port", "p", 22, "SSH 端口")
+	cmd.Flags().StringVarP(&user, "user", "u", "", "SSH 用户名")
+	cmd.Flags().StringVarP(&password, "password", "P", "", "SSH 密码")
+	cmd.Flags().StringVarP(&keyPath, "key", "k", "", "SSH 私钥路径")
+	cmd.Flags().StringVarP(&keyPass, "key-pass", "w", "", "SSH 私钥密码")
 	cmd.Flags().StringVarP(&identityAlias, "identity", "I", "", "使用已保存的认证模板别名")
-	cmd.Flags().StringSliceVar(&alias, "alias", []string{}, "节点别名 (逗号分隔)")
-	cmd.Flags().StringSliceVar(&tags, "tags", []string{}, "节点标签 (逗号分隔)")
-	cmd.Flags().StringVar(&jump, "jump", "", "跳板机名称")
+	cmd.Flags().StringSliceVarP(&alias, "alias", "a", []string{}, "节点别名 (逗号分隔)")
+	cmd.Flags().StringSliceVarP(&tags, "tags", "t", []string{}, "节点标签 (逗号分隔)")
+	cmd.Flags().StringVarP(&jump, "jump", "j", "", "跳板机名称")
 
 	return cmd
 }
