@@ -13,23 +13,29 @@ import (
 	"golang.org/x/term"
 )
 
+// GetConfigStore 返回配置存储、Provider、配置对象及其可能发生的错误
+func GetConfigStore() (config.Store, config.ConfigProvider, *config.Configuration, error) {
+	configPath, keyPathCfg := GetConfigFilePath()
+	configStore := config.NewDefaultStore(configPath, keyPathCfg)
+	cfg, err := configStore.Load()
+	if err != nil {
+		return nil, nil, nil, err
+	}
+	return configStore, config.NewProvider(cfg), cfg, nil
+}
+
 // GetLocalSudoPassword 尝试从配置文件中获取本地 sudo 密码
 func GetLocalSudoPassword() string {
-	configPath, keyPath := GetConfigFilePath()
-	configStore := config.NewDefaultStore(configPath, keyPath)
-	cfg, err := configStore.Load()
+	_, provider, _, err := GetConfigStore()
 	if err != nil {
 		return ""
 	}
-	provider := config.NewProvider(cfg)
 
-	// 尝试查找别名为 "localhost" 或 "local" 的节点
 	nodeId := provider.Find("localhost")
 	if nodeId == "" {
 		nodeId = provider.Find("local")
 	}
 	if nodeId == "" {
-		// 尝试当前用户名
 		nodeId = provider.Find(GetCurrentUser())
 	}
 
@@ -47,7 +53,6 @@ func ParseAddr(input string) (string, string, uint16) {
 	var user, host string = "", ""
 	var port uint16 = 0
 	if atIndex := strings.LastIndex(input, ":"); atIndex != -1 {
-		// 确保冒号后面是数字，防止 IPv6 干扰 (虽然简单处理可能不够)
 		p := ParsePort(input[atIndex+1:])
 		if p != 0 {
 			port = p
@@ -59,7 +64,6 @@ func ParseAddr(input string) (string, string, uint16) {
 		input = strings.TrimSpace(input[atIndex+1:])
 	}
 	host = strings.TrimSpace(input)
-
 	return user, host, port
 }
 
@@ -76,7 +80,6 @@ func ParseHost(input string) (string, uint16) {
 }
 
 // ParsePort 解析端口字符串
-// 如果输入为空字符串，则返回0
 func ParsePort(input string) uint16 {
 	if input == "" {
 		return 0
@@ -109,29 +112,27 @@ func GetPasswordFilePath() string {
 	if err != nil {
 		return ""
 	}
-	return filepath.Join(user.HomeDir, PasswordFileName)
+	return filepath.Join(user.HomeDir, ".mtools", PasswordFileName)
 }
 
 // ReadPasswordFromTerminal 从终端安全地读取密码
 func ReadPasswordFromTerminal(prompt string) (string, error) {
 	fmt.Print(prompt)
 	password, err := term.ReadPassword(int(syscall.Stdin))
-	fmt.Println() // 打印换行符，因为 ReadPassword 不会打印换行符
+	fmt.Println()
 	if err != nil {
 		return "", err
 	}
 	return string(password), nil
 }
 
-// IsValidIP 检查给定的字符串是否是有效的IPv4/IPv6地址
-// 返回true表示是有效的IP地址，false表示无效
+// IsValidIP 检查给定的字符串是否是有效的IP地址
 func IsValidIP(ipStr string) bool {
 	ip := net.ParseIP(ipStr)
 	return ip != nil
 }
 
 // IsValidCIDR 检查给定的字符串是否是有效的CIDR表示法
-// 返回true表示是有效的CIDR，false表示无效
 func IsValidCIDR(cidrStr string) bool {
 	_, _, err := net.ParseCIDR(cidrStr)
 	return err == nil
