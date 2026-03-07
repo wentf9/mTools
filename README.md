@@ -11,6 +11,7 @@ mtool (Miku Tools) 是一个基于 Go 语言开发的命令行运维工具集，
 - **防火墙管理 (Firewall)**: 自动识别并管理多种防火墙后端（firewalld, ufw, iptables, nftables）。
 - **实用工具**: 集成 DNS 查询、网络探测 (Ping/NC)、编码转换等常用运维工具。
 - **安全保障**: 配置文件中的敏感信息（如密码）采用对称加密存储。
+- **🤖 MCP 协议支持 (AI 增强)**: 内置 Model Context Protocol 服务端，让 AI Agent 可以原生调用本工具链的能力执行运维操作。
 
 ## 🛠️ 安装
 
@@ -71,11 +72,36 @@ mtool firewall list -H web-01
 mtool firewall port 80 --proto tcp
 ```
 
+### 6. AI Agent 集成 (MCP Server)
+使用支持 Model Context Protocol 的 AI Agent (如 Claude Desktop, Cursor, Cline 等) 可以直接调用本机配置的 `mtool` 能力。
+只需在您的 MCP 客户端配置信息中加入以下内容：
+```json
+{
+  "mcpServers": {
+    "mtools": {
+      "command": "/这里填入绝对路径/mtool",
+      "args": ["mcp"]
+    }
+  }
+}
+```
+配置完成后，您的 AI Agent 即可直接查询您的主机节点并自动帮您执行管理指令。
+
 ## 📂 配置文件
 
 工具默认将配置存储在用户家目录下的 `.mtools` 文件夹中：
 - `~/.mtools/config.yaml`: 存储节点、主机及身份认证信息（敏感字段已加密）。
 - `~/.mtools/config.key`: 用于加解密的密钥文件，请务必妥善保管。
+
+## 📅 规划与进度 (Roadmap)
+当前项目核心运维能力已实现闭环，并正向着 AI Agent 原生运维工具箱的方向演进：
+- [x] 重构底层日志模块，实现 CLI 纯净业务打印与诊断日志隔离
+- [x] **引入 MCP (Model Context Protocol) 核心支持** (`mtool mcp`)
+  - [x] 工具：`mtool_list_nodes` (查询本地节点)
+  - [x] 工具：`mtool_ssh_run` (底层 SSH 执行与返回)
+  - [ ] 工具：接入网络探测能力 (Ping/DNS)
+  - [ ] 工具：接入防火墙规则管理能力
+  - [ ] 工具：接入 SFTP 文件分发与采集能力
 
 ## 📜 开源协议
 

@@ -9,3 +9,5 @@ GEMINI.md
 skills-lock.json
 .agent/
 .agents/
+.gemini/
+temp_tests/
