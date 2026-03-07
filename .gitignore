@@ -6,3 +6,6 @@ mtool.linux.amd64
 .vscode/settings.json
 bin
 GEMINI.md
+skills-lock.json
+.agent/
+.agents/

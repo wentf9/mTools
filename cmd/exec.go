@@ -8,6 +8,7 @@ import (
 
 	"example.com/MikuTools/cmd/utils"
 	"example.com/MikuTools/pkg/config"
+	"example.com/MikuTools/pkg/logger"
 	"example.com/MikuTools/pkg/models"
 	"example.com/MikuTools/pkg/ssh"
 	pkgutils "example.com/MikuTools/pkg/utils"
@@ -232,7 +233,7 @@ func (o *ExecOptions) Run() error {
 			addr := utils.HostInfo{Host: h.Host, Port: h.Port, User: h.User, Password: h.Password}
 			nodeId, updated, err := o.getOrCreateNode(provider, addr)
 			if err != nil {
-				fmt.Printf("[%s] 错误: %v\n", h.Host, err)
+				logger.PrintErrorf("[%s] 错误: %v", h.Host, err)
 				continue
 			}
 			if updated {
@@ -257,7 +258,7 @@ func (o *ExecOptions) Run() error {
 		wp.Execute(func() {
 			client, err := connector.Connect(ctx, t.nodeId)
 			if err != nil {
-				fmt.Printf("[%s] 连接失败: %v\n", t.host, err)
+				logger.PrintErrorf("[%s] 连接失败: %v", t.host, err)
 				return
 			}
 
@@ -279,9 +280,9 @@ func (o *ExecOptions) Run() error {
 			}
 
 			if execErr != nil {
-				fmt.Printf("[ERROR] %s\n------------\n%s\n错误: %v\n", t.host, output, execErr)
+				logger.PrintErrorf("%s\n------------\n%s\n错误: %v", t.host, output, execErr)
 			} else {
-				fmt.Printf("[SUCCESS] %s\n------------\n%s\n", t.host, output)
+				logger.PrintSuccessf("%s\n------------\n%s", t.host, output)
 			}
 		})
 	}

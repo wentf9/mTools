@@ -7,8 +7,9 @@ import (
 	"strings"
 	"text/tabwriter"
 
-	"example.com/MikuTools/pkg/models"
 	"example.com/MikuTools/cmd/utils"
+	"example.com/MikuTools/pkg/logger"
+	"example.com/MikuTools/pkg/models"
 	"github.com/spf13/cobra"
 )
 
@@ -20,7 +21,7 @@ func NewCmdInventoryList() *cobra.Command {
 		Run: func(cmd *cobra.Command, args []string) {
 			_, provider, _, err := utils.GetConfigStore()
 			if err != nil {
-				fmt.Printf("加载配置文件失败: %v\n", err)
+				logger.PrintErrorf("加载配置文件失败: %v", err)
 				return
 			}
 
@@ -33,9 +34,9 @@ func NewCmdInventoryList() *cobra.Command {
 
 			if len(nodes) == 0 {
 				if tagFilter != "" {
-					fmt.Printf("没有找到带有标签 %s 的节点。\n", tagFilter)
+					logger.PrintWarnf("没有找到带有标签 %s 的节点。", tagFilter)
 				} else {
-					fmt.Println("没有找到已存储的节点。")
+					logger.PrintWarnf("没有找到已存储的节点。")
 				}
 				return
 			}
@@ -78,7 +79,7 @@ func NewCmdInventoryTags() *cobra.Command {
 		Run: func(cmd *cobra.Command, args []string) {
 			_, provider, _, err := utils.GetConfigStore()
 			if err != nil {
-				fmt.Printf("加载配置文件失败: %v\n", err)
+				logger.PrintErrorf("加载配置文件失败: %v", err)
 				return
 			}
 
@@ -91,7 +92,7 @@ func NewCmdInventoryTags() *cobra.Command {
 			}
 
 			if len(tagMap) == 0 {
-				fmt.Println("当前没有已定义的标签。")
+				logger.PrintWarnf("当前没有已定义的标签。")
 				return
 			}
 

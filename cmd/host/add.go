@@ -3,8 +3,9 @@ package host
 import (
 	"fmt"
 
-	"example.com/MikuTools/pkg/models"
 	"example.com/MikuTools/cmd/utils"
+	"example.com/MikuTools/pkg/logger"
+	"example.com/MikuTools/pkg/models"
 	"github.com/spf13/cobra"
 )
 
@@ -60,7 +61,9 @@ func NewCmdInventoryAdd() *cobra.Command {
 					identity.Password, identity.AuthType = password, "password"
 				} else {
 					pass, err := utils.ReadPasswordFromTerminal(fmt.Sprintf("请输入用户 %s 的密码: ", user))
-					if err != nil { return err }
+					if err != nil {
+						return err
+					}
 					identity.Password, identity.AuthType = pass, "password"
 				}
 				identityRef = fmt.Sprintf("id-%s@%s:%d", identity.User, address, port)
@@ -73,15 +76,17 @@ func NewCmdInventoryAdd() *cobra.Command {
 
 			hostObj := models.Host{Address: address, Port: port}
 			node := models.Node{
-				HostRef: fmt.Sprintf("host-%s:%d", address, port),
+				HostRef:     fmt.Sprintf("host-%s:%d", address, port),
 				IdentityRef: identityRef,
-				Alias: alias,
-				Tags: tags,
-				ProxyJump: jump,
-				SudoMode: "sudo",
+				Alias:       alias,
+				Tags:        tags,
+				ProxyJump:   jump,
+				SudoMode:    "sudo",
 			}
 
-			if identityAlias == "" { provider.AddIdentity(identityRef, identity) }
+			if identityAlias == "" {
+				provider.AddIdentity(identityRef, identity)
+			}
 			provider.AddHost(node.HostRef, hostObj)
 			provider.AddNode(name, node)
 
@@ -89,7 +94,7 @@ func NewCmdInventoryAdd() *cobra.Command {
 				return fmt.Errorf("保存配置文件失败: %v", err)
 			}
 
-			fmt.Printf("成功添加节点: %s\n", name)
+			logger.PrintSuccessf("成功添加节点: %s", name)
 			return nil
 		},
 	}

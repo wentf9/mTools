@@ -2,11 +2,11 @@ package cmd
 
 import (
 	"context"
-	"fmt"
 	"strings"
 
 	"example.com/MikuTools/cmd/utils"
 	"example.com/MikuTools/pkg/executor"
+	"example.com/MikuTools/pkg/logger"
 	"github.com/spf13/cobra"
 )
 
@@ -53,9 +53,11 @@ var sudoCmd = &cobra.Command{
 		fullCmd := strings.Join(args, " ")
 		output, err := exec.RunWithSudo(context.Background(), fullCmd)
 		if err != nil {
-			return err
+			logger.PrintErrorf("sudo执行失败: %v", err)
+			return nil
 		}
-		fmt.Print(output)
+		// sudo 输出保持纯净，因为直接展示目标机回显
+		logger.Print(output)
 		return nil
 	},
 }

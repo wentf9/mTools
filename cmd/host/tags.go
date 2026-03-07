@@ -5,6 +5,7 @@ import (
 	"strings"
 
 	"example.com/MikuTools/cmd/utils"
+	"example.com/MikuTools/pkg/logger"
 	"github.com/spf13/cobra"
 )
 
@@ -47,7 +48,7 @@ func NewCmdInventoryTagAdd() *cobra.Command {
 				if err := store.Save(cfg); err != nil {
 					return err
 				}
-				fmt.Printf("成功将 %d 个节点加入标签组 [%s]\n", updatedCount, tagName)
+				logger.PrintSuccessf("成功将 %d 个节点加入标签组 [%s]", updatedCount, tagName)
 			}
 			return nil
 		},
@@ -94,7 +95,7 @@ func NewCmdInventoryTagRemove() *cobra.Command {
 				if err := store.Save(cfg); err != nil {
 					return err
 				}
-				fmt.Printf("成功从 %d 个节点中移除了标签 [%s]\n", updatedCount, tagName)
+				logger.PrintSuccessf("成功从 %d 个节点中移除了标签 [%s]", updatedCount, tagName)
 			}
 			return nil
 		},

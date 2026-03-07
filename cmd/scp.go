@@ -10,6 +10,7 @@ import (
 
 	cmdutils "example.com/MikuTools/cmd/utils"
 	"example.com/MikuTools/pkg/config"
+	"example.com/MikuTools/pkg/logger"
 	"example.com/MikuTools/pkg/models"
 	"example.com/MikuTools/pkg/sftp"
 	"example.com/MikuTools/pkg/ssh"
@@ -421,7 +422,7 @@ func (o *ScpOptions) runBatch(ctx context.Context, provider config.ConfigProvide
 func (o *ScpOptions) executeTransfer(ctx context.Context, label string, addr PathInfo, specificPassword string, provider config.ConfigProvider, connector *ssh.Connector, configStore config.Store, cfg *config.Configuration) {
 	nodeId, updated, err := o.getOrCreateNodeForPath(provider, addr, specificPassword)
 	if err != nil {
-		fmt.Printf("[%s] 错误: %v\n", label, err)
+		logger.PrintErrorf("[%s] 错误: %v", label, err)
 		return
 	}
 	if updated {
@@ -430,22 +431,22 @@ func (o *ScpOptions) executeTransfer(ctx context.Context, label string, addr Pat
 
 	client, err := connector.Connect(ctx, nodeId)
 	if err != nil {
-		fmt.Printf("[%s] 连接失败: %v\n", label, err)
+		logger.PrintErrorf("[%s] 连接失败: %v", label, err)
 		return
 	}
 
 	sftpCli, err := sftp.NewClient(client, sftp.WithThreadsPerFile(o.ThreadCount))
 	if err != nil {
-		fmt.Printf("[%s] SFTP失败: %v\n", label, err)
+		logger.PrintErrorf("[%s] SFTP失败: %v", label, err)
 		return
 	}
 	defer sftpCli.Close()
 
 	err = sftpCli.Upload(ctx, o.Source, o.Dest, nil)
 	if err != nil {
-		fmt.Printf("[%s] 传输失败: %v\n", label, err)
+		logger.PrintErrorf("[%s] 传输失败: %v", label, err)
 	} else {
-		fmt.Printf("[%s] 完成\n", label)
+		logger.PrintSuccessf("[%s] 完成", label)
 	}
 }
 

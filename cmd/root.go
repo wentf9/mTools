@@ -5,7 +5,7 @@ import (
 
 	"example.com/MikuTools/cmd/host"
 	"example.com/MikuTools/cmd/version"
-	utils "example.com/MikuTools/pkg/logger"
+	"example.com/MikuTools/pkg/logger"
 	"github.com/spf13/cobra"
 )
 
@@ -24,10 +24,17 @@ var rootCmd = &cobra.Command{
 		os.Exit(0)
 	},
 	PersistentPreRun: func(cmd *cobra.Command, args []string) {
+		logLevel, _ := cmd.Flags().GetString("log-level")
 		debugFlag, _ := cmd.Flags().GetBool("debug")
+
+		// 如果指明了 --debug，则强制覆盖 log-level 为 debug
 		if debugFlag {
-			utils.SetLogLevel("debug")
-			utils.Logger.Debug("调试模式已开启")
+			logLevel = "debug"
+		}
+
+		logger.SetLogLevel(logLevel)
+		if logLevel == "debug" {
+			logger.Debug("调试模式已开启")
 		}
 	},
 }
@@ -48,7 +55,8 @@ func Execute() {
 
 func init() {
 	rootCmd.Flags().BoolP("version", "v", false, "显示版本信息")
-	rootCmd.PersistentFlags().Bool("debug", false, "开启调试模式")
+	rootCmd.PersistentFlags().String("log-level", "", "设置内部诊断日志级别 (debug, info, warn, error)")
+	rootCmd.PersistentFlags().Bool("debug", false, "开启调试模式 (等同于 --log-level=debug)")
 
 	// 注册子命令
 	rootCmd.AddCommand(versionCmd)

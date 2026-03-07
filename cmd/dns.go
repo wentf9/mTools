@@ -1,10 +1,10 @@
 package cmd
 
 import (
-	"fmt"
 	"net"
 	"sync"
 
+	"example.com/MikuTools/pkg/logger"
 	"github.com/spf13/cobra"
 )
 
@@ -17,13 +17,15 @@ var dnsCmd = &cobra.Command{
 	Run: func(cmd *cobra.Command, args []string) {
 		wg := sync.WaitGroup{}
 		for _, domain := range args {
-			wg.Go(func() {
-				if resolve, err := net.ResolveIPAddr("ip", domain); err != nil {
-					fmt.Printf("主机名 [%s] 无法解析为ip地址: %v", domain, err)
+			wg.Add(1)           // Add this line to correctly use WaitGroup
+			go func(d string) { // Pass domain as argument to goroutine to avoid loop variable capture
+				defer wg.Done()
+				if resolve, err := net.ResolveIPAddr("ip", d); err != nil {
+					logger.PrintErrorf("主机名 [%s] 无法解析为ip地址: %v", d, err)
 				} else {
-					fmt.Printf("主机名 [%s] 的IP地址为: [%s]\n", domain, resolve.String())
+					logger.PrintInfof("主机名 [%s] 的IP地址为: [%s]", d, resolve.String())
 				}
-			})
+			}(domain)
 		}
 		wg.Wait()
 	},

@@ -8,6 +8,7 @@ import (
 	"net"
 	"time"
 
+	"example.com/MikuTools/pkg/logger"
 	ping "github.com/prometheus-community/pro-bing"
 	"github.com/spf13/cobra"
 )
@@ -35,7 +36,7 @@ var pingCmd = &cobra.Command{
 		if resolve, err := net.ResolveIPAddr("ip", ip); err != nil {
 			return fmt.Errorf("提供的主机名无法解析为ip地址: %v", err)
 		} else {
-			fmt.Printf("主机名 [%s] 的IP地址为: [%s]\n", ip, resolve.String())
+			logger.PrintInfof("主机名 [%s] 的IP地址为: [%s]", ip, resolve.String())
 			ip = resolve.String()
 		}
 
@@ -43,20 +44,20 @@ var pingCmd = &cobra.Command{
 		if len(args) == 2 {
 			port := args[1]
 			address := net.JoinHostPort(ip, port)
-			fmt.Printf("正在测试到 %s 的TCP连接...\n", address)
+			logger.PrintInfof("正在测试到 %s 的TCP连接...", address)
 
 			conn, err := net.DialTimeout("tcp", address, 5*time.Second)
 			if err != nil {
-				fmt.Printf("主机 %s 的端口 %s 已关闭或被过滤: %v\n", ip, port, err)
+				logger.PrintErrorf("主机 %s 的端口 %s 已关闭或被过滤: %v", ip, port, err)
 				return nil // 命令本身执行成功，所以不返回错误
 			}
 			conn.Close()
-			fmt.Printf("主机 %s 的端口 %s 是开放的!\n", ip, port)
+			logger.PrintSuccessf("主机 %s 的端口 %s 是开放的!", ip, port)
 			return nil
 		}
 
 		// 情况1: 只提供了IP，进行ICMP ping
-		fmt.Printf("正在通过ICMP Ping %s...\n", ip)
+		logger.PrintInfof("正在通过ICMP Ping %s...", ip)
 		pinger, err := ping.NewPinger(ip)
 		if err != nil {
 			return fmt.Errorf("创建pinger失败: %w", err)
@@ -69,10 +70,10 @@ var pingCmd = &cobra.Command{
 		pinger.Timeout = 4 * time.Second
 
 		pinger.OnFinish = func(stats *ping.Statistics) {
-			fmt.Printf("\n--- %s 的 ping 统计信息 ---\n", stats.Addr)
-			fmt.Printf("%d 个包已发送, %d 个包已接收, %v%% 包丢失\n",
+			logger.PrintInfof("\n--- %s 的 ping 统计信息 ---", stats.Addr)
+			logger.PrintInfof("%d 个包已发送, %d 个包已接收, %v%% 包丢失",
 				stats.PacketsSent, stats.PacketsRecv, stats.PacketLoss)
-			fmt.Printf("往返行程 最小/平均/最大/标准差 = %v/%v/%v/%v\n",
+			logger.PrintInfof("往返行程 最小/平均/最大/标准差 = %v/%v/%v/%v",
 				stats.MinRtt, stats.AvgRtt, stats.MaxRtt, stats.StdDevRtt)
 		}
 

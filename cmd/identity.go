@@ -8,6 +8,7 @@ import (
 
 	"example.com/MikuTools/cmd/utils"
 	"example.com/MikuTools/pkg/config"
+	"example.com/MikuTools/pkg/logger"
 	"example.com/MikuTools/pkg/models"
 	"github.com/spf13/cobra"
 )
@@ -87,9 +88,9 @@ func NewCmdIdentityEdit() *cobra.Command {
 				if err := configStore.Save(cfg); err != nil {
 					return err
 				}
-				fmt.Printf("成功更新认证模板: %s\n", name)
+				logger.PrintSuccessf("成功更新认证模板: %s", name)
 			} else {
-				fmt.Println("未提供任何修改项")
+				logger.PrintWarnf("未提供任何修改项")
 			}
 
 			return nil
@@ -113,7 +114,7 @@ func NewCmdIdentityList() *cobra.Command {
 			configStore := config.NewDefaultStore(configPath, keyPath)
 			cfg, err := configStore.Load()
 			if err != nil {
-				fmt.Printf("加载配置文件失败: %v\n", err)
+				logger.PrintErrorf("加载配置文件失败: %v", err)
 				return
 			}
 
@@ -121,7 +122,7 @@ func NewCmdIdentityList() *cobra.Command {
 			identities := provider.ListIdentities()
 
 			if len(identities) == 0 {
-				fmt.Println("没有找到已存储的认证信息。")
+				logger.PrintWarnf("没有找到已存储的认证信息。")
 				return
 			}
 
@@ -215,7 +216,7 @@ func NewCmdIdentityAdd() *cobra.Command {
 				return fmt.Errorf("保存配置文件失败: %v", err)
 			}
 
-			fmt.Printf("成功添加认证模板: %s\n", name)
+			logger.PrintSuccessf("成功添加认证模板: %s", name)
 			return nil
 		},
 	}
@@ -254,7 +255,7 @@ func NewCmdIdentityDelete() *cobra.Command {
 				return err
 			}
 
-			fmt.Printf("成功删除认证模板: %s\n", name)
+			logger.PrintSuccessf("成功删除认证模板: %s", name)
 			return nil
 		},
 	}

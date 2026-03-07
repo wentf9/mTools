@@ -10,6 +10,7 @@ import (
 	"example.com/MikuTools/pkg/config"
 	"example.com/MikuTools/pkg/executor"
 	"example.com/MikuTools/pkg/firewall"
+	"example.com/MikuTools/pkg/logger"
 	"example.com/MikuTools/pkg/ssh"
 
 	pkgutils "example.com/MikuTools/pkg/utils"
@@ -82,9 +83,9 @@ func (o *FirewallOptions) RunOnHosts(ctx context.Context, action func(fw firewal
 		}
 		out, err := action(fw)
 		if err != nil {
-			fmt.Printf("[LOCAL] Error: %v\nOutput: %s\n", err, out)
+			logger.PrintErrorf("[LOCAL] Error: %v\nOutput: %s", err, out)
 		} else {
-			fmt.Printf("[LOCAL] Success\n%s\n", out)
+			logger.PrintSuccessf("[LOCAL] Success\n%s", out)
 		}
 		if o.Reload {
 			fw.Reload(ctx)
@@ -118,29 +119,28 @@ func (o *FirewallOptions) RunOnHosts(ctx context.Context, action func(fw firewal
 			// 简单的节点查找/创建逻辑 (这里为了重构简洁省略部分逻辑)
 			nodeId := provider.Find(h)
 			if nodeId == "" {
-				// 动态创建一个临时节点或报错
-				fmt.Printf("[%s] 未找到节点配置，请先通过 exec 或配置添加\n", h)
+				logger.PrintErrorf("[%s] 未找到节点配置，请先通过 exec 或配置添加", h)
 				return
 			}
 
 			client, err := connector.Connect(ctx, nodeId)
 			if err != nil {
-				fmt.Printf("[%s] 连接失败: %v\n", h, err)
+				logger.PrintErrorf("[%s] 连接失败: %v", h, err)
 				return
 			}
 
 			exec := executor.NewSSHExecutor(client)
 			fw, err := firewall.DetectFirewall(ctx, exec)
 			if err != nil {
-				fmt.Printf("[%s] 探测防火墙失败: %v\n", h, err)
+				logger.PrintErrorf("[%s] 探测防火墙失败: %v", h, err)
 				return
 			}
 
 			out, err := action(fw)
 			if err != nil {
-				fmt.Printf("[%s] 失败: %v\n输出: %s\n", h, err, out)
+				logger.PrintErrorf("[%s] 失败: %v\n输出: %s", h, err, out)
 			} else {
-				fmt.Printf("[%s] 成功 (%s)\n%s\n", h, fw.Name(), out)
+				logger.PrintSuccessf("[%s] 成功 (%s)\n%s", h, fw.Name(), out)
 			}
 
 			if o.Reload {
