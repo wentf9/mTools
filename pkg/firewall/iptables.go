@@ -20,7 +20,7 @@ func (b *IptablesBackend) Name() string {
 }
 
 func (b *IptablesBackend) Status(ctx context.Context) (string, error) {
-	return b.exec.Run(ctx, "iptables -L -n")
+	return b.exec.RunWithSudo(ctx, "iptables -L -n")
 }
 
 func (b *IptablesBackend) Enable(ctx context.Context) (string, error) {
@@ -32,7 +32,7 @@ func (b *IptablesBackend) Disable(ctx context.Context) (string, error) {
 }
 
 func (b *IptablesBackend) ListRules(ctx context.Context) (string, error) {
-	return b.exec.Run(ctx, "iptables -S")
+	return b.exec.RunWithSudo(ctx, "iptables -S")
 }
 
 func (b *IptablesBackend) AddRule(ctx context.Context, rule Rule) (string, error) {

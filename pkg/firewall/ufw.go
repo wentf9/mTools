@@ -20,7 +20,7 @@ func (b *UfwBackend) Name() string {
 }
 
 func (b *UfwBackend) Status(ctx context.Context) (string, error) {
-	return b.exec.Run(ctx, "ufw status")
+	return b.exec.RunWithSudo(ctx, "ufw status")
 }
 
 func (b *UfwBackend) Enable(ctx context.Context) (string, error) {
@@ -32,7 +32,7 @@ func (b *UfwBackend) Disable(ctx context.Context) (string, error) {
 }
 
 func (b *UfwBackend) ListRules(ctx context.Context) (string, error) {
-	return b.exec.Run(ctx, "ufw status numbered")
+	return b.exec.RunWithSudo(ctx, "ufw status numbered")
 }
 
 func (b *UfwBackend) AddRule(ctx context.Context, rule Rule) (string, error) {

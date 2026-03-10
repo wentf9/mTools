@@ -20,7 +20,7 @@ func (b *NftablesBackend) Name() string {
 }
 
 func (b *NftablesBackend) Status(ctx context.Context) (string, error) {
-	return b.exec.Run(ctx, "nft list ruleset")
+	return b.exec.RunWithSudo(ctx, "nft list ruleset")
 }
 
 func (b *NftablesBackend) Enable(ctx context.Context) (string, error) {
@@ -32,7 +32,7 @@ func (b *NftablesBackend) Disable(ctx context.Context) (string, error) {
 }
 
 func (b *NftablesBackend) ListRules(ctx context.Context) (string, error) {
-	return b.exec.Run(ctx, "nft list ruleset")
+	return b.exec.RunWithSudo(ctx, "nft list ruleset")
 }
 
 func (b *NftablesBackend) AddRule(ctx context.Context, rule Rule) (string, error) {

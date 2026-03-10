@@ -19,8 +19,6 @@ import (
 
 type FirewallOptions struct {
 	SshOptions
-	HostFile  string
-	CSVFile   string
 	Protocol  string
 	Reload    bool
 	Remove    bool
@@ -59,11 +57,9 @@ func init() {
 	firewallCmd.AddCommand(newFirewallReloadCmd())
 
 	// 通用参数
-	firewallCmd.PersistentFlags().StringVarP(&fwOptions.Host, "host", "H", "", "目标主机,多个主机用逗号分隔")
+	firewallCmd.PersistentFlags().StringVarP(&fwOptions.Host, "host", "H", "", "目标主机/连接别名,多个用逗号分隔")
 	firewallCmd.PersistentFlags().StringVarP(&fwOptions.User, "user", "u", "", "SSH用户名")
 	firewallCmd.PersistentFlags().StringVarP(&fwOptions.Password, "password", "w", "", "SSH密码")
-	firewallCmd.PersistentFlags().StringVarP(&fwOptions.HostFile, "ifile", "I", "", "主机列表文件")
-	firewallCmd.PersistentFlags().StringVar(&fwOptions.CSVFile, "csv", "", "CSV格式主机列表")
 	firewallCmd.PersistentFlags().IntVar(&fwOptions.TaskCount, "task", 1, "并行任务数")
 
 	firewallCmd.PersistentFlags().StringVar(&fwOptions.Protocol, "proto", "tcp", "协议类型 (tcp/udp)")
@@ -74,7 +70,7 @@ func init() {
 
 func (o *FirewallOptions) RunOnHosts(ctx context.Context, action func(fw firewall.Firewall) (string, error)) error {
 	// 如果没有指定主机，默认本地模式
-	if o.Host == "" && o.HostFile == "" && o.CSVFile == "" {
+	if o.Host == "" {
 		pwd := cmdutils.GetLocalSudoPassword()
 		exec := executor.NewLocalExecutor(pwd)
 		fw, err := firewall.DetectFirewall(ctx, exec)
@@ -83,9 +79,9 @@ func (o *FirewallOptions) RunOnHosts(ctx context.Context, action func(fw firewal
 		}
 		out, err := action(fw)
 		if err != nil {
-			logger.PrintErrorf("[LOCAL] Error: %v\nOutput: %s", err, out)
+			logger.PrintErrorf("[LOCAL] (%s) Error: %v\nOutput: %s", fw.Name(), err, out)
 		} else {
-			logger.PrintSuccessf("[LOCAL] Success\n%s", out)
+			logger.PrintSuccessf("[LOCAL] (%s) Success\n%s", fw.Name(), out)
 		}
 		if o.Reload {
 			fw.Reload(ctx)
@@ -104,43 +100,61 @@ func (o *FirewallOptions) RunOnHosts(ctx context.Context, action func(fw firewal
 	connector := ssh.NewConnector(provider)
 	defer connector.CloseAll()
 
-	hosts, err := cmdutils.ParseHosts(o.Host, o.HostFile, o.CSVFile)
-	if err != nil {
-		return err
+	var hosts []string
+	if o.Host != "" {
+		hosts = strings.Split(o.Host, ",")
 	}
 
 	wp := pkgutils.NewWorkerPool(uint(o.TaskCount))
 
 	executeOnHost := func(h string) {
 		wp.Execute(func() {
-			// 这里复用之前 exec.go 中的逻辑或简化
-			// 为了简洁，直接使用 Connector
+			rawHost := strings.TrimSpace(h)
+			if rawHost == "" {
+				return
+			}
 
-			// 简单的节点查找/创建逻辑 (这里为了重构简洁省略部分逻辑)
-			nodeId := provider.Find(h)
+			nodeId := provider.Find(rawHost)
+			u, hs, p := cmdutils.ParseAddr(rawHost)
 			if nodeId == "" {
-				logger.PrintErrorf("[%s] 未找到节点配置，请先通过 exec 或配置添加", h)
+				if u == "" {
+					u = o.User
+					if u == "" {
+						u = cmdutils.GetCurrentUser()
+					}
+				}
+				if p == 0 {
+					p = o.Port
+					if p == 0 {
+						p = 22
+					}
+				}
+				nodeId = provider.Find(fmt.Sprintf("%s@%s:%d", u, hs, p))
+			}
+
+			if nodeId == "" {
+				logger.PrintErrorf("[%s@%s:%d] 未找到该主机匹配的节点配置，请先通过 inventory 添加", u, hs, p)
 				return
 			}
 
 			client, err := connector.Connect(ctx, nodeId)
 			if err != nil {
-				logger.PrintErrorf("[%s] 连接失败: %v", h, err)
+				logger.PrintErrorf("[%s] 连接失败: %v", rawHost, err)
 				return
 			}
 
 			exec := executor.NewSSHExecutor(client)
 			fw, err := firewall.DetectFirewall(ctx, exec)
 			if err != nil {
-				logger.PrintErrorf("[%s] 探测防火墙失败: %v", h, err)
+				logger.PrintErrorf("[%s] 探测防火墙失败: %v", rawHost, err)
 				return
 			}
 
 			out, err := action(fw)
 			if err != nil {
-				logger.PrintErrorf("[%s] 失败: %v\n输出: %s", h, err, out)
+				logger.PrintErrorf("[%s] 失败: %v\n输出: %s", rawHost, err, out)
 			} else {
-				logger.PrintSuccessf("[%s] 成功 (%s)\n%s", h, fw.Name(), out)
+				logger.PrintSuccessf("[%s] 成功 (%s)\n%s", rawHost, fw.Name(), out)
 			}
 
 			if o.Reload {
@@ -150,7 +164,7 @@ func (o *FirewallOptions) RunOnHosts(ctx context.Context, action func(fw firewal
 	}
 
 	for _, h := range hosts {
-		executeOnHost(fmt.Sprintf("%s@%s:%d", h.User, h.Host, h.Port))
+		executeOnHost(h)
 	}
 
 	wp.Wait()
@@ -256,16 +270,34 @@ func newFirewallRuleCmd() *cobra.Command {
 			}
 
 			return fwOptions.RunOnHosts(context.Background(), func(fw firewall.Firewall) (string, error) {
-				rule := firewall.Rule{
-					Port:     port,
-					Source:   source,
-					Protocol: firewall.Protocol(fwOptions.Protocol),
-					Action:   action,
+				var finalOut strings.Builder
+				sources := strings.Split(source, ",")
+
+				for _, src := range sources {
+					src = strings.TrimSpace(src)
+					if src == "" {
+						continue
+					}
+
+					rule := firewall.Rule{
+						Port:     port,
+						Source:   src,
+						Protocol: firewall.Protocol(fwOptions.Protocol),
+						Action:   action,
+					}
+					var out string
+					var err error
+					if fwOptions.Remove {
+						out, err = fw.RemoveRule(context.Background(), rule)
+					} else {
+						out, err = fw.AddRule(context.Background(), rule)
+					}
+					finalOut.WriteString(out)
+					if err != nil {
+						return finalOut.String(), err
+					}
 				}
-				if fwOptions.Remove {
-					return fw.RemoveRule(context.Background(), rule)
-				}
-				return fw.AddRule(context.Background(), rule)
+				return finalOut.String(), nil
 			})
 		},
 	}

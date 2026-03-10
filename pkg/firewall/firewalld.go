@@ -25,7 +25,7 @@ func (b *FirewalldBackend) Name() string {
 }
 
 func (b *FirewalldBackend) Status(ctx context.Context) (string, error) {
-	return b.exec.Run(ctx, "firewall-cmd --state")
+	return b.exec.RunWithSudo(ctx, "firewall-cmd --state")
 }
 
 func (b *FirewalldBackend) Enable(ctx context.Context) (string, error) {
@@ -38,7 +38,7 @@ func (b *FirewalldBackend) Disable(ctx context.Context) (string, error) {
 
 func (b *FirewalldBackend) ListRules(ctx context.Context) (string, error) {
 	cmd := fmt.Sprintf("firewall-cmd --zone=%s --list-all", b.zone)
-	return b.exec.Run(ctx, cmd)
+	return b.exec.RunWithSudo(ctx, cmd)
 }
 
 func (b *FirewalldBackend) AddRule(ctx context.Context, rule Rule) (string, error) {
