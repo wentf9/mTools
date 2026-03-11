@@ -39,7 +39,7 @@ endif
 # ==============================================================================
 
 .PHONY: all clean help build build-cli
-.PHONY: windows linux
+.PHONY: windows windows-arm64 linux linux-arm64 darwin darwin-amd64 darwin-arm64
 
 default: all
 
@@ -61,6 +61,11 @@ windows:
 	@echo "Compiling for Windows (amd64)..."
 	CGO_ENABLED=0 GOOS=windows GOARCH=amd64 go build -ldflags "$(LDFLAGS)" -o $(BIN_DIR)/$(BINARY_NAME).exe ./cmd/cli
 
+# 编译 Windows 版本 (ARM64)
+windows-arm64:
+	@echo "Compiling for Windows (arm64)..."
+	CGO_ENABLED=0 GOOS=windows GOARCH=arm64 go build -ldflags "$(LDFLAGS)" -o $(BIN_DIR)/$(BINARY_NAME)-arm64.exe ./cmd/cli
+
 # 编译 Linux 版本 (64位)
 linux:
 	@echo "Compiling for Linux (amd64)..."
@@ -71,7 +76,19 @@ linux-arm64:
 	@echo "Compiling for Linux (arm64)..."
 	CGO_ENABLED=0 GOOS=linux GOARCH=arm64 go build -ldflags "$(LDFLAGS)" -o $(BIN_DIR)/$(BINARY_NAME)-linux-aarch64 ./cmd/cli
 
+# 编译 macOS 版本 (Intel & Apple Silicon)
+darwin: darwin-amd64 darwin-arm64
 
+darwin-amd64:
+	@echo "Compiling for macOS (amd64)..."
+	CGO_ENABLED=0 GOOS=darwin GOARCH=amd64 go build -ldflags "$(LDFLAGS)" -o $(BIN_DIR)/$(BINARY_NAME)-darwin-amd64 ./cmd/cli
+
+darwin-arm64:
+	@echo "Compiling for macOS (arm64)..."
+	CGO_ENABLED=0 GOOS=darwin GOARCH=arm64 go build -ldflags "$(LDFLAGS)" -o $(BIN_DIR)/$(BINARY_NAME)-darwin-arm64 ./cmd/cli
+
+# 编译所有平台
+release: windows windows-arm64 linux linux-arm64 darwin
 
 # ==============================================================================
 # 清理
@@ -86,9 +103,14 @@ help:
 	@echo "使用方法: make [target]"
 	@echo ""
 	@echo "Targets:"
-	@echo "  all        默认目标，清理并编译当前系统版本"
-	@echo "  build      仅编译当前系统版本"
-	@echo "  windows    交叉编译 Windows 版本 (.exe)"
-	@echo "  linux      交叉编译 Linux 版本"
-	@echo "  linux-aarch64      交叉编译 linux(aarch64) 版本"
-	@echo "  clean      清理构建文件"
+	@echo "  all             默认目标，清理并编译当前系统版本"
+	@echo "  build           仅编译当前系统版本"
+	@echo "  windows         交叉编译 Windows (amd64) 版本 (.exe)"
+	@echo "  windows-arm64   交叉编译 Windows (arm64) 版本 (.exe)"
+	@echo "  linux           交叉编译 Linux (amd64) 版本"
+	@echo "  linux-arm64     交叉编译 Linux (arm64) 版本"
+	@echo "  darwin          交叉编译 macOS (amd64 & arm64) 版本"
+	@echo "  darwin-amd64    交叉编译 macOS (amd64) 版本"
+	@echo "  darwin-arm64    交叉编译 macOS (arm64) 版本"
+	@echo "  release         交叉编译所有支持的平台"
+	@echo "  clean           清理构建文件"
