@@ -3,7 +3,7 @@ package cmd
 import (
 	"context"
 	"fmt"
-
+	"runtime"
 	"strings"
 
 	cmdutils "example.com/MikuTools/cmd/utils"
@@ -71,6 +71,9 @@ func init() {
 func (o *FirewallOptions) RunOnHosts(ctx context.Context, action func(fw firewall.Firewall) (string, error)) error {
 	// 如果没有指定主机，默认本地模式
 	if o.Host == "" {
+		if runtime.GOOS != "linux" {
+			return fmt.Errorf("防火墙管理功能仅支持 Linux 系统 (当前系统为 %s)", runtime.GOOS)
+		}
 		pwd := cmdutils.GetLocalSudoPassword()
 		exec := executor.NewLocalExecutor(pwd)
 		fw, err := firewall.DetectFirewall(ctx, exec)
@@ -191,7 +194,16 @@ func newFirewallPortCmd() *cobra.Command {
 		RunE: func(cmd *cobra.Command, args []string) error {
 			return fwOptions.RunOnHosts(context.Background(), func(fw firewall.Firewall) (string, error) {
 				var finalOut strings.Builder
-				for _, p := range args {
+				var allPorts []string
+				for _, arg := range args {
+					allPorts = append(allPorts, strings.Split(arg, ",")...)
+				}
+
+				for _, p := range allPorts {
+					p = strings.TrimSpace(p)
+					if p == "" {
+						continue
+					}
 					rule := firewall.Rule{
 						Port:     p,
 						Protocol: firewall.Protocol(fwOptions.Protocol),
@@ -218,12 +230,21 @@ func newFirewallPortCmd() *cobra.Command {
 func newFirewallServiceCmd() *cobra.Command {
 	return &cobra.Command{
 		Use:   "service <services>",
-		Short: "管理服务规则 (例如: http, ssh)",
+		Short: "管理服务规则 (例如: http, https)",
 		Args:  cobra.MinimumNArgs(1),
 		RunE: func(cmd *cobra.Command, args []string) error {
 			return fwOptions.RunOnHosts(context.Background(), func(fw firewall.Firewall) (string, error) {
 				var finalOut strings.Builder
-				for _, s := range args {
+				var allServices []string
+				for _, arg := range args {
+					allServices = append(allServices, strings.Split(arg, ",")...)
+				}
+
+				for _, s := range allServices {
+					s = strings.TrimSpace(s)
+					if s == "" {
+						continue
+					}
 					rule := firewall.Rule{
 						Service: s,
 						Action:  fwOptions.Action,
@@ -252,12 +273,12 @@ func newFirewallRuleCmd() *cobra.Command {
 		Short: "管理复杂规则 (带源 IP)",
 		Args:  cobra.RangeArgs(1, 2),
 		RunE: func(cmd *cobra.Command, args []string) error {
-			var port, source string
+			var portStr, sourceStr string
 			if len(args) == 1 {
-				source = args[0]
+				sourceStr = args[0]
 			} else {
-				port = args[0]
-				source = args[1]
+				portStr = args[0]
+				sourceStr = args[1]
 			}
 
 			reject, _ := cmd.Flags().GetBool("reject")
@@ -271,30 +292,38 @@ func newFirewallRuleCmd() *cobra.Command {
 
 			return fwOptions.RunOnHosts(context.Background(), func(fw firewall.Firewall) (string, error) {
 				var finalOut strings.Builder
-				sources := strings.Split(source, ",")
+				sources := strings.Split(sourceStr, ",")
+				var ports []string
+				if portStr != "" {
+					ports = strings.Split(portStr, ",")
+				} else {
+					ports = []string{""}
+				}
 
 				for _, src := range sources {
 					src = strings.TrimSpace(src)
 					if src == "" {
 						continue
 					}
-
-					rule := firewall.Rule{
-						Port:     port,
-						Source:   src,
-						Protocol: firewall.Protocol(fwOptions.Protocol),
-						Action:   action,
-					}
-					var out string
-					var err error
-					if fwOptions.Remove {
-						out, err = fw.RemoveRule(context.Background(), rule)
-					} else {
-						out, err = fw.AddRule(context.Background(), rule)
-					}
-					finalOut.WriteString(out)
-					if err != nil {
-						return finalOut.String(), err
+					for _, p := range ports {
+						p = strings.TrimSpace(p)
+						rule := firewall.Rule{
+							Port:     p,
+							Source:   src,
+							Protocol: firewall.Protocol(fwOptions.Protocol),
+							Action:   action,
+						}
+						var out string
+						var err error
+						if fwOptions.Remove {
+							out, err = fw.RemoveRule(context.Background(), rule)
+						} else {
+							out, err = fw.AddRule(context.Background(), rule)
+						}
+						finalOut.WriteString(out)
+						if err != nil {
+							return finalOut.String(), err
+						}
 					}
 				}
 				return finalOut.String(), nil
