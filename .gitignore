@@ -11,3 +11,4 @@ skills-lock.json
 .agents/
 .gemini/
 temp_tests/
+coverage.out

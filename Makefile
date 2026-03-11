@@ -38,7 +38,7 @@ endif
 # 编译命令
 # ==============================================================================
 
-.PHONY: all clean help build build-cli
+.PHONY: all clean help build build-cli test test-race test-cover bench stress
 .PHONY: windows windows-arm64 linux linux-arm64 darwin darwin-amd64 darwin-arm64
 
 default: all
@@ -98,6 +98,31 @@ clean:
 	@rm -rf $(BIN_DIR)
 	@go clean
 
+# ==============================================================================
+# 测试 (Testing)
+# ==============================================================================
+
+test:
+	@echo "Running tests..."
+	go test ./pkg/... -count=1
+
+test-race:
+	@echo "Running tests with race detector..."
+	go test ./pkg/... -race -count=1
+
+test-cover:
+	@echo "Running tests with coverage..."
+	go test ./pkg/... -coverprofile=coverage.out
+	go tool cover -func=coverage.out
+
+bench:
+	@echo "Running benchmarks..."
+	go test ./pkg/utils/concurrent/... -bench=. -benchmem -benchtime=2s -run='^$$' -count=1
+
+stress:
+	@echo "Running stress tests..."
+	go test ./pkg/utils/concurrent/... -race -run="TestStress" -v -count=1
+
 # 显示帮助
 help:
 	@echo "使用方法: make [target]"
@@ -114,3 +139,10 @@ help:
 	@echo "  darwin-arm64    交叉编译 macOS (arm64) 版本"
 	@echo "  release         交叉编译所有支持的平台"
 	@echo "  clean           清理构建文件"
+	@echo ""
+	@echo "Testing:"
+	@echo "  test            运行单元测试"
+	@echo "  test-race       运行单元测试 (带 race 检测)"
+	@echo "  test-cover      运行测试并生成覆盖率报告"
+	@echo "  bench           运行 ConcurrentMap 基准测试"
+	@echo "  stress          运行 ConcurrentMap 压力测试"
