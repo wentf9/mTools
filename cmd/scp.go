@@ -554,18 +554,24 @@ func (o *ScpOptions) updateNode(nodeId string, provider config.ConfigProvider, s
 	}
 
 	if password != "" {
-		identity.Password = password
-		identity.AuthType = "password"
-		updated = true
+		if identity.Password != password || identity.AuthType != "password" {
+			identity.Password = password
+			identity.AuthType = "password"
+			updated = true
+		}
 	} else if o.KeyFile != "" {
-		identity.KeyPath = o.KeyFile
-		identity.AuthType = "key"
-		updated = true
+		if identity.KeyPath != o.KeyFile || identity.AuthType != "key" {
+			identity.KeyPath = o.KeyFile
+			identity.AuthType = "key"
+			updated = true
+		}
 	}
 
 	if o.KeyPass != "" {
-		identity.Passphrase = o.KeyPass
-		updated = true
+		if identity.Passphrase != o.KeyPass {
+			identity.Passphrase = o.KeyPass
+			updated = true
+		}
 	}
 
 	if updated {

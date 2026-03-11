@@ -85,11 +85,17 @@ func (s *defaultStore) Save(cfg *Configuration) error {
 	if err != nil {
 		return err
 	}
+
+	// 记录原始值以便在保存后恢复，防止内存中被加密后的数据污染
+	originalPasswords := make(map[string]string)
+	originalPassphrases := make(map[string]string)
+
 	// 1. 遍历 Identities，加密敏感字段
 	for _, name := range cfg.Identities.Keys() {
 		identity, _ := cfg.Identities.Get(name)
 		// 处理 Password 字段
 		if identity.Password != "" && !crypto.IsEncrypted(identity.Password) {
+			originalPasswords[name] = identity.Password
 			enc, err := crypter.Encrypt(identity.Password)
 			if err != nil {
 				// 记录日志或报错
@@ -100,6 +106,7 @@ func (s *defaultStore) Save(cfg *Configuration) error {
 
 		// 处理 Key Passphrase 字段
 		if identity.Passphrase != "" && !crypto.IsEncrypted(identity.Passphrase) {
+			originalPassphrases[name] = identity.Passphrase
 			enc, err := crypter.Encrypt(identity.Passphrase)
 			if err != nil {
 				continue
@@ -108,8 +115,24 @@ func (s *defaultStore) Save(cfg *Configuration) error {
 		}
 		cfg.Identities.Set(name, identity)
 	}
+
 	// 2. yaml.Marshal
 	data, err := yaml.Marshal(cfg)
+
+	// 序列化后立即恢复内存中的明文
+	for name, plainPassword := range originalPasswords {
+		if identity, ok := cfg.Identities.Get(name); ok {
+			identity.Password = plainPassword
+			cfg.Identities.Set(name, identity)
+		}
+	}
+	for name, plainPassphrase := range originalPassphrases {
+		if identity, ok := cfg.Identities.Get(name); ok {
+			identity.Passphrase = plainPassphrase
+			cfg.Identities.Set(name, identity)
+		}
+	}
+
 	if err != nil {
 		return err
 	}
