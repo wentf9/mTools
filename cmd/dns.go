@@ -8,7 +8,7 @@ import (
 	"github.com/spf13/cobra"
 )
 
-// dnsCmd represents the loadPwd command
+// dnsCmd represents the dns command
 var dnsCmd = &cobra.Command{
 	Use:   "dns domain1 domain2 ...",
 	Short: "dns查询",

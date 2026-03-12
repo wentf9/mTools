@@ -1,20 +1,22 @@
 package utils
 
 import (
-	"bufio"
+	"encoding/csv"
 	"fmt"
 	"io"
 	"os"
 	"path/filepath"
-	"regexp"
 	"strings"
 )
 
 type HostInfo struct {
-	Host     string
-	Port     uint16
-	User     string
-	Password string
+	Host       string
+	Port       uint16
+	Alias      string
+	User       string
+	Password   string
+	KeyPath    string
+	Passphrase string
 }
 
 func ReadCSVFile(path string) ([]HostInfo, error) {
@@ -24,7 +26,6 @@ func ReadCSVFile(path string) ([]HostInfo, error) {
 		}
 	}
 
-	var hosts []HostInfo
 	file, err := os.Open(path)
 	if err != nil {
 		if os.IsNotExist(err) {
@@ -34,55 +35,85 @@ func ReadCSVFile(path string) ([]HostInfo, error) {
 	}
 	defer file.Close()
 
-	reader := bufio.NewReader(file)
-	firstLine := true
+	reader := csv.NewReader(file)
+	// 允许不一致的列数（可选，视CSV规范而定）
+	reader.FieldsPerRecord = -1
 
+	// 读取表头
+	header, err := reader.Read()
+	if err != nil {
+		return nil, fmt.Errorf("读取CSV表头失败: %v", err)
+	}
+
+	// 建立列索引映射
+	colMap := make(map[string]int)
+	for i, col := range header {
+		colMap[strings.ToLower(strings.TrimSpace(col))] = i
+	}
+
+	// 定义字段映射关系
+	findIdx := func(names ...string) int {
+		for _, name := range names {
+			if idx, ok := colMap[strings.ToLower(name)]; ok {
+				return idx
+			}
+		}
+		return -1
+	}
+
+	idxHost := findIdx("host", "主机", "主机地址", "ip", "address")
+	idxPort := findIdx("port", "端口")
+	idxAlias := findIdx("alias", "别名", "name")
+	idxUser := findIdx("user", "用户", "用户名", "username")
+	idxPass := findIdx("password", "密码", "登录密码")
+	idxKey := findIdx("key", "私钥", "私钥地址", "keypath", "identity_file")
+	idxKeyPass := findIdx("keypass", "key_pass", "私钥密码", "passphrase")
+
+	if idxHost == -1 {
+		return nil, fmt.Errorf("CSV文件表头必须包含 '主机' 或 'IP' 列")
+	}
+
+	var hosts []HostInfo
 	for {
-		line, err := reader.ReadString('\n')
-		if err != nil && err != io.EOF {
-			return nil, fmt.Errorf("读取CSV文件失败: %v", err)
-		}
-
-		line = strings.TrimSpace(line)
-		if line == "" {
-			if err == io.EOF {
-				break
-			}
-			continue
-		}
-
-		// 跳过CSV头行
-		if firstLine {
-			firstLine = false
-			if strings.Contains(strings.ToLower(line), "ip") {
-				continue
-			}
-		}
-
-		// 分割CSV行
-		fields := strings.Split(line, ",")
-		if len(fields) < 3 {
-			return nil, fmt.Errorf("CSV格式错误,每行需要包含: host[:port],用户名,密码")
-		}
-
-		// 移除字段中的引号和空白
-		hostStr := strings.Trim(strings.TrimSpace(fields[0]), "\"'")
-		user := strings.Trim(strings.TrimSpace(fields[1]), "\"'")
-		password := strings.Trim(strings.TrimSpace(fields[2]), "\"'")
-		host, port := ParseHost(hostStr)
-		// if _, err := net.ResolveIPAddr("ip", host); err != nil {
-		// 	return nil, fmt.Errorf("无法从 %s 解析出有效的ip地址: %v", host, err)
-		// }
-		hosts = append(hosts, HostInfo{
-			Host:     host,
-			Port:     port,
-			User:     user,
-			Password: password,
-		})
-
+		record, err := reader.Read()
 		if err == io.EOF {
 			break
 		}
+		if err != nil {
+			return nil, fmt.Errorf("读取CSV记录失败: %v", err)
+		}
+
+		getVal := func(idx int) string {
+			if idx != -1 && idx < len(record) {
+				return strings.TrimSpace(record[idx])
+			}
+			return ""
+		}
+
+		hostStr := getVal(idxHost)
+		if hostStr == "" {
+			continue
+		}
+
+		host, port := ParseHost(hostStr)
+		// 如果CSV中有专门的端口列，则覆盖解析出的端口
+		if pStr := getVal(idxPort); pStr != "" {
+			var p uint16
+			fmt.Sscanf(pStr, "%d", &p)
+			if p != 0 {
+				port = p
+			}
+		}
+
+		hosts = append(hosts, HostInfo{
+			Host:       host,
+			Port:       port,
+			Alias:      getVal(idxAlias),
+			User:       getVal(idxUser),
+			Password:   getVal(idxPass),
+			KeyPath:    getVal(idxKey),
+			Passphrase: getVal(idxKeyPass),
+		})
 	}
 
 	if len(hosts) == 0 {
@@ -90,36 +121,6 @@ func ReadCSVFile(path string) ([]HostInfo, error) {
 	}
 
 	return hosts, nil
-}
-
-func BufferedReadIpFile(path string) []string {
-	var hosts []string
-	file, err := os.Open(path)
-	if err != nil {
-		return nil
-	}
-	defer file.Close()
-	reader := bufio.NewReader(file)
-	reg := regexp.MustCompile(`\s`)
-	for {
-		line, err := reader.ReadString('\n')
-		if err == nil {
-			line = reg.ReplaceAllString(line, "")
-			if line == "" {
-				continue
-			}
-			hosts = append(hosts, line)
-		} else if err == io.EOF {
-			line = reg.ReplaceAllString(line, "")
-			if line != "" {
-				hosts = append(hosts, line)
-			}
-			break
-		} else {
-			break
-		}
-	}
-	return hosts
 }
 
 func ParseHosts(ip, hostFile, csvFile string) ([]HostInfo, error) {
@@ -138,7 +139,17 @@ func ParseHosts(ip, hostFile, csvFile string) ([]HostInfo, error) {
 				hosts = append(hosts, strings.TrimSpace(p))
 			}
 		} else if hostFile != "" {
-			hosts = BufferedReadIpFile(hostFile)
+			// 复用 ParseHost 逻辑而不是简单的正则替换，以确保格式一致
+			file, err := os.ReadFile(hostFile)
+			if err == nil {
+				lines := strings.Split(string(file), "\n")
+				for _, line := range lines {
+					line = strings.TrimSpace(line)
+					if line != "" {
+						hosts = append(hosts, line)
+					}
+				}
+			}
 		}
 		for _, host := range hosts {
 			u, h, p := ParseAddr(host)

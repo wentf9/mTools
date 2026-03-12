@@ -29,7 +29,6 @@ type ScpOptions struct {
 	Source      string
 	Dest        string
 	HostFile    string
-	CSVFile     string
 	Tag         string
 }
 
@@ -80,7 +79,6 @@ func NewCmdScp() *cobra.Command {
 	cmd.Flags().StringVar(&o.Source, "src", "", "源路径 (批量模式使用)")
 	cmd.Flags().StringVar(&o.Dest, "dest", "", "目标路径 (批量模式使用)")
 	cmd.Flags().StringVarP(&o.HostFile, "ifile", "I", "", "主机列表文件路径")
-	cmd.Flags().StringVar(&o.CSVFile, "csv", "", "CSV文件路径 (ip,user,password)")
 	cmd.Flags().StringVarP(&o.Tag, "tag", "t", "", "按分组(标签)传输")
 	cmd.Flags().BoolVarP(&o.Recursive, "recursive", "r", false, "递归复制目录")
 	cmd.Flags().BoolVarP(&o.Progress, "progress", "v", false, "显示传输进度")
@@ -89,7 +87,7 @@ func NewCmdScp() *cobra.Command {
 	cmd.Flags().IntVar(&o.ThreadCount, "thread", 4, "单个文件传输的并发线程数")
 
 	cmd.MarkFlagsMutuallyExclusive("password", "key")
-	cmd.MarkFlagsMutuallyExclusive("host", "ifile", "csv", "tag")
+	cmd.MarkFlagsMutuallyExclusive("host", "ifile", "tag")
 	return cmd
 }
 
@@ -171,8 +169,8 @@ func (o *ScpOptions) Run() error {
 
 	ctx := context.Background()
 
-	// 1. 批量上传模式 (-H host1,host2 或 -I hostfile 或 --csv file 或 --tag tag)
-	if o.Tag != "" || (o.Host != "" && strings.Contains(o.Host, ",")) || o.HostFile != "" || o.CSVFile != "" {
+	// 1. 批量上传模式 (-H host1,host2 或 -I hostfile 或 --tag tag)
+	if o.Tag != "" || (o.Host != "" && strings.Contains(o.Host, ",")) || o.HostFile != "" {
 		return o.runBatch(ctx, provider, connector, configStore, cfg)
 	}
 
@@ -392,7 +390,7 @@ func (o *ScpOptions) runBatch(ctx context.Context, provider config.ConfigProvide
 			})
 		}
 	} else {
-		hosts, err := cmdutils.ParseHosts(o.Host, o.HostFile, o.CSVFile)
+		hosts, err := cmdutils.ParseHosts(o.Host, o.HostFile, "")
 		if err != nil {
 			return err
 		}

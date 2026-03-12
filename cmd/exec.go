@@ -18,7 +18,6 @@ import (
 type ExecOptions struct {
 	SshOptions
 	HostFile  string
-	CSVFile   string
 	ShellFile string
 	Command   string
 	Tag       string
@@ -73,13 +72,12 @@ mtool exec user@host "df -h"
 	// 执行参数
 	cmd.Flags().StringVarP(&o.Command, "cmd", "c", "", "要执行的命令")
 	cmd.Flags().StringVarP(&o.HostFile, "ifile", "I", "", "主机列表文件")
-	cmd.Flags().StringVar(&o.CSVFile, "csv", "", "CSV格式主机列表 (ip,user,password)")
 	cmd.Flags().StringVarP(&o.Tag, "tag", "t", "", "按分组(标签)执行")
 	cmd.Flags().StringVar(&o.ShellFile, "shell", "", "本地Shell脚本文件")
 	cmd.Flags().IntVar(&o.TaskCount, "task", 3, "并行执行的主机数")
 
 	cmd.MarkFlagsMutuallyExclusive("password", "key")
-	cmd.MarkFlagsMutuallyExclusive("host", "ifile", "csv", "tag")
+	cmd.MarkFlagsMutuallyExclusive("host", "ifile", "tag")
 	cmd.MarkFlagsMutuallyExclusive("cmd", "shell")
 
 	return cmd
@@ -153,7 +151,7 @@ func (o *ExecOptions) Validate() error {
 	if o.Command == "" && o.ShellFile == "" {
 		return fmt.Errorf("必须指定要执行的命令或脚本")
 	}
-	if o.Host == "" && o.HostFile == "" && o.CSVFile == "" && o.Tag == "" {
+	if o.Host == "" && o.HostFile == "" && o.Tag == "" {
 		return fmt.Errorf("必须指定目标主机或标签组")
 	}
 	return nil
@@ -214,7 +212,7 @@ func (o *ExecOptions) Run() error {
 			})
 		}
 	} else {
-		hosts, err := utils.ParseHosts(o.Host, o.HostFile, o.CSVFile)
+		hosts, err := utils.ParseHosts(o.Host, o.HostFile, "")
 		if err != nil {
 			return err
 		}
@@ -230,7 +228,15 @@ func (o *ExecOptions) Run() error {
 				h.Port = o.Port
 			}
 
-			addr := utils.HostInfo{Host: h.Host, Port: h.Port, User: h.User, Password: h.Password}
+			addr := utils.HostInfo{
+				Host:     h.Host,
+				Port:     h.Port,
+				User:     h.User,
+				Password: h.Password,
+				Alias:    h.Alias,
+				KeyPath:  h.KeyPath,
+				Passphrase: h.Passphrase,
+			}
 			nodeId, updated, err := o.getOrCreateNode(provider, addr)
 			if err != nil {
 				logger.PrintErrorf("[%s] 错误: %v", h.Host, err)
@@ -309,7 +315,7 @@ func (o *ExecOptions) getOrCreateNode(provider config.ConfigProvider, addr utils
 	}
 
 	if nodeId != "" {
-		updated := o.updateNode(nodeId, provider, addr.Password)
+		updated := o.updateNodeFromHostInfo(nodeId, provider, addr)
 		return nodeId, updated, nil
 	}
 
@@ -328,6 +334,12 @@ func (o *ExecOptions) getOrCreateNode(provider config.ConfigProvider, addr utils
 		SuPwd:       o.SuPwd,
 	}
 
+	if addr.Alias != "" {
+		node.Alias = []string{addr.Alias}
+	} else if o.Alias != "" {
+		node.Alias = []string{o.Alias}
+	}
+
 	if node.ProxyJump != "" {
 		jumpHost := provider.Find(node.ProxyJump)
 		if jumpHost == "" {
@@ -340,24 +352,38 @@ func (o *ExecOptions) getOrCreateNode(provider config.ConfigProvider, addr utils
 		User: user,
 	}
 
+	// 优先使用 HostInfo 中的凭据，否则使用命令行选项
 	password := addr.Password
-	if password == "" && o.KeyFile == "" {
-		// 批量执行时，如果没密码，可能需要从终端读一次，但多主机并发读密码会有问题
-
-		pass, err := utils.ReadPasswordFromTerminal(fmt.Sprintf("请输入 %s@%s 的密码: ", user, host))
-		if err != nil {
-			return "", false, err
+	if password == "" && addr.KeyPath == "" {
+		if o.Password != "" {
+			password = o.Password
+		} else if o.KeyFile == "" {
+			pass, err := utils.ReadPasswordFromTerminal(fmt.Sprintf("请输入 %s@%s 的密码: ", user, host))
+			if err != nil {
+				return "", false, err
+			}
+			password = pass
 		}
-		password = pass
 	}
 
 	if password != "" {
 		identity.Password = password
 		identity.AuthType = "password"
-	} else if o.KeyFile != "" {
-		identity.KeyPath = o.KeyFile
-		identity.Passphrase = o.KeyPass
-		identity.AuthType = "key"
+	} else {
+		keyPath := addr.KeyPath
+		if keyPath == "" {
+			keyPath = o.KeyFile
+		}
+		keyPass := addr.Passphrase
+		if keyPass == "" {
+			keyPass = o.KeyPass
+		}
+
+		if keyPath != "" {
+			identity.KeyPath = keyPath
+			identity.Passphrase = keyPass
+			identity.AuthType = "key"
+		}
 	}
 
 	provider.AddHost(node.HostRef, models.Host{Address: host, Port: port})
@@ -367,15 +393,40 @@ func (o *ExecOptions) getOrCreateNode(provider config.ConfigProvider, addr utils
 	return nodeId, true, nil
 }
 
-func (o *ExecOptions) updateNode(nodeId string, provider config.ConfigProvider, password string) bool {
+func (o *ExecOptions) updateNodeFromHostInfo(nodeId string, provider config.ConfigProvider, addr utils.HostInfo) bool {
 	node, _ := provider.GetNode(nodeId)
 	identity, _ := provider.GetIdentity(nodeId)
 	updated := false
 
-	if password != "" {
-		identity.Password = password
-		identity.AuthType = "password"
-		updated = true
+	// 更新密码或密钥
+	if addr.Password != "" {
+		if identity.Password != addr.Password || identity.AuthType != "password" {
+			identity.Password = addr.Password
+			identity.AuthType = "password"
+			updated = true
+		}
+	} else if addr.KeyPath != "" {
+		if identity.KeyPath != addr.KeyPath || identity.Passphrase != addr.Passphrase || identity.AuthType != "key" {
+			identity.KeyPath = addr.KeyPath
+			identity.Passphrase = addr.Passphrase
+			identity.AuthType = "key"
+			updated = true
+		}
+	}
+
+	// 更新别名
+	if addr.Alias != "" {
+		found := false
+		for _, a := range node.Alias {
+			if a == addr.Alias {
+				found = true
+				break
+			}
+		}
+		if !found {
+			node.Alias = append(node.Alias, addr.Alias)
+			updated = true
+		}
 	}
 
 	sudoMode := "none"

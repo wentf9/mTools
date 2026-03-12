@@ -17,6 +17,7 @@ func NewCmdInventory() *cobra.Command {
 
 	cmd.AddCommand(NewCmdInventoryList())
 	cmd.AddCommand(NewCmdInventoryAdd())
+	cmd.AddCommand(NewCmdInventoryLoad())
 	cmd.AddCommand(NewCmdInventoryEdit())
 	cmd.AddCommand(NewCmdInventoryDelete())
 	cmd.AddCommand(NewCmdInventoryTags())

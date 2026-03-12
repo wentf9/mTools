@@ -4,7 +4,7 @@ mtool (Miku Tools) 是一个基于 Go 语言开发的命令行运维工具集，
 
 ## 🚀 核心功能
 
-- **主机管理 (Inventory)**: 支持对主机进行增删改查，提供别名和标签 (Tags) 分组功能。
+- **主机管理 (Inventory)**: 支持对主机进行增删改查，提供别名和标签 (Tags) 分组功能。支持从 CSV 文件批量导入主机及其凭据。
 - **SSH 增强**: 快速连接远程主机，支持跳板机 (JumpHost)、Sudo 模式以及连接信息的自动保存。
 - **批量执行 (Exec)**: 支持在单台或多台主机（或按标签分组）上并行执行命令或本地脚本。
 - **文件传输 (SCP)**: 支持本地与远程、远程与远程之间的数据传输，支持按分组批量分发文件。
@@ -29,7 +29,16 @@ go build -o mtool ./cmd/cli/main.go
 
 ### 1. 管理主机信息
 ```bash
-# 添加一台主机并打上 web 标签
+# 批量从 CSV 文件导入主机 (支持识别表头: 主机, 端口, 别名, 用户, 密码, 私钥, 私钥密码)
+# 导入的同时可以将所有主机加入指定标签组
+mtool inventory load hosts.csv -t web
+# 或者使用快捷入口
+mtool loadHost hosts.csv -t web
+
+# 导出 CSV 导入模板
+mtool inventory load -T template.csv
+
+# 手动添加一台主机并打上 web 标签
 mtool host add --name web-01 --address 192.168.1.10 --user root --tag web
 
 # 查看主机列表
