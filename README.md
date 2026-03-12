@@ -20,7 +20,7 @@ mtool (Miku Tools) 是一个基于 Go 语言开发的命令行运维工具集，
 
 ### 编译
 ```bash
-git clone <repository-url>
+git clone https://github.com/wentf9/mTools.git
 cd mTools
 go build -o mtool ./cmd/cli/main.go
 ```
@@ -99,18 +99,29 @@ mtool firewall port 80 --proto tcp
 ## 📂 配置文件
 
 工具默认将配置存储在用户家目录下的 `.mtools` 文件夹中：
-- `~/.mtools/config.yaml`: 存储节点、主机及身份认证信息（敏感字段已加密）。
-- `~/.mtools/config.key`: 用于加解密的密钥文件，请务必妥善保管。
+- `~/.mtools/mtool_config.yaml`: 存储节点、主机及身份认证信息（敏感字段已加密）。
+- `~/.mtools/secret.key`: 用于加解密的密钥文件，请务必妥善保管，首次运行时自动生成。
+- `~/.mtools/audit.log`: MCP 护栏审计日志（JSON Lines 格式，记录 Agent 的所有工具调用）。
+
+完整的配置项说明及示例请参考 [mtool_config.example.yaml](mtool_config.example.yaml)。
 
 ## 📅 规划与进度 (Roadmap)
 当前项目核心运维能力已实现闭环，并正向着 AI Agent 原生运维工具箱的方向演进：
-- [x] 重构底层日志模块，实现 CLI 纯净业务打印与诊断日志隔离
 - [x] **引入 MCP (Model Context Protocol) 核心支持** (`mtool mcp`)
   - [x] 工具：`mtool_list_nodes` (查询本地节点)
-  - [x] 工具：`mtool_ssh_run` (底层 SSH 执行与返回)
+  - [x] 工具：`mtool_ssh_run` (远程 SSH 命令执行)
+  - [x] 工具：`mtool_read_file` / `mtool_write_file` (SFTP 远程读写文件)
+  - [x] 工具：`mtool_upload` / `mtool_download` (SFTP 文件传输)
+  - [x] 工具：`mtool_fs_ls` / `mtool_fs_mkdir` / `mtool_fs_touch` / `mtool_fs_mv` / `mtool_fs_rm` / `mtool_fs_cp` (远程文件系统操作)
+- [x] **MCP 安全护栏** (`guardrail`)
+  - [x] 三级风险分类：Safe / Moderate / Dangerous
+  - [x] 命令黑名单（`rm -rf /`、`mkfs`、`dd`、fork bomb 等硬拦截）
+  - [x] 用户审批机制（MCP Elicitation 协议）
+  - [x] 客户端不支持 Elicitation 时的回退策略（兼容 Gemini CLI 等）
+  - [x] 节点级别策略覆盖（glob 模式，`prod-*` 更严格）
+  - [x] JSON Lines 审计日志
   - [ ] 工具：接入网络探测能力 (Ping/DNS)
   - [ ] 工具：接入防火墙规则管理能力
-  - [ ] 工具：接入 SFTP 文件分发与采集能力
 
 ## 📜 开源协议
 

@@ -10,6 +10,29 @@ type Configuration struct {
 	Identities *concurrent.Map[string, models.Identity] `yaml:"identities"`
 	Hosts      *concurrent.Map[string, models.Host]     `yaml:"hosts"`
 	Nodes      *concurrent.Map[string, models.Node]     `yaml:"nodes"`
+	Guardrail  *GuardrailConfig                         `yaml:"guardrail,omitempty"`
+}
+
+// GuardrailConfig configures the MCP safety guardrail.
+type GuardrailConfig struct {
+	Enabled           bool                        `yaml:"enabled"`
+	AuditLog          string                      `yaml:"audit_log,omitempty"`
+	ApprovalThreshold string                      `yaml:"approval_threshold,omitempty"` // "safe"|"moderate"|"dangerous"
+	BlockedPatterns   []string                    `yaml:"blocked_patterns,omitempty"`
+	ProtectedPaths    []string                    `yaml:"protected_paths,omitempty"`
+	NodeOverrides     map[string]NodeGuardrailCfg `yaml:"nodes,omitempty"`
+
+	// NoElicitFallback controls behavior when the MCP client does not support
+	// Elicitation (e.g. Gemini CLI).
+	//   "deny"      — reject all operations that need approval (most secure)
+	//   "allow"     — allow all, trust client-side tool approval + ToolAnnotations
+	//   "downgrade" — allow moderate, still deny dangerous (recommended default)
+	NoElicitFallback string `yaml:"no_elicit_fallback,omitempty"`
+}
+
+// NodeGuardrailCfg holds per-node (glob pattern) policy overrides.
+type NodeGuardrailCfg struct {
+	ApprovalThreshold string `yaml:"approval_threshold"`
 }
 
 // ConfigProvider 定义 Connector 获取配置数据的接口

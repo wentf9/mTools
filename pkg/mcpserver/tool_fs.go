@@ -6,6 +6,7 @@ import (
 	"time"
 
 	"example.com/MikuTools/cmd/utils"
+	"example.com/MikuTools/pkg/mcpserver/guardrail"
 	"example.com/MikuTools/pkg/sftp"
 	"example.com/MikuTools/pkg/ssh"
 	"github.com/modelcontextprotocol/go-sdk/mcp"
@@ -269,52 +270,91 @@ func fsCpHandler(ctx context.Context, req *mcp.CallToolRequest, input FSCpInput)
 
 // ======================== REGISTER ========================
 
-func RegisterFS(server *mcp.Server) {
+func RegisterFS(server *mcp.Server, g *guardrail.Guardrail) {
+	notDestructive := false
+	destructive := true
+
 	mcp.AddTool(server,
 		&mcp.Tool{
 			Name:        "mtool_fs_ls",
 			Description: "List remote directory files with attributes (size, modTime, isDir, permissions).",
+			Annotations: &mcp.ToolAnnotations{ReadOnlyHint: true},
 		},
-		fsLsHandler,
+		guardrail.WithGuardrail(g, "mtool_fs_ls",
+			func(in FSListInput) guardrail.RiskInput {
+				return guardrail.RiskInput{NodeID: in.NodeID, Paths: []string{in.Path}}
+			},
+			fsLsHandler,
+		),
 	)
 
 	mcp.AddTool(server,
 		&mcp.Tool{
 			Name:        "mtool_fs_mkdir",
 			Description: "Create a remote directory, along with any necessary parents.",
+			Annotations: &mcp.ToolAnnotations{DestructiveHint: &notDestructive},
 		},
-		fsMkdirHandler,
+		guardrail.WithGuardrail(g, "mtool_fs_mkdir",
+			func(in FSMkdirInput) guardrail.RiskInput {
+				return guardrail.RiskInput{NodeID: in.NodeID, Paths: []string{in.Path}}
+			},
+			fsMkdirHandler,
+		),
 	)
 
 	mcp.AddTool(server,
 		&mcp.Tool{
 			Name:        "mtool_fs_touch",
 			Description: "Create a new empty remote file.",
+			Annotations: &mcp.ToolAnnotations{DestructiveHint: &notDestructive},
 		},
-		fsTouchHandler,
+		guardrail.WithGuardrail(g, "mtool_fs_touch",
+			func(in FSTouchInput) guardrail.RiskInput {
+				return guardrail.RiskInput{NodeID: in.NodeID, Paths: []string{in.Path}}
+			},
+			fsTouchHandler,
+		),
 	)
 
 	mcp.AddTool(server,
 		&mcp.Tool{
 			Name:        "mtool_fs_mv",
 			Description: "Move or rename a remote file/directory.",
+			Annotations: &mcp.ToolAnnotations{DestructiveHint: &notDestructive},
 		},
-		fsMvHandler,
+		guardrail.WithGuardrail(g, "mtool_fs_mv",
+			func(in FSMvInput) guardrail.RiskInput {
+				return guardrail.RiskInput{NodeID: in.NodeID, Paths: []string{in.Old, in.New}}
+			},
+			fsMvHandler,
+		),
 	)
 
 	mcp.AddTool(server,
 		&mcp.Tool{
 			Name:        "mtool_fs_rm",
 			Description: "Remove a remote file or directory recursively safely.",
+			Annotations: &mcp.ToolAnnotations{DestructiveHint: &destructive},
 		},
-		fsRmHandler,
+		guardrail.WithGuardrail(g, "mtool_fs_rm",
+			func(in FSRmInput) guardrail.RiskInput {
+				return guardrail.RiskInput{NodeID: in.NodeID, Paths: []string{in.Path}}
+			},
+			fsRmHandler,
+		),
 	)
 
 	mcp.AddTool(server,
 		&mcp.Tool{
 			Name:        "mtool_fs_cp",
 			Description: "Copy a remote file or directory to another remote location recursively.",
+			Annotations: &mcp.ToolAnnotations{DestructiveHint: &notDestructive},
 		},
-		fsCpHandler,
+		guardrail.WithGuardrail(g, "mtool_fs_cp",
+			func(in FSCpInput) guardrail.RiskInput {
+				return guardrail.RiskInput{NodeID: in.NodeID, Paths: []string{in.Src, in.Dest}}
+			},
+			fsCpHandler,
+		),
 	)
 }

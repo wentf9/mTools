@@ -5,6 +5,7 @@ import (
 	"fmt"
 
 	"example.com/MikuTools/cmd/utils"
+	"example.com/MikuTools/pkg/mcpserver/guardrail"
 	"example.com/MikuTools/pkg/models"
 	"example.com/MikuTools/pkg/ssh"
 	"github.com/modelcontextprotocol/go-sdk/mcp"
@@ -122,20 +123,37 @@ func sshRunHandler(ctx context.Context, req *mcp.CallToolRequest, input SshRunIn
 	}, nil
 }
 
-func RegisterSSH(server *mcp.Server) {
+func RegisterSSH(server *mcp.Server, g *guardrail.Guardrail) {
 	mcp.AddTool(server,
 		&mcp.Tool{
 			Name:        "mtool_list_nodes",
 			Description: "List all available SSH nodes managed by mTools, optionally filtered by tag. Returns an array of node IDs that can be used with mtool_ssh_run.",
+			Annotations: &mcp.ToolAnnotations{ReadOnlyHint: true},
 		},
-		listNodesHandler,
+		guardrail.WithGuardrail(g, "mtool_list_nodes",
+			func(in ListNodesInput) guardrail.RiskInput {
+				return guardrail.RiskInput{}
+			},
+			listNodesHandler,
+		),
 	)
 
+	destructive := true
 	mcp.AddTool(server,
 		&mcp.Tool{
 			Name:        "mtool_ssh_run",
 			Description: "Execute a shell command on a specific SSH node managed by mTools. Returns the command output.",
+			Annotations: &mcp.ToolAnnotations{DestructiveHint: &destructive},
 		},
-		sshRunHandler,
+		guardrail.WithGuardrail(g, "mtool_ssh_run",
+			func(in SshRunInput) guardrail.RiskInput {
+				return guardrail.RiskInput{
+					NodeID:  in.NodeID,
+					Command: in.Command,
+					Sudo:    in.Sudo,
+				}
+			},
+			sshRunHandler,
+		),
 	)
 }

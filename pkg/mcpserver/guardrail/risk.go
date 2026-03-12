@@ -1,0 +1,89 @@
+package guardrail
+
+// RiskLevel represents the danger level of a tool invocation.
+type RiskLevel int
+
+const (
+	Safe      RiskLevel = iota // read-only, no side effects
+	Moderate                   // creates or modifies data, recoverable
+	Dangerous                  // destructive or arbitrary execution
+)
+
+func (r RiskLevel) String() string {
+	switch r {
+	case Safe:
+		return "safe"
+	case Moderate:
+		return "moderate"
+	case Dangerous:
+		return "dangerous"
+	default:
+		return "unknown"
+	}
+}
+
+// ParseRiskLevel converts a string to RiskLevel, defaulting to Dangerous.
+func ParseRiskLevel(s string) RiskLevel {
+	switch s {
+	case "safe":
+		return Safe
+	case "moderate":
+		return Moderate
+	case "dangerous":
+		return Dangerous
+	default:
+		return Dangerous
+	}
+}
+
+// RiskInput carries contextual information about a single tool invocation
+// for risk assessment.
+type RiskInput struct {
+	ToolName string
+	NodeID   string
+	Command  string   // populated only for ssh_run
+	Paths    []string // file/directory paths involved
+	Sudo     bool     // whether sudo is requested
+}
+
+// toolBaseRisk maps tool names to their static (baseline) risk level.
+var toolBaseRisk = map[string]RiskLevel{
+	"mtool_list_nodes": Safe,
+	"mtool_read_file":  Safe,
+	"mtool_fs_ls":      Safe,
+	"mtool_download":   Safe,
+
+	"mtool_write_file": Moderate,
+	"mtool_upload":     Moderate,
+	"mtool_fs_mkdir":   Moderate,
+	"mtool_fs_touch":   Moderate,
+	"mtool_fs_mv":      Moderate,
+	"mtool_fs_cp":      Moderate,
+
+	"mtool_fs_rm":  Dangerous,
+	"mtool_ssh_run": Dangerous,
+}
+
+// Classify returns the effective risk level for a tool invocation.
+// For ssh_run, it refines the level based on command analysis.
+func Classify(input RiskInput) RiskLevel {
+	base, ok := toolBaseRisk[input.ToolName]
+	if !ok {
+		return Dangerous // unknown tools default to highest risk
+	}
+
+	if input.ToolName == "mtool_ssh_run" {
+		if input.Command != "" {
+			base = AnalyzeCommand(input.Command)
+		}
+		if input.Sudo && base < Moderate {
+			base = Moderate
+		}
+	}
+
+	pathRisk := AnalyzePaths(input.Paths)
+	if pathRisk > base {
+		return pathRisk
+	}
+	return base
+}

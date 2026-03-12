@@ -4,11 +4,12 @@ import (
 	"context"
 	"fmt"
 
+	"example.com/MikuTools/cmd/utils"
+	"example.com/MikuTools/pkg/mcpserver/guardrail"
 	"github.com/modelcontextprotocol/go-sdk/mcp"
 )
 
 func Serve(ctx context.Context) error {
-	// Create server
 	server := mcp.NewServer(
 		&mcp.Implementation{
 			Name:    "mtools-mcp",
@@ -21,13 +22,23 @@ func Serve(ctx context.Context) error {
 		},
 	)
 
-	// Register tools
-	RegisterTools(server)
+	g := loadGuardrail()
 
-	// Run server using StdioTransport
+	RegisterTools(server, g)
+
 	transport := &mcp.StdioTransport{}
 	if err := server.Run(ctx, transport); err != nil {
 		return fmt.Errorf("MCP Server error: %v", err)
 	}
 	return nil
+}
+
+// loadGuardrail reads GuardrailConfig from the user config file.
+// Falls back to defaults if config is absent or unreadable.
+func loadGuardrail() *guardrail.Guardrail {
+	_, _, cfg, err := utils.GetConfigStore()
+	if err != nil || cfg == nil || cfg.Guardrail == nil {
+		return guardrail.New(nil)
+	}
+	return guardrail.New(cfg.Guardrail)
 }
