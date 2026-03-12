@@ -29,6 +29,9 @@ func (e *LocalExecutor) Run(ctx context.Context, cmd string) (string, error) {
 }
 
 func (e *LocalExecutor) RunWithSudo(ctx context.Context, cmd string) (string, error) {
+	if os.Getuid() == 0 {
+		return e.Run(ctx, cmd)
+	}
 	if e.password == "" {
 		// 如果没密码，尝试无交互 sudo
 		if !strings.HasPrefix(cmd, "sudo") {
@@ -60,6 +63,13 @@ func (e *LocalExecutor) RunWithSudo(ctx context.Context, cmd string) (string, er
 }
 
 func (e *LocalExecutor) InteractiveWithSudo(ctx context.Context, args []string) error {
+	if os.Getuid() == 0 {
+		c := exec.CommandContext(ctx, "bash", args...)
+		c.Stdin = os.Stdin
+		c.Stdout = os.Stdout
+		c.Stderr = os.Stderr
+		return c.Run()
+	}
 	var sudoArgs []string
 	if e.password != "" {
 		sudoArgs = append(sudoArgs, "-S", "-p", "")

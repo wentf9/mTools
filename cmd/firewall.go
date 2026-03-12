@@ -3,6 +3,7 @@ package cmd
 import (
 	"context"
 	"fmt"
+	"os"
 	"runtime"
 	"strings"
 
@@ -19,6 +20,7 @@ import (
 
 type FirewallOptions struct {
 	SshOptions
+	HostFile  string
 	Protocol  string
 	Reload    bool
 	Remove    bool
@@ -58,6 +60,7 @@ func init() {
 
 	// 通用参数
 	firewallCmd.PersistentFlags().StringVarP(&fwOptions.Host, "host", "H", "", "目标主机/连接别名,多个用逗号分隔")
+	firewallCmd.PersistentFlags().StringVarP(&fwOptions.HostFile, "ifile", "I", "", "主机列表文件(每行一个主机名或别名)")
 	firewallCmd.PersistentFlags().StringVarP(&fwOptions.User, "user", "u", "", "SSH用户名")
 	firewallCmd.PersistentFlags().StringVarP(&fwOptions.Password, "password", "w", "", "SSH密码")
 	firewallCmd.PersistentFlags().IntVar(&fwOptions.TaskCount, "task", 1, "并行任务数")
@@ -70,7 +73,7 @@ func init() {
 
 func (o *FirewallOptions) RunOnHosts(ctx context.Context, action func(fw firewall.Firewall) (string, error)) error {
 	// 如果没有指定主机，默认本地模式
-	if o.Host == "" {
+	if o.Host == "" && o.HostFile == "" {
 		if runtime.GOOS != "linux" {
 			return fmt.Errorf("防火墙管理功能仅支持 Linux 系统 (当前系统为 %s)", runtime.GOOS)
 		}
@@ -106,6 +109,18 @@ func (o *FirewallOptions) RunOnHosts(ctx context.Context, action func(fw firewal
 	var hosts []string
 	if o.Host != "" {
 		hosts = strings.Split(o.Host, ",")
+	}
+	if o.HostFile != "" {
+		data, err := os.ReadFile(o.HostFile)
+		if err != nil {
+			return fmt.Errorf("读取主机列表文件失败: %w", err)
+		}
+		for _, line := range strings.Split(string(data), "\n") {
+			line = strings.TrimSpace(line)
+			if line != "" {
+				hosts = append(hosts, line)
+			}
+		}
 	}
 
 	wp := pkgutils.NewWorkerPool(uint(o.TaskCount))
@@ -171,6 +186,7 @@ func (o *FirewallOptions) RunOnHosts(ctx context.Context, action func(fw firewal
 	}
 
 	wp.Wait()
+	configStore.Save(cfg)
 	return nil
 }
 

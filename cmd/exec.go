@@ -193,7 +193,6 @@ func (o *ExecOptions) Run() error {
 		pass   string
 	}
 	var tasks []hostTask
-	configUpdated := false
 
 	if o.Tag != "" {
 		nodes := provider.GetNodesByTag(o.Tag)
@@ -237,13 +236,10 @@ func (o *ExecOptions) Run() error {
 				KeyPath:  h.KeyPath,
 				Passphrase: h.Passphrase,
 			}
-			nodeId, updated, err := o.getOrCreateNode(provider, addr)
+			nodeId, _, err := o.getOrCreateNode(provider, addr)
 			if err != nil {
 				logger.PrintErrorf("[%s] 错误: %v", h.Host, err)
 				continue
-			}
-			if updated {
-				configUpdated = true
 			}
 			tasks = append(tasks, hostTask{
 				nodeId: nodeId,
@@ -255,9 +251,7 @@ func (o *ExecOptions) Run() error {
 		}
 	}
 
-	if configUpdated {
-		configStore.Save(cfg)
-	}
+
 
 	for _, task := range tasks {
 		t := task // capture range variable
@@ -294,6 +288,7 @@ func (o *ExecOptions) Run() error {
 	}
 
 	wp.Wait()
+	configStore.Save(cfg)
 	return nil
 }
 

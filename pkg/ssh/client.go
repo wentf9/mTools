@@ -10,6 +10,7 @@ import (
 	"sync"
 	"time"
 
+	"example.com/MikuTools/pkg/config"
 	"example.com/MikuTools/pkg/models"
 	"golang.org/x/crypto/ssh"
 	"golang.org/x/term"
@@ -20,14 +21,18 @@ type Client struct {
 	node      models.Node
 	host      models.Host
 	identity  models.Identity
+	provider  config.ConfigProvider
+	nodeName  string
 }
 
-func newClient(raw *ssh.Client, node models.Node, host models.Host, identity models.Identity) *Client {
+func newClient(raw *ssh.Client, node models.Node, host models.Host, identity models.Identity, provider config.ConfigProvider, nodeName string) *Client {
 	return &Client{
 		sshClient: raw,
 		node:      node,
 		host:      host,
 		identity:  identity,
+		provider:  provider,
+		nodeName:  nodeName,
 	}
 }
 
@@ -47,14 +52,23 @@ func (c *Client) Node() models.Node {
 }
 
 func (c *Client) Run(ctx context.Context, cmd string) (string, error) {
+	// 使用 bash -l -c 执行，以加载完整的环境变量 (如 PATH)
+	wrappedCmd := fmt.Sprintf("bash -l -c '%s'", strings.ReplaceAll(cmd, "'", "'\\''"))
+	return c.runRaw(ctx, wrappedCmd)
+}
+
+// RunWithoutLogin 执行命令并在非登录 Shell 中运行，避免加载 profile 脚本产生干扰输出
+func (c *Client) RunWithoutLogin(ctx context.Context, cmd string) (string, error) {
+	wrappedCmd := fmt.Sprintf("bash -c '%s'", strings.ReplaceAll(cmd, "'", "'\\''"))
+	return c.runRaw(ctx, wrappedCmd)
+}
+
+func (c *Client) runRaw(ctx context.Context, wrappedCmd string) (string, error) {
 	session, err := c.sshClient.NewSession()
 	if err != nil {
 		return "", err
 	}
 	defer session.Close()
-
-	// 使用 bash -l -c 执行，以加载完整的环境变量 (如 PATH)
-	wrappedCmd := fmt.Sprintf("bash -l -c '%s'", strings.ReplaceAll(cmd, "'", "'\\''"))
 	return startWithTimeout(ctx, session, wrappedCmd)
 }
 
@@ -130,6 +144,52 @@ func (c *Client) Shell(ctx context.Context) error {
 	go io.Copy(stdin, os.Stdin)
 
 	return session.Wait()
+}
+
+func (c *Client) maybeDetectSudoMode(ctx context.Context) {
+	// 如果已经有确定的 SudoMode，且不是 "auto" 或空，则不再探测
+	if c.node.SudoMode != "" && c.node.SudoMode != "auto" && c.node.SudoMode != "none" {
+		return
+	}
+
+	// 1. 探测是否已经是 root
+	// 使用 RunWithoutLogin 避免 MOTD 干扰输出
+	if out, err := c.RunWithoutLogin(ctx, "id -u"); err == nil {
+		// 稳健检查：只要最后一行输出是 0，即认为是 root
+		lines := strings.Split(strings.TrimSpace(out), "\n")
+		if len(lines) > 0 && strings.TrimSpace(lines[len(lines)-1]) == "0" {
+			c.updateSudoMode("root")
+			return
+		}
+	}
+
+	// 2. 探测是否有免密 sudo 权限
+	if _, err := c.RunWithoutLogin(ctx, "sudo -n true"); err == nil {
+		c.updateSudoMode("sudoer")
+		return
+	}
+
+	// 3. 检查是否有密码，如果有则推测为普通 sudo
+	if c.identity.Password != "" {
+		c.updateSudoMode("sudo")
+		return
+	}
+
+	// 4. 检查是否有 su 密码
+	if c.node.SuPwd != "" {
+		c.updateSudoMode("su")
+		return
+	}
+
+	// 默认兜底
+	c.updateSudoMode("none")
+}
+
+func (c *Client) updateSudoMode(mode string) {
+	c.node.SudoMode = mode
+	if c.provider != nil && c.nodeName != "" {
+		c.provider.AddNode(c.nodeName, c.node)
+	}
 }
 
 func startWithTimeout(ctx context.Context, session *ssh.Session, command string) (string, error) {

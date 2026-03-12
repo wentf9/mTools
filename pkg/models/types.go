@@ -29,7 +29,7 @@ type Node struct {
 	ProxyJump string `yaml:"proxy_jump,omitempty"` // 指向另一个 Node 的 Name
 
 	// 提权配置
-	SudoMode string `yaml:"sudo_mode"` // "none", "sudo", "sudoer", "su"
+	SudoMode string `yaml:"sudo_mode"` // "none", "sudo", "sudoer", "su", "root"(已是root), "auto"(自动探测)
 	SuPwd    string `yaml:"su_pwd,omitempty"`
 }
 

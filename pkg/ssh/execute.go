@@ -13,11 +13,13 @@ import (
 	"golang.org/x/term"
 )
 
-// RunWithSudo 提权执行命令，自动注入密码，并返回干净的输出
 func (c *Client) RunWithSudo(ctx context.Context, command string) (string, error) {
+	c.maybeDetectSudoMode(ctx)
 	wrappedCmd := fmt.Sprintf("bash -l -c '%s'", strings.ReplaceAll(command, "'", "'\\''"))
 
 	switch c.node.SudoMode {
+	case "root":
+		return c.Run(ctx, command)
 	case "sudo":
 		return c.runWithSudo(ctx, wrappedCmd, c.identity.Password, nil)
 	case "sudoer":
@@ -25,13 +27,16 @@ func (c *Client) RunWithSudo(ctx context.Context, command string) (string, error
 	case "su":
 		return c.runWithSu(command, c.node.SuPwd)
 	default:
-		return "", fmt.Errorf("unsupported sudo mode: %s", c.node.SudoMode)
+		return "", fmt.Errorf("unknown sudo mode: %s, please check config to set sudo mode", c.node.SudoMode)
 	}
 }
 
 // RunScriptWithSudo 提权执行脚本
 func (c *Client) RunScriptWithSudo(ctx context.Context, scriptContent string) (string, error) {
+	c.maybeDetectSudoMode(ctx)
 	switch c.node.SudoMode {
+	case "root":
+		return c.RunScript(ctx, scriptContent)
 	case "sudo":
 		return c.runWithSudo(ctx, "bash -l -s", c.identity.Password, strings.NewReader(scriptContent))
 	case "sudoer":
@@ -144,6 +149,10 @@ func (c *Client) runWithSu(command string, password string) (string, error) {
 }
 
 func (c *Client) ShellWithSudo(ctx context.Context) error {
+	c.maybeDetectSudoMode(ctx)
+	if c.node.SudoMode == "root" {
+		return c.Shell(ctx)
+	}
 	session, err := c.sshClient.NewSession()
 	if err != nil {
 		return err
@@ -203,6 +212,9 @@ func (c *Client) ShellWithSudo(ctx context.Context) error {
 	case "su":
 		sudoCmd = "su -"
 		password = c.node.SuPwd
+	case "root":
+		sudoCmd = ""
+		password = ""
 	default:
 		sudoCmd = ""
 	}

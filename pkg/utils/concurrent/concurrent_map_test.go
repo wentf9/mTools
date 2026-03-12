@@ -163,7 +163,7 @@ func TestClear(t *testing.T) {
 }
 
 func TestIterCb_EarlyBreak(t *testing.T) {
-	m := NewMap[int, int](HashInt, WithShardCount[int, int](1))
+	m := NewMap(HashInt, WithShardCount[int, int](1))
 	for i := range 10 {
 		m.Set(i, i*10)
 	}
@@ -254,7 +254,7 @@ func TestMarshalYAML_UnmarshalYAML(t *testing.T) {
 }
 
 func TestWithShardCount(t *testing.T) {
-	m := NewMap[string, int](HashString, WithShardCount[string, int](4))
+	m := NewMap(HashString, WithShardCount[string, int](4))
 	m.Set("test", 1)
 
 	if v, ok := m.Get("test"); !ok || v != 1 {

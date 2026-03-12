@@ -40,7 +40,7 @@ func (c *Connector) Connect(ctx context.Context, nodeName string) (*Client, erro
 		node, _ := c.Config.GetNode(nodeName) // 重新获取配置以防更新，或者缓存 wrapper
 		host, _ := c.Config.GetHost(node.HostRef)
 		identity, _ := c.Config.GetIdentity(node.IdentityRef)
-		return newClient(cachedClient, node, host, identity), nil
+		return newClient(cachedClient, node, host, identity, c.Config, nodeName), nil
 	}
 	// 缓存未命中，开始建立新连接
 	// 【合并请求】使用 singleflight
@@ -52,7 +52,7 @@ func (c *Connector) Connect(ctx context.Context, nodeName string) (*Client, erro
 			node, _ := c.Config.GetNode(nodeName)
 			host, _ := c.Config.GetHost(node.HostRef)
 			identity, _ := c.Config.GetIdentity(node.IdentityRef)
-			return newClient(cachedClient, node, host, identity), nil
+			return newClient(cachedClient, node, host, identity, c.Config, nodeName), nil
 		}
 
 		// 1. 获取节点配置
@@ -115,7 +115,7 @@ func (c *Connector) Connect(ctx context.Context, nodeName string) (*Client, erro
 		rawClient := ssh.NewClient(ncc, chans, reqs)
 		c.clients.Set(nodeName, rawClient)
 		// 7. 返回封装的 Client
-		return newClient(rawClient, node, host, identity), nil
+		return newClient(rawClient, node, host, identity, c.Config, nodeName), nil
 	})
 	if err != nil {
 		return nil, err
