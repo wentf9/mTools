@@ -10,7 +10,7 @@ require (
 	github.com/spf13/cobra v1.9.1
 	golang.org/x/crypto v0.41.0
 	golang.org/x/sync v0.20.0
-	golang.org/x/term v0.34.0
+	golang.org/x/term v0.41.0
 	gopkg.in/yaml.v3 v3.0.1
 )
 
@@ -27,5 +27,5 @@ require (
 	github.com/yosida95/uritemplate/v3 v3.0.2 // indirect
 	golang.org/x/net v0.42.0 // indirect
 	golang.org/x/oauth2 v0.34.0 // indirect
-	golang.org/x/sys v0.40.0 // indirect
+	golang.org/x/sys v0.42.0 // indirect
 )
