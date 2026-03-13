@@ -5,7 +5,7 @@ go 1.25.0
 require (
 	github.com/modelcontextprotocol/go-sdk v1.4.0
 	github.com/pkg/sftp v1.13.10
-	github.com/prometheus-community/pro-bing v0.7.0
+	github.com/prometheus-community/pro-bing v0.8.0
 	github.com/schollz/progressbar/v3 v3.18.0
 	github.com/spf13/cobra v1.9.1
 	golang.org/x/crypto v0.49.0
