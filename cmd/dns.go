@@ -4,7 +4,7 @@ import (
 	"net"
 	"sync"
 
-	"example.com/MikuTools/pkg/logger"
+	"github.com/wentf9/xops-cli/pkg/logger"
 	"github.com/spf13/cobra"
 )
 

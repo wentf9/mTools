@@ -1,8 +1,8 @@
 package runner
 
 import (
-	"example.com/MikuTools/pkg/models"
-	"example.com/MikuTools/pkg/utils"
+	"github.com/wentf9/xops-cli/pkg/models"
+	"github.com/wentf9/xops-cli/pkg/utils"
 )
 
 type TaskFunc func(host models.Node) error

@@ -1,7 +1,7 @@
 package cmd
 
 import (
-	"example.com/MikuTools/cmd/host"
+	"github.com/wentf9/xops-cli/cmd/host"
 	"github.com/spf13/cobra"
 )
 

@@ -3,16 +3,16 @@ package cmd
 import (
 	"os"
 
-	"example.com/MikuTools/cmd/host"
-	"example.com/MikuTools/cmd/version"
-	"example.com/MikuTools/pkg/logger"
+	"github.com/wentf9/xops-cli/cmd/host"
+	"github.com/wentf9/xops-cli/cmd/version"
+	"github.com/wentf9/xops-cli/pkg/logger"
 	"github.com/spf13/cobra"
 )
 
 var rootCmd = &cobra.Command{
-	Use:   "mtool [command] [flags]",
-	Short: "mtool(Miku Tools)是一个命令行工具集,用于日常运维和开发工作",
-	Long: `mtool(Miku Tools)是一个命令行工具集,
+	Use:   "xops [command] [flags]",
+	Short: "xops(XOps)是一个命令行工具集,用于日常运维和开发工作",
+	Long: `xops(XOps)是一个命令行工具集,
 提供了多种实用的命令行工具,旨在提高日常运维和开发工作的效率。`,
 	Run: func(cmd *cobra.Command, args []string) {
 		versionFlag, _ := cmd.Flags().GetBool("version")

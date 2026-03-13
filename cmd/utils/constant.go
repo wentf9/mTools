@@ -1,7 +1,7 @@
 package utils
 
 const (
-	ConfigFileName   = "mtool_config.yaml"
-	PasswordFileName = "mtool_passwords.json"
+	ConfigFileName   = "xops_config.yaml"
+	PasswordFileName = "xops_passwords.json"
 	ConfigKeyName    = "secret.key"
 )

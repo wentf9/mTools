@@ -3,9 +3,9 @@
 # ==============================================================================
 
 # 项目名称
-BINARY_NAME=mtool
+BINARY_NAME=xops
 # 模块名称 (请替换为你 go.mod 中的 module 内容)
-MODULE=example.com/MikuTools
+MODULE=github.com/wentf9/xops-cli
 
 # 获取版本信息
 # git describe: 获取 v1.0.0-3-g8d8f 格式

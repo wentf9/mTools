@@ -8,13 +8,13 @@ import (
 	"strings"
 	"time"
 
-	cmdutils "example.com/MikuTools/cmd/utils"
-	"example.com/MikuTools/pkg/config"
-	"example.com/MikuTools/pkg/logger"
-	"example.com/MikuTools/pkg/models"
-	"example.com/MikuTools/pkg/sftp"
-	"example.com/MikuTools/pkg/ssh"
-	pkgutils "example.com/MikuTools/pkg/utils"
+	cmdutils "github.com/wentf9/xops-cli/cmd/utils"
+	"github.com/wentf9/xops-cli/pkg/config"
+	"github.com/wentf9/xops-cli/pkg/logger"
+	"github.com/wentf9/xops-cli/pkg/models"
+	"github.com/wentf9/xops-cli/pkg/sftp"
+	"github.com/wentf9/xops-cli/pkg/ssh"
+	pkgutils "github.com/wentf9/xops-cli/pkg/utils"
 	"github.com/schollz/progressbar/v3"
 	"github.com/spf13/cobra"
 )
@@ -47,11 +47,11 @@ func NewCmdScp() *cobra.Command {
 		Short: "在本地和远程主机之间传输文件",
 		Long: `在本地和远程主机之间传输文件，支持多台主机并行传输。
 支持以下场景:
-1. 从本地上传到远程: mtool scp local_path user@host:remote_path
-2. 从远程下载到本地: mtool scp user@host:remote_path local_path
-3. 远程到远程传输: mtool scp user1@host1:path1 user2@host2:path2
-4. 批量上传到多台主机: mtool scp local_path --dest remote_path -H host1,host2
-5. 按分组传输: mtool scp local_path --dest remote_path -t web
+1. 从本地上传到远程: xops scp local_path user@host:remote_path
+2. 从远程下载到本地: xops scp user@host:remote_path local_path
+3. 远程到远程传输: xops scp user1@host1:path1 user2@host2:path2
+4. 批量上传到多台主机: xops scp local_path --dest remote_path -H host1,host2
+5. 按分组传输: xops scp local_path --dest remote_path -t web
 
 通过flags提供主机和用户信息时会覆盖参数提供的信息。
 如果未通过-w选项显式提供密码, 将会从终端输入或通过保存的配置文件读取。

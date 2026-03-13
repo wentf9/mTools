@@ -4,8 +4,8 @@ import (
 	"fmt"
 	"slices"
 
-	"example.com/MikuTools/pkg/models"
-	"example.com/MikuTools/pkg/utils/concurrent"
+	"github.com/wentf9/xops-cli/pkg/models"
+	"github.com/wentf9/xops-cli/pkg/utils/concurrent"
 )
 
 type Provider struct {

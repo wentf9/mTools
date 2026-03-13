@@ -6,10 +6,10 @@ import (
 	"io"
 	"os"
 
-	"example.com/MikuTools/cmd/utils"
-	"example.com/MikuTools/pkg/mcpserver/guardrail"
-	"example.com/MikuTools/pkg/sftp"
-	"example.com/MikuTools/pkg/ssh"
+	"github.com/wentf9/xops-cli/cmd/utils"
+	"github.com/wentf9/xops-cli/pkg/mcpserver/guardrail"
+	"github.com/wentf9/xops-cli/pkg/sftp"
+	"github.com/wentf9/xops-cli/pkg/ssh"
 	"github.com/modelcontextprotocol/go-sdk/mcp"
 )
 
@@ -247,11 +247,11 @@ func RegisterSFTP(server *mcp.Server, g *guardrail.Guardrail) {
 
 	mcp.AddTool(server,
 		&mcp.Tool{
-			Name:        "mtool_read_file",
+			Name:        "xops_read_file",
 			Description: "Read a remote file via SFTP. Supports chunked reading via offset and limit to prevent memory overflow on large files. Returns EOF=true if the end of file is reached.",
 			Annotations: &mcp.ToolAnnotations{ReadOnlyHint: true},
 		},
-		guardrail.WithGuardrail(g, "mtool_read_file",
+		guardrail.WithGuardrail(g, "xops_read_file",
 			func(in ReadFileInput) guardrail.RiskInput {
 				return guardrail.RiskInput{NodeID: in.NodeID, Paths: []string{in.Path}}
 			},
@@ -261,11 +261,11 @@ func RegisterSFTP(server *mcp.Server, g *guardrail.Guardrail) {
 
 	mcp.AddTool(server,
 		&mcp.Tool{
-			Name:        "mtool_write_file",
+			Name:        "xops_write_file",
 			Description: "Write or append content to a remote file via SFTP. Use the append flag for chunked writing of large files.",
 			Annotations: &mcp.ToolAnnotations{DestructiveHint: &notDestructive},
 		},
-		guardrail.WithGuardrail(g, "mtool_write_file",
+		guardrail.WithGuardrail(g, "xops_write_file",
 			func(in WriteFileInput) guardrail.RiskInput {
 				return guardrail.RiskInput{NodeID: in.NodeID, Paths: []string{in.Path}}
 			},
@@ -275,11 +275,11 @@ func RegisterSFTP(server *mcp.Server, g *guardrail.Guardrail) {
 
 	mcp.AddTool(server,
 		&mcp.Tool{
-			Name:        "mtool_upload",
+			Name:        "xops_upload",
 			Description: "Upload a local file or directory (from the machine running the MCP server) to the remote node via SFTP. Highly concurrent.",
 			Annotations: &mcp.ToolAnnotations{DestructiveHint: &notDestructive},
 		},
-		guardrail.WithGuardrail(g, "mtool_upload",
+		guardrail.WithGuardrail(g, "xops_upload",
 			func(in TransferFileInput) guardrail.RiskInput {
 				return guardrail.RiskInput{NodeID: in.NodeID, Paths: []string{in.LocalPath, in.RemotePath}}
 			},
@@ -289,11 +289,11 @@ func RegisterSFTP(server *mcp.Server, g *guardrail.Guardrail) {
 
 	mcp.AddTool(server,
 		&mcp.Tool{
-			Name:        "mtool_download",
+			Name:        "xops_download",
 			Description: "Download a remote file or directory from the node to the machine running the MCP server via SFTP. Highly concurrent.",
 			Annotations: &mcp.ToolAnnotations{ReadOnlyHint: true},
 		},
-		guardrail.WithGuardrail(g, "mtool_download",
+		guardrail.WithGuardrail(g, "xops_download",
 			func(in TransferFileInput) guardrail.RiskInput {
 				return guardrail.RiskInput{NodeID: in.NodeID, Paths: []string{in.RemotePath}}
 			},

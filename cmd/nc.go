@@ -8,7 +8,7 @@ import (
 	"os"
 	"time"
 
-	cmdutils "example.com/MikuTools/cmd/utils"
+	cmdutils "github.com/wentf9/xops-cli/cmd/utils"
 	"github.com/spf13/cobra"
 	"golang.org/x/term"
 )
@@ -18,12 +18,12 @@ var ncCmd = &cobra.Command{
 	Short: "网络工具,提供linux中nc命令的部分功能",
 	Long: `网络工具,提供linux中nc命令的部分功能
 	用法：
-	mtool nc -l <port>
+	xops nc -l <port>
 	监听指定的端口并输出所有请求内容,linux非root用户无法监听1024以内的端口
-	mtool nc <ip> <port>
+	xops nc <ip> <port>
 	连接到指定的ip和端口,并将标准输入内容发送到目标地址,请结合管道或重定向使用`,
-	Example: `  mtool nc -l 8080
-  mtool nc <ip> <port>`,
+	Example: `  xops nc -l 8080
+  xops nc <ip> <port>`,
 	Args: func(cmd *cobra.Command, args []string) error {
 		port, err := cmd.Flags().GetUint16("listen")
 		if err == nil && port != 0 {

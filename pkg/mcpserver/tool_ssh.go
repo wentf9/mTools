@@ -4,10 +4,10 @@ import (
 	"context"
 	"fmt"
 
-	"example.com/MikuTools/cmd/utils"
-	"example.com/MikuTools/pkg/mcpserver/guardrail"
-	"example.com/MikuTools/pkg/models"
-	"example.com/MikuTools/pkg/ssh"
+	"github.com/wentf9/xops-cli/cmd/utils"
+	"github.com/wentf9/xops-cli/pkg/mcpserver/guardrail"
+	"github.com/wentf9/xops-cli/pkg/models"
+	"github.com/wentf9/xops-cli/pkg/ssh"
 	"github.com/modelcontextprotocol/go-sdk/mcp"
 )
 
@@ -126,11 +126,11 @@ func sshRunHandler(ctx context.Context, req *mcp.CallToolRequest, input SshRunIn
 func RegisterSSH(server *mcp.Server, g *guardrail.Guardrail) {
 	mcp.AddTool(server,
 		&mcp.Tool{
-			Name:        "mtool_list_nodes",
-			Description: "List all available SSH nodes managed by mTools, optionally filtered by tag. Returns an array of node IDs that can be used with mtool_ssh_run.",
+			Name:        "xops_list_nodes",
+			Description: "List all available SSH nodes managed by XOps, optionally filtered by tag. Returns an array of node IDs that can be used with xops_ssh_run.",
 			Annotations: &mcp.ToolAnnotations{ReadOnlyHint: true},
 		},
-		guardrail.WithGuardrail(g, "mtool_list_nodes",
+		guardrail.WithGuardrail(g, "xops_list_nodes",
 			func(in ListNodesInput) guardrail.RiskInput {
 				return guardrail.RiskInput{}
 			},
@@ -141,11 +141,11 @@ func RegisterSSH(server *mcp.Server, g *guardrail.Guardrail) {
 	destructive := true
 	mcp.AddTool(server,
 		&mcp.Tool{
-			Name:        "mtool_ssh_run",
-			Description: "Execute a shell command on a specific SSH node managed by mTools. Returns the command output.",
+			Name:        "xops_ssh_run",
+			Description: "Execute a shell command on a specific SSH node managed by XOps. Returns the command output.",
 			Annotations: &mcp.ToolAnnotations{DestructiveHint: &destructive},
 		},
-		guardrail.WithGuardrail(g, "mtool_ssh_run",
+		guardrail.WithGuardrail(g, "xops_ssh_run",
 			func(in SshRunInput) guardrail.RiskInput {
 				return guardrail.RiskInput{
 					NodeID:  in.NodeID,

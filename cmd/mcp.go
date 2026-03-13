@@ -7,8 +7,8 @@ import (
 	"strings"
 	"syscall"
 
-	"example.com/MikuTools/pkg/logger"
-	"example.com/MikuTools/pkg/mcpserver"
+	"github.com/wentf9/xops-cli/pkg/logger"
+	"github.com/wentf9/xops-cli/pkg/mcpserver"
 	"github.com/spf13/cobra"
 )
 

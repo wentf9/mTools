@@ -5,7 +5,7 @@ import (
 	"fmt"
 	"strings"
 
-	"example.com/MikuTools/pkg/executor"
+	"github.com/wentf9/xops-cli/pkg/executor"
 )
 
 type FirewalldBackend struct {

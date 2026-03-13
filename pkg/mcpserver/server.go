@@ -4,15 +4,15 @@ import (
 	"context"
 	"fmt"
 
-	"example.com/MikuTools/cmd/utils"
-	"example.com/MikuTools/pkg/mcpserver/guardrail"
+	"github.com/wentf9/xops-cli/cmd/utils"
+	"github.com/wentf9/xops-cli/pkg/mcpserver/guardrail"
 	"github.com/modelcontextprotocol/go-sdk/mcp"
 )
 
 func Serve(ctx context.Context) error {
 	server := mcp.NewServer(
 		&mcp.Implementation{
-			Name:    "mtools-mcp",
+			Name:    "xops-mcp",
 			Version: "v1.0.0",
 		},
 		&mcp.ServerOptions{

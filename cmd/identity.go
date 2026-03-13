@@ -6,10 +6,10 @@ import (
 	"sort"
 	"text/tabwriter"
 
-	"example.com/MikuTools/cmd/utils"
-	"example.com/MikuTools/pkg/config"
-	"example.com/MikuTools/pkg/logger"
-	"example.com/MikuTools/pkg/models"
+	"github.com/wentf9/xops-cli/cmd/utils"
+	"github.com/wentf9/xops-cli/pkg/config"
+	"github.com/wentf9/xops-cli/pkg/logger"
+	"github.com/wentf9/xops-cli/pkg/models"
 	"github.com/spf13/cobra"
 )
 

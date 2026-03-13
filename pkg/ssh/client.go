@@ -10,8 +10,8 @@ import (
 	"sync"
 	"time"
 
-	"example.com/MikuTools/pkg/config"
-	"example.com/MikuTools/pkg/models"
+	"github.com/wentf9/xops-cli/pkg/config"
+	"github.com/wentf9/xops-cli/pkg/models"
 	"golang.org/x/crypto/ssh"
 	"golang.org/x/term"
 )

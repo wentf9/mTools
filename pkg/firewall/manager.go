@@ -5,7 +5,7 @@ import (
 	"fmt"
 	"strings"
 
-	"example.com/MikuTools/pkg/executor"
+	"github.com/wentf9/xops-cli/pkg/executor"
 )
 
 // DetectFirewall 自动探测系统使用的防火墙后端

@@ -1,6 +1,6 @@
-# mTools (Miku Tools) 运维工具箱
+# XOps (XOps) 运维工具箱
 
-mtool (Miku Tools) 是一个基于 Go 语言开发的命令行运维工具集，旨在简化日常的服务器管理工作。它集成了 SSH 连接管理、远程命令批量执行、文件传输、防火墙配置及网络工具等功能，并提供了基于标签的主机分组管理能力。
+xops (XOps) 是一个基于 Go 语言开发的命令行运维工具集，旨在简化日常的服务器管理工作。它集成了 SSH 连接管理、远程命令批量执行、文件传输、防火墙配置及网络工具等功能，并提供了基于标签的主机分组管理能力。
 
 ## 🚀 核心功能
 
@@ -20,9 +20,9 @@ mtool (Miku Tools) 是一个基于 Go 语言开发的命令行运维工具集，
 
 ### 编译
 ```bash
-git clone https://github.com/wentf9/mTools.git
-cd mTools
-go build -o mtool ./cmd/cli/main.go
+git clone https://github.com/wentf9/xops-cli.git
+cd xops-cli
+go build -o xops ./cmd/cli/main.go
 ```
 
 ## 📖 快速上手
@@ -31,64 +31,64 @@ go build -o mtool ./cmd/cli/main.go
 ```bash
 # 批量从 CSV 文件导入主机 (支持识别表头: 主机, 端口, 别名, 用户, 密码, 私钥, 私钥密码)
 # 导入的同时可以将所有主机加入指定标签组
-mtool inventory load hosts.csv -t web
+xops inventory load hosts.csv -t web
 # 或者使用快捷入口
-mtool loadHost hosts.csv -t web
+xops loadHost hosts.csv -t web
 
 # 导出 CSV 导入模板
-mtool inventory load -T template.csv
+xops inventory load -T template.csv
 
 # 手动添加一台主机并打上 web 标签
-mtool host add --name web-01 --address 192.168.1.10 --user root --tag web
+xops host add --name web-01 --address 192.168.1.10 --user root --tag web
 
 # 查看主机列表
-mtool host list
+xops host list
 
 # 查看所有标签分组
-mtool host tags
+xops host tags
 ```
 
 ### 2. SSH 连接
 ```bash
 # 通过名称直接连接（会自动保存连接信息）
-mtool ssh web-01
+xops ssh web-01
 
 # 连接的同时指定分组
-mtool ssh root@192.168.1.11 -t db
+xops ssh root@192.168.1.11 -t db
 ```
 
 ### 3. 批量命令执行
 ```bash
 # 对 web 分组的所有主机执行 uptime
-mtool exec -t web -c "uptime"
+xops exec -t web -c "uptime"
 
 # 并行数设置为 5，执行本地脚本
-mtool exec -t web --shell ./setup.sh --task 5
+xops exec -t web --shell ./setup.sh --task 5
 ```
 
 ### 4. 文件传输
 ```bash
 # 将本地文件上传到指定分组的远程目录
-mtool scp ./config.conf -t web --dest /etc/app/
+xops scp ./config.conf -t web --dest /etc/app/
 ```
 
 ### 5. 防火墙操作
 ```bash
 # 查看远程主机的防火墙规则
-mtool firewall list -H web-01
+xops firewall list -H web-01
 
 # 在远程主机上开放 80 端口
-mtool firewall port 80 --proto tcp
+xops firewall port 80 --proto tcp
 ```
 
 ### 6. AI Agent 集成 (MCP Server)
-使用支持 Model Context Protocol 的 AI Agent (如 Claude Desktop, Cursor, Cline 等) 可以直接调用本机配置的 `mtool` 能力。
+使用支持 Model Context Protocol 的 AI Agent (如 Claude Desktop, Cursor, Cline 等) 可以直接调用本机配置的 `xops` 能力。
 只需在您的 MCP 客户端配置信息中加入以下内容：
 ```json
 {
   "mcpServers": {
-    "mtools": {
-      "command": "/这里填入绝对路径/mtool",
+    "xopss": {
+      "command": "/这里填入绝对路径/xops",
       "args": ["mcp"]
     }
   }
@@ -98,21 +98,21 @@ mtool firewall port 80 --proto tcp
 
 ## 📂 配置文件
 
-工具默认将配置存储在用户家目录下的 `.mtools` 文件夹中：
-- `~/.mtools/mtool_config.yaml`: 存储节点、主机及身份认证信息（敏感字段已加密）。
-- `~/.mtools/secret.key`: 用于加解密的密钥文件，请务必妥善保管，首次运行时自动生成。
-- `~/.mtools/audit.log`: MCP 护栏审计日志（JSON Lines 格式，记录 Agent 的所有工具调用）。
+工具默认将配置存储在用户家目录下的 `.xopss` 文件夹中：
+- `~/.xopss/xops_config.yaml`: 存储节点、主机及身份认证信息（敏感字段已加密）。
+- `~/.xopss/secret.key`: 用于加解密的密钥文件，请务必妥善保管，首次运行时自动生成。
+- `~/.xopss/audit.log`: MCP 护栏审计日志（JSON Lines 格式，记录 Agent 的所有工具调用）。
 
-完整的配置项说明及示例请参考 [mtool_config.example.yaml](mtool_config.example.yaml)。
+完整的配置项说明及示例请参考 [xops_config.example.yaml](xops_config.example.yaml)。
 
 ## 📅 规划与进度 (Roadmap)
 当前项目核心运维能力已实现闭环，并正向着 AI Agent 原生运维工具箱的方向演进：
-- [x] **引入 MCP (Model Context Protocol) 核心支持** (`mtool mcp`)
-  - [x] 工具：`mtool_list_nodes` (查询本地节点)
-  - [x] 工具：`mtool_ssh_run` (远程 SSH 命令执行)
-  - [x] 工具：`mtool_read_file` / `mtool_write_file` (SFTP 远程读写文件)
-  - [x] 工具：`mtool_upload` / `mtool_download` (SFTP 文件传输)
-  - [x] 工具：`mtool_fs_ls` / `mtool_fs_mkdir` / `mtool_fs_touch` / `mtool_fs_mv` / `mtool_fs_rm` / `mtool_fs_cp` (远程文件系统操作)
+- [x] **引入 MCP (Model Context Protocol) 核心支持** (`xops mcp`)
+  - [x] 工具：`xops_list_nodes` (查询本地节点)
+  - [x] 工具：`xops_ssh_run` (远程 SSH 命令执行)
+  - [x] 工具：`xops_read_file` / `xops_write_file` (SFTP 远程读写文件)
+  - [x] 工具：`xops_upload` / `xops_download` (SFTP 文件传输)
+  - [x] 工具：`xops_fs_ls` / `xops_fs_mkdir` / `xops_fs_touch` / `xops_fs_mv` / `xops_fs_rm` / `xops_fs_cp` (远程文件系统操作)
 - [x] **MCP 安全护栏** (`guardrail`)
   - [x] 三级风险分类：Safe / Moderate / Dangerous
   - [x] 命令黑名单（`rm -rf /`、`mkfs`、`dd`、fork bomb 等硬拦截）

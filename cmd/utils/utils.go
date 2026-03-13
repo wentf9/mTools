@@ -9,7 +9,7 @@ import (
 	"strings"
 	"syscall"
 
-	"example.com/MikuTools/pkg/config"
+	"github.com/wentf9/xops-cli/pkg/config"
 	"golang.org/x/term"
 )
 
@@ -104,7 +104,7 @@ func GetConfigFilePath() (configPath, keyPath string) {
 	if err != nil {
 		return "", ""
 	}
-	return filepath.Join(user.HomeDir, ".mtools", ConfigFileName), filepath.Join(user.HomeDir, ".mtools", ConfigKeyName)
+	return filepath.Join(user.HomeDir, ".xops", ConfigFileName), filepath.Join(user.HomeDir, ".xops", ConfigKeyName)
 }
 
 func GetPasswordFilePath() string {
@@ -112,7 +112,7 @@ func GetPasswordFilePath() string {
 	if err != nil {
 		return ""
 	}
-	return filepath.Join(user.HomeDir, ".mtools", PasswordFileName)
+	return filepath.Join(user.HomeDir, ".xops", PasswordFileName)
 }
 
 // ReadPasswordFromTerminal 从终端安全地读取密码

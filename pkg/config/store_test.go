@@ -6,9 +6,9 @@ import (
 	"strings"
 	"testing"
 
-	"example.com/MikuTools/pkg/crypto"
-	"example.com/MikuTools/pkg/models"
-	"example.com/MikuTools/pkg/utils/concurrent"
+	"github.com/wentf9/xops-cli/pkg/crypto"
+	"github.com/wentf9/xops-cli/pkg/models"
+	"github.com/wentf9/xops-cli/pkg/utils/concurrent"
 )
 
 func newTestStoreAndConfig(t *testing.T) (Store, *Configuration) {

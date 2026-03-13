@@ -4,7 +4,7 @@ import (
 	"context"
 	"fmt"
 
-	"example.com/MikuTools/pkg/executor"
+	"github.com/wentf9/xops-cli/pkg/executor"
 )
 
 type UfwBackend struct {

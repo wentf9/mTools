@@ -7,9 +7,9 @@ import (
 	"os"
 	"time"
 
-	"example.com/MikuTools/pkg/config"
-	"example.com/MikuTools/pkg/models"
-	"example.com/MikuTools/pkg/utils/concurrent"
+	"github.com/wentf9/xops-cli/pkg/config"
+	"github.com/wentf9/xops-cli/pkg/models"
+	"github.com/wentf9/xops-cli/pkg/utils/concurrent"
 	"golang.org/x/crypto/ssh"
 	"golang.org/x/sync/singleflight"
 )

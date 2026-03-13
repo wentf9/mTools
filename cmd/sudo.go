@@ -4,9 +4,9 @@ import (
 	"context"
 	"strings"
 
-	"example.com/MikuTools/cmd/utils"
-	"example.com/MikuTools/pkg/executor"
-	"example.com/MikuTools/pkg/logger"
+	"github.com/wentf9/xops-cli/cmd/utils"
+	"github.com/wentf9/xops-cli/pkg/executor"
+	"github.com/wentf9/xops-cli/pkg/logger"
 	"github.com/spf13/cobra"
 )
 
@@ -21,9 +21,9 @@ var sudoCmd = &cobra.Command{
 	Short: "在本机sudo执行命令",
 	Long: `在本机sudo执行命令，支持从配置文件中自动获取密码。
 示例:
-  mtool sudo "ss -tlpn"
-  mtool sudo -s
-  mtool sudo "firewall-cmd --list-all" -p mypassword`,
+  xops sudo "ss -tlpn"
+  xops sudo -s
+  xops sudo "firewall-cmd --list-all" -p mypassword`,
 	Args: cobra.ArbitraryArgs,
 	RunE: func(cmd *cobra.Command, args []string) error {
 		// 1. 获取密码

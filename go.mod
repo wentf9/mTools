@@ -1,4 +1,4 @@
-module example.com/MikuTools
+module github.com/wentf9/xops-cli
 
 go 1.25.0
 

@@ -1,7 +1,7 @@
 package main
 
 import (
-	"example.com/MikuTools/cmd"
+	"github.com/wentf9/xops-cli/cmd"
 )
 
 func main() {

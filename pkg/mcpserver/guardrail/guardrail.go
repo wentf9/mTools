@@ -4,7 +4,7 @@ import (
 	"context"
 	"fmt"
 
-	"example.com/MikuTools/pkg/config"
+	"github.com/wentf9/xops-cli/pkg/config"
 	"github.com/modelcontextprotocol/go-sdk/mcp"
 )
 

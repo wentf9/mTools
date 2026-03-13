@@ -3,7 +3,7 @@ package guardrail
 import (
 	"path/filepath"
 
-	"example.com/MikuTools/pkg/config"
+	"github.com/wentf9/xops-cli/pkg/config"
 )
 
 // Decision represents the outcome of a policy evaluation.
@@ -32,7 +32,7 @@ func (d Decision) String() string {
 func DefaultGuardrailConfig() *config.GuardrailConfig {
 	return &config.GuardrailConfig{
 		Enabled:           true,
-		AuditLog:          "~/.mtools/audit.log",
+		AuditLog:          "~/.xops/audit.log",
 		ApprovalThreshold: "dangerous",
 		NoElicitFallback:  FallbackDowngrade,
 		ProtectedPaths:    []string{"/etc", "/boot", "/usr", "/sbin", "/root"},
@@ -55,7 +55,7 @@ func (p *Policy) Evaluate(risk RiskLevel, input RiskInput) Decision {
 		return Allow
 	}
 
-	if input.ToolName == "mtool_ssh_run" && IsBlocked(input.Command) {
+	if input.ToolName == "xops_ssh_run" && IsBlocked(input.Command) {
 		return Deny
 	}
 

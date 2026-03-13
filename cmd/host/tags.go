@@ -4,8 +4,8 @@ import (
 	"fmt"
 	"strings"
 
-	"example.com/MikuTools/cmd/utils"
-	"example.com/MikuTools/pkg/logger"
+	"github.com/wentf9/xops-cli/cmd/utils"
+	"github.com/wentf9/xops-cli/pkg/logger"
 	"github.com/spf13/cobra"
 )
 

@@ -6,12 +6,12 @@ import (
 	"os"
 	"strings"
 
-	"example.com/MikuTools/cmd/utils"
-	"example.com/MikuTools/pkg/config"
-	"example.com/MikuTools/pkg/logger"
-	"example.com/MikuTools/pkg/models"
-	"example.com/MikuTools/pkg/ssh"
-	pkgutils "example.com/MikuTools/pkg/utils"
+	"github.com/wentf9/xops-cli/cmd/utils"
+	"github.com/wentf9/xops-cli/pkg/config"
+	"github.com/wentf9/xops-cli/pkg/logger"
+	"github.com/wentf9/xops-cli/pkg/models"
+	"github.com/wentf9/xops-cli/pkg/ssh"
+	pkgutils "github.com/wentf9/xops-cli/pkg/utils"
 	"github.com/spf13/cobra"
 )
 
@@ -39,10 +39,10 @@ func NewCmdExec() *cobra.Command {
 		Short: "对一个或多个远程主机执行命令",
 		Long: `对一个或多个远程主机执行命令。支持批量执行和提权。
 用法示例:
-mtool exec -H host1,host2 -c "uptime"
-mtool exec -t web -c "uptime"
-mtool exec -I hosts.txt --shell script.sh
-mtool exec user@host "df -h"
+xops exec -H host1,host2 -c "uptime"
+xops exec -t web -c "uptime"
+xops exec -I hosts.txt --shell script.sh
+xops exec user@host "df -h"
 
 通过flags提供主机和用户信息时会覆盖参数提供的信息。
 使用 --tag 时会忽略其他主机指定方式。`,

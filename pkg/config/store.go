@@ -4,10 +4,10 @@ import (
 	"os"
 	"sync"
 
-	"example.com/MikuTools/pkg/crypto"
-	"example.com/MikuTools/pkg/models"
-	"example.com/MikuTools/pkg/utils/concurrent"
-	"example.com/MikuTools/pkg/utils/file"
+	"github.com/wentf9/xops-cli/pkg/crypto"
+	"github.com/wentf9/xops-cli/pkg/models"
+	"github.com/wentf9/xops-cli/pkg/utils/concurrent"
+	"github.com/wentf9/xops-cli/pkg/utils/file"
 	"gopkg.in/yaml.v3"
 )
 

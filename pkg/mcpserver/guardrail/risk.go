@@ -48,20 +48,20 @@ type RiskInput struct {
 
 // toolBaseRisk maps tool names to their static (baseline) risk level.
 var toolBaseRisk = map[string]RiskLevel{
-	"mtool_list_nodes": Safe,
-	"mtool_read_file":  Safe,
-	"mtool_fs_ls":      Safe,
-	"mtool_download":   Safe,
+	"xops_list_nodes": Safe,
+	"xops_read_file":  Safe,
+	"xops_fs_ls":      Safe,
+	"xops_download":   Safe,
 
-	"mtool_write_file": Moderate,
-	"mtool_upload":     Moderate,
-	"mtool_fs_mkdir":   Moderate,
-	"mtool_fs_touch":   Moderate,
-	"mtool_fs_mv":      Moderate,
-	"mtool_fs_cp":      Moderate,
+	"xops_write_file": Moderate,
+	"xops_upload":     Moderate,
+	"xops_fs_mkdir":   Moderate,
+	"xops_fs_touch":   Moderate,
+	"xops_fs_mv":      Moderate,
+	"xops_fs_cp":      Moderate,
 
-	"mtool_fs_rm":  Dangerous,
-	"mtool_ssh_run": Dangerous,
+	"xops_fs_rm":  Dangerous,
+	"xops_ssh_run": Dangerous,
 }
 
 // Classify returns the effective risk level for a tool invocation.
@@ -72,7 +72,7 @@ func Classify(input RiskInput) RiskLevel {
 		return Dangerous // unknown tools default to highest risk
 	}
 
-	if input.ToolName == "mtool_ssh_run" {
+	if input.ToolName == "xops_ssh_run" {
 		if input.Command != "" {
 			base = AnalyzeCommand(input.Command)
 		}

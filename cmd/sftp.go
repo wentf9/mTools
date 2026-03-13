@@ -8,11 +8,11 @@ import (
 
 	"strings"
 
-	"example.com/MikuTools/cmd/utils"
-	"example.com/MikuTools/pkg/config"
-	"example.com/MikuTools/pkg/models"
-	"example.com/MikuTools/pkg/sftp"
-	"example.com/MikuTools/pkg/ssh"
+	"github.com/wentf9/xops-cli/cmd/utils"
+	"github.com/wentf9/xops-cli/pkg/config"
+	"github.com/wentf9/xops-cli/pkg/models"
+	"github.com/wentf9/xops-cli/pkg/sftp"
+	"github.com/wentf9/xops-cli/pkg/ssh"
 	"github.com/spf13/cobra"
 )
 
@@ -35,12 +35,12 @@ func NewCmdSftp() *cobra.Command {
 		Short: "通过sftp连接到指定主机",
 		Long: `通过sftp连接到指定主机并提供交互式终端。
 用法示例:
-mtool sftp user@host[:port] [-P password] [--task maxTask] [--thread maxThread]
+xops sftp user@host[:port] [-P password] [--task maxTask] [--thread maxThread]
 用户和主机为必选参数,端口默认为22,一般不需要修改
 通过flags提供主机和用户信息时会忽略参数提供的信息
 如果未通过-p选项显式提供密码,将会从终端输入或通过保存的密码文件读取密码
 成功登录过的用户和主机组合的密码将会保存到密码文件中
-密码采用对称加密算法加密保存,密码文件位置为~/.mtool_passwords.json`,
+密码采用对称加密算法加密保存,密码文件位置为~/.xops_passwords.json`,
 		RunE: func(cmd *cobra.Command, args []string) error {
 			o.Complete(cmd, args)
 			if err := o.Validate(); err != nil {

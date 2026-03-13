@@ -3,7 +3,7 @@ package sftp
 import (
 	"fmt"
 
-	"example.com/MikuTools/pkg/ssh" // 引用我们要复用的 ssh 包
+	"github.com/wentf9/xops-cli/pkg/ssh" // 引用我们要复用的 ssh 包
 	"github.com/pkg/sftp"
 )
 
