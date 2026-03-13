@@ -81,7 +81,7 @@ func NewCmdInventoryAdd() *cobra.Command {
 				Alias:       alias,
 				Tags:        tags,
 				ProxyJump:   jump,
-				SudoMode:    "sudo",
+				SudoMode:    models.SudoModeAuto,
 			}
 
 			if identityAlias == "" {

@@ -7,10 +7,10 @@ import (
 	"strings"
 	"text/tabwriter"
 
+	"github.com/spf13/cobra"
 	"github.com/wentf9/xops-cli/cmd/utils"
 	"github.com/wentf9/xops-cli/pkg/logger"
 	"github.com/wentf9/xops-cli/pkg/models"
-	"github.com/spf13/cobra"
 )
 
 func NewCmdInventoryList() *cobra.Command {

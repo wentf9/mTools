@@ -4,10 +4,10 @@ import (
 	"context"
 	"strings"
 
+	"github.com/spf13/cobra"
 	"github.com/wentf9/xops-cli/cmd/utils"
 	"github.com/wentf9/xops-cli/pkg/executor"
 	"github.com/wentf9/xops-cli/pkg/logger"
-	"github.com/spf13/cobra"
 )
 
 var (

@@ -55,35 +55,9 @@ func (s *Shell) Run(ctx context.Context) error {
 		cmd := args[0]
 		params := args[1:]
 
-		// 处理命令
-		switch cmd {
-		case "exit", "quit", "bye":
-			return nil
-		case "help", "?":
-			s.printHelp()
-		case "pwd":
-			_, _ = fmt.Fprintln(s.stdout, s.cwd)
-		case "lpwd":
-			wd, _ := os.Getwd()
-			_, _ = fmt.Fprintln(s.stdout, wd)
-		case "ls", "ll":
-			s.handleLs(params)
-		case "lls":
-			s.handleLocalLs(params)
-		case "cd":
-			s.handleCd(params)
-		case "lcd":
-			s.handleLocalCd(params)
-		case "mkdir":
-			s.handleMkdir(params)
-		case "rm":
-			s.handleRm(params)
-		case "get":
-			s.handleGet(ctx, params)
-		case "put":
-			s.handlePut(ctx, params)
-		default:
-			_, _ = fmt.Fprintf(s.stderr, "未知命令: %s (输入 help 查看可用命令)\n", cmd)
+		exit, err := s.dispatchCommand(ctx, cmd, params)
+		if exit {
+			return err
 		}
 
 		if ctx.Err() != nil {
@@ -92,6 +66,39 @@ func (s *Shell) Run(ctx context.Context) error {
 		s.printPrompt()
 	}
 	return scanner.Err()
+}
+
+func (s *Shell) dispatchCommand(ctx context.Context, cmd string, params []string) (bool, error) {
+	switch cmd {
+	case "exit", "quit", "bye":
+		return true, nil
+	case "help", "?":
+		s.printHelp()
+	case "pwd":
+		_, _ = fmt.Fprintln(s.stdout, s.cwd)
+	case "lpwd":
+		wd, _ := os.Getwd()
+		_, _ = fmt.Fprintln(s.stdout, wd)
+	case "ls", "ll":
+		s.handleLs(params)
+	case "lls":
+		s.handleLocalLs(params)
+	case "cd":
+		s.handleCd(params)
+	case "lcd":
+		s.handleLocalCd(params)
+	case "mkdir":
+		s.handleMkdir(params)
+	case "rm":
+		s.handleRm(params)
+	case "get":
+		s.handleGet(ctx, params)
+	case "put":
+		s.handlePut(ctx, params)
+	default:
+		_, _ = fmt.Fprintf(s.stderr, "未知命令: %s (输入 help 查看可用命令)\n", cmd)
+	}
+	return false, nil
 }
 
 // ================= 命令处理逻辑 =================
@@ -212,7 +219,7 @@ func (s *Shell) handlePut(ctx context.Context, args []string) {
 	}
 	local := args[0]
 	var remote string
-	
+
 	if len(args) > 1 {
 		remote = s.resolvePath(args[1])
 	} else {

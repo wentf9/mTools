@@ -3,17 +3,20 @@ package host
 import (
 	"fmt"
 
+	"github.com/spf13/cobra"
 	"github.com/wentf9/xops-cli/cmd/utils"
 	"github.com/wentf9/xops-cli/pkg/logger"
-	"github.com/spf13/cobra"
+	"github.com/wentf9/xops-cli/pkg/models"
 )
 
+type editFlags struct {
+	address, user, password, keyPath, keyPass, jump string
+	port                                            uint16
+	alias                                           []string
+}
+
 func NewCmdInventoryEdit() *cobra.Command {
-	var (
-		address, user, password, keyPath, keyPass, jump string
-		port                                            uint16
-		alias                                           []string
-	)
+	flags := &editFlags{}
 
 	cmd := &cobra.Command{
 		Use:   "edit [node_id]",
@@ -33,31 +36,8 @@ func NewCmdInventoryEdit() *cobra.Command {
 
 			host, _ := provider.GetHost(oldName)
 			identity, _ := provider.GetIdentity(oldName)
-			updated, nameChanged := false, false
 
-			if address != "" {
-				host.Address, updated, nameChanged = address, true, true
-			}
-			if port != 0 {
-				host.Port, updated, nameChanged = port, true, true
-			}
-			if user != "" {
-				identity.User, updated, nameChanged = user, true, true
-			}
-			if keyPath != "" {
-				identity.KeyPath, identity.AuthType, identity.Password, updated = keyPath, "key", "", true
-			} else if password != "" {
-				identity.Password, identity.AuthType, identity.KeyPath, updated = password, "password", "", true
-			}
-			if keyPass != "" {
-				identity.Passphrase, updated = keyPass, true
-			}
-			if cmd.Flags().Changed("alias") {
-				node.Alias, updated = alias, true
-			}
-			if cmd.Flags().Changed("jump") {
-				node.ProxyJump, updated = jump, true
-			}
+			updated, nameChanged := applyNodeUpdates(cmd, &host, &identity, &node, flags)
 
 			if updated {
 				newName := oldName
@@ -84,15 +64,42 @@ func NewCmdInventoryEdit() *cobra.Command {
 		},
 	}
 
-	cmd.Flags().StringVarP(&address, "address", "H", "", "修改主机 IP 或域名")
-	cmd.Flags().Uint16VarP(&port, "port", "p", 0, "修改 SSH 端口")
-	cmd.Flags().StringVarP(&user, "user", "u", "", "修改 SSH 用户名")
-	cmd.Flags().StringVarP(&password, "password", "P", "", "修改 SSH 密码")
-	cmd.Flags().StringVarP(&keyPath, "key", "k", "", "修改 SSH 私钥路径")
-	cmd.Flags().StringVarP(&keyPass, "key-pass", "w", "", "修改私钥密码")
-	cmd.Flags().StringSliceVarP(&alias, "alias", "a", []string{}, "修改节点别名")
-	cmd.Flags().StringVarP(&jump, "jump", "j", "", "修改跳板机名称")
+	cmd.Flags().StringVarP(&flags.address, "address", "H", "", "修改主机 IP 或域名")
+	cmd.Flags().Uint16VarP(&flags.port, "port", "p", 0, "修改 SSH 端口")
+	cmd.Flags().StringVarP(&flags.user, "user", "u", "", "修改 SSH 用户名")
+	cmd.Flags().StringVarP(&flags.password, "password", "P", "", "修改 SSH 密码")
+	cmd.Flags().StringVarP(&flags.keyPath, "key", "k", "", "修改 SSH 私钥路径")
+	cmd.Flags().StringVarP(&flags.keyPass, "key-pass", "w", "", "修改私钥密码")
+	cmd.Flags().StringSliceVarP(&flags.alias, "alias", "a", []string{}, "修改节点别名")
+	cmd.Flags().StringVarP(&flags.jump, "jump", "j", "", "修改跳板机名称")
 	return cmd
+}
+
+func applyNodeUpdates(cmd *cobra.Command, host *models.Host, identity *models.Identity, node *models.Node, flags *editFlags) (updated, nameChanged bool) {
+	if flags.address != "" {
+		host.Address, updated, nameChanged = flags.address, true, true
+	}
+	if flags.port != 0 {
+		host.Port, updated, nameChanged = flags.port, true, true
+	}
+	if flags.user != "" {
+		identity.User, updated, nameChanged = flags.user, true, true
+	}
+	if flags.keyPath != "" {
+		identity.KeyPath, identity.AuthType, identity.Password, updated = flags.keyPath, "key", "", true
+	} else if flags.password != "" {
+		identity.Password, identity.AuthType, identity.KeyPath, updated = flags.password, "password", "", true
+	}
+	if flags.keyPass != "" {
+		identity.Passphrase, updated = flags.keyPass, true
+	}
+	if cmd.Flags().Changed("alias") {
+		node.Alias, updated = flags.alias, true
+	}
+	if cmd.Flags().Changed("jump") {
+		node.ProxyJump, updated = flags.jump, true
+	}
+	return updated, nameChanged
 }
 
 func NewCmdInventoryDelete() *cobra.Command {

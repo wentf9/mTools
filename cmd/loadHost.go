@@ -1,8 +1,8 @@
 package cmd
 
 import (
-	"github.com/wentf9/xops-cli/cmd/host"
 	"github.com/spf13/cobra"
+	"github.com/wentf9/xops-cli/cmd/host"
 )
 
 // loadHostCmd represents the loadHost command

@@ -190,20 +190,7 @@ func (o *ScpOptions) Run() error {
 }
 
 func (o *ScpOptions) runUpload(ctx context.Context, localPath string, dst PathInfo, provider config.ConfigProvider, connector *ssh.Connector, configStore config.Store, cfg *config.Configuration) error {
-	nodeID, updated, err := o.getOrCreateNodeForPath(provider, dst, "")
-	if err != nil {
-		return err
-	}
-	if updated {
-		if err := configStore.Save(cfg); err != nil { logger.PrintErrorf("保存配置失败: %v", err) }
-	}
-
-	client, err := connector.Connect(ctx, nodeID)
-	if err != nil {
-		return err
-	}
-
-	sftpCli, err := sftp.NewClient(client, sftp.WithThreadsPerFile(o.ThreadCount))
+	_, sftpCli, err := o.connectSftpForPath(ctx, dst, "", provider, connector, configStore, cfg)
 	if err != nil {
 		return err
 	}
@@ -242,20 +229,7 @@ func (o *ScpOptions) runUpload(ctx context.Context, localPath string, dst PathIn
 }
 
 func (o *ScpOptions) runDownload(ctx context.Context, src PathInfo, localPath string, provider config.ConfigProvider, connector *ssh.Connector, configStore config.Store, cfg *config.Configuration) error {
-	nodeID, updated, err := o.getOrCreateNodeForPath(provider, src, "")
-	if err != nil {
-		return err
-	}
-	if updated {
-		if err := configStore.Save(cfg); err != nil { logger.PrintErrorf("保存配置失败: %v", err) }
-	}
-
-	client, err := connector.Connect(ctx, nodeID)
-	if err != nil {
-		return err
-	}
-
-	sftpCli, err := sftp.NewClient(client, sftp.WithThreadsPerFile(o.ThreadCount))
+	_, sftpCli, err := o.connectSftpForPath(ctx, src, "", provider, connector, configStore, cfg)
 	if err != nil {
 		return err
 	}
@@ -306,35 +280,13 @@ func (o *ScpOptions) runDownload(ctx context.Context, src PathInfo, localPath st
 }
 
 func (o *ScpOptions) runRemoteToRemote(ctx context.Context, src, dst PathInfo, provider config.ConfigProvider, connector *ssh.Connector, configStore config.Store, cfg *config.Configuration) error {
-	srcNodeId, srcUpdated, err := o.getOrCreateNodeForPath(provider, src, "")
-	if err != nil {
-		return err
-	}
-	dstNodeId, dstUpdated, err := o.getOrCreateNodeForPath(provider, dst, "")
-	if err != nil {
-		return err
-	}
-
-	if srcUpdated || dstUpdated {
-		if err := configStore.Save(cfg); err != nil { logger.PrintErrorf("保存配置失败: %v", err) }
-	}
-
-	srcClient, err := connector.Connect(ctx, srcNodeId)
-	if err != nil {
-		return err
-	}
-	dstClient, err := connector.Connect(ctx, dstNodeId)
-	if err != nil {
-		return err
-	}
-
-	srcSftp, err := sftp.NewClient(srcClient)
+	_, srcSftp, err := o.connectSftpForPath(ctx, src, "", provider, connector, configStore, cfg)
 	if err != nil {
 		return err
 	}
 	defer func() { _ = srcSftp.Close() }()
 
-	dstSftp, err := sftp.NewClient(dstClient)
+	_, dstSftp, err := o.connectSftpForPath(ctx, dst, "", provider, connector, configStore, cfg)
 	if err != nil {
 		return err
 	}
@@ -418,24 +370,9 @@ func (o *ScpOptions) runBatch(ctx context.Context, provider config.ConfigProvide
 }
 
 func (o *ScpOptions) executeTransfer(ctx context.Context, label string, addr PathInfo, specificPassword string, provider config.ConfigProvider, connector *ssh.Connector, configStore config.Store, cfg *config.Configuration) {
-	nodeID, updated, err := o.getOrCreateNodeForPath(provider, addr, specificPassword)
+	_, sftpCli, err := o.connectSftpForPath(ctx, addr, specificPassword, provider, connector, configStore, cfg)
 	if err != nil {
 		logger.PrintErrorf("[%s] 错误: %v", label, err)
-		return
-	}
-	if updated {
-		if err := configStore.Save(cfg); err != nil { logger.PrintErrorf("保存配置失败: %v", err) }
-	}
-
-	client, err := connector.Connect(ctx, nodeID)
-	if err != nil {
-		logger.PrintErrorf("[%s] 连接失败: %v", label, err)
-		return
-	}
-
-	sftpCli, err := sftp.NewClient(client, sftp.WithThreadsPerFile(o.ThreadCount))
-	if err != nil {
-		logger.PrintErrorf("[%s] SFTP失败: %v", label, err)
 		return
 	}
 	defer func() { _ = sftpCli.Close() }()
@@ -448,12 +385,32 @@ func (o *ScpOptions) executeTransfer(ctx context.Context, label string, addr Pat
 	}
 }
 
-func (o *ScpOptions) getOrCreateNodeForPath(provider config.ConfigProvider, path PathInfo, specificPassword string) (string, bool, error) {
+func (o *ScpOptions) connectSftpForPath(ctx context.Context, p PathInfo, specificPassword string, provider config.ConfigProvider, connector *ssh.Connector, configStore config.Store, cfg *config.Configuration) (string, *sftp.Client, error) {
+	nodeId, updated, err := o.getOrCreateNodeForPath(provider, p, specificPassword)
+	if err != nil {
+		return "", nil, err
+	}
+	if updated {
+		if err := configStore.Save(cfg); err != nil {
+			logger.PrintErrorf("保存配置失败: %v", err)
+		}
+	}
+	client, err := connector.Connect(ctx, nodeId)
+	if err != nil {
+		return "", nil, err
+	}
+	sftpCli, err := sftp.NewClient(client, sftp.WithThreadsPerFile(o.ThreadCount))
+	if err != nil {
+		return "", nil, err
+	}
+	return nodeId, sftpCli, nil
+}
+
+func (o *ScpOptions) resolvePathInfo(path PathInfo) (string, string, uint16, error) {
 	host := path.Host
 	user := path.User
 	port := path.Port
 
-	// 如果没有在路径中指定，使用命令行 flags 中的值
 	if host == "" && o.Host != "" && !strings.Contains(o.Host, ",") {
 		host = o.Host
 	}
@@ -465,7 +422,7 @@ func (o *ScpOptions) getOrCreateNodeForPath(provider config.ConfigProvider, path
 	}
 
 	if host == "" {
-		return "", false, fmt.Errorf("主机地址不能为空")
+		return "", "", 0, fmt.Errorf("主机地址不能为空")
 	}
 	if user == "" {
 		user = cmdutils.GetCurrentUser()
@@ -474,8 +431,14 @@ func (o *ScpOptions) getOrCreateNodeForPath(provider config.ConfigProvider, path
 		port = 22
 	}
 
-	host = strings.TrimSpace(host)
-	user = strings.TrimSpace(user)
+	return strings.TrimSpace(host), strings.TrimSpace(user), port, nil
+}
+
+func (o *ScpOptions) getOrCreateNodeForPath(provider config.ConfigProvider, path PathInfo, specificPassword string) (string, bool, error) {
+	host, user, port, err := o.resolvePathInfo(path)
+	if err != nil {
+		return "", false, err
+	}
 
 	nodeID := provider.Find(host)
 	if nodeID == "" {
@@ -487,13 +450,16 @@ func (o *ScpOptions) getOrCreateNodeForPath(provider config.ConfigProvider, path
 		return nodeID, updated, nil
 	}
 
-	// 创建新节点
-	nodeID = fmt.Sprintf("%s@%s:%d", user, host, port)
+	return o.createNewNode(provider, host, user, port, specificPassword)
+}
+
+func (o *ScpOptions) createNewNode(provider config.ConfigProvider, host, user string, port uint16, specificPassword string) (string, bool, error) {
+	nodeID := fmt.Sprintf("%s@%s:%d", user, host, port)
 	node := models.Node{
 		HostRef:     fmt.Sprintf("%s:%d", host, port),
 		IdentityRef: fmt.Sprintf("%s@%s", user, host),
 		ProxyJump:   o.JumpHost,
-		SudoMode:    "sudo",
+		SudoMode:    models.SudoModeAuto,
 	}
 
 	if node.ProxyJump != "" {

@@ -11,15 +11,15 @@ import (
 
 // AuditEntry is a single line in the audit log.
 type AuditEntry struct {
-	Timestamp  time.Time `json:"ts"`
-	Tool       string    `json:"tool"`
-	NodeID     string    `json:"node,omitempty"`
-	Command    string    `json:"command,omitempty"`
-	Paths      []string  `json:"paths,omitempty"`
-	RiskLevel  string    `json:"risk"`
-	Decision   string    `json:"decision"`
-	Outcome    string    `json:"outcome"` // "executed", "denied", "error"
-	Error      string    `json:"error,omitempty"`
+	Timestamp time.Time `json:"ts"`
+	Tool      string    `json:"tool"`
+	NodeID    string    `json:"node,omitempty"`
+	Command   string    `json:"command,omitempty"`
+	Paths     []string  `json:"paths,omitempty"`
+	RiskLevel string    `json:"risk"`
+	Decision  string    `json:"decision"`
+	Outcome   string    `json:"outcome"` // "executed", "denied", "error"
+	Error     string    `json:"error,omitempty"`
 }
 
 // AuditLogger writes JSON Lines to a file.

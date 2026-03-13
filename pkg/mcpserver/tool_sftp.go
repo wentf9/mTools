@@ -40,6 +40,33 @@ type ReadFileOutput struct {
 	Status  string `json:"status" jsonschema:"Operation status"`
 }
 
+func getSFTPClient(ctx context.Context, nodeID string) (*sftp.Client, *ssh.Connector, error) {
+	_, provider, _, err := utils.GetConfigStore()
+	if err != nil {
+		return nil, nil, fmt.Errorf("failed to load config: %w", err)
+	}
+
+	if _, ok := provider.GetNode(nodeID); !ok {
+		return nil, nil, fmt.Errorf("node '%s' not found", nodeID)
+	}
+
+	connector := ssh.NewConnector(provider)
+
+	sshClient, err := connector.Connect(ctx, nodeID)
+	if err != nil {
+		connector.CloseAll()
+		return nil, nil, fmt.Errorf("failed to connect to ssh: %w", err)
+	}
+
+	sftpClient, err := sftp.NewClient(sshClient)
+	if err != nil {
+		connector.CloseAll()
+		return nil, nil, fmt.Errorf("failed to create sftp client: %w", err)
+	}
+
+	return sftpClient, connector, nil
+}
+
 func readFileHandler(ctx context.Context, req *mcp.CallToolRequest, input ReadFileInput) (*mcp.CallToolResult, ReadFileOutput, error) {
 	if input.NodeID == "" || input.Path == "" {
 		return nil, ReadFileOutput{}, fmt.Errorf("nodeID and path are required")
@@ -53,27 +80,11 @@ func readFileHandler(ctx context.Context, req *mcp.CallToolRequest, input ReadFi
 		limit = 100 * 1024 // cap at 100KB to prevent memory/context explosion
 	}
 
-	_, provider, _, err := utils.GetConfigStore()
+	sftpClient, connector, err := getSFTPClient(ctx, input.NodeID)
 	if err != nil {
-		return nil, ReadFileOutput{}, fmt.Errorf("failed to load config: %w", err)
+		return nil, ReadFileOutput{}, err
 	}
-
-	if _, ok := provider.GetNode(input.NodeID); !ok {
-		return nil, ReadFileOutput{}, fmt.Errorf("node '%s' not found", input.NodeID)
-	}
-
-	connector := ssh.NewConnector(provider)
 	defer connector.CloseAll()
-
-	sshClient, err := connector.Connect(ctx, input.NodeID)
-	if err != nil {
-		return nil, ReadFileOutput{}, fmt.Errorf("failed to connect to ssh: %w", err)
-	}
-
-	sftpClient, err := sftp.NewClient(sshClient)
-	if err != nil {
-		return nil, ReadFileOutput{}, fmt.Errorf("failed to create sftp client: %w", err)
-	}
 	defer func() { _ = sftpClient.Close() }()
 
 	file, err := sftpClient.SFTPClient().Open(input.Path)
@@ -126,27 +137,11 @@ func writeFileHandler(ctx context.Context, req *mcp.CallToolRequest, input Write
 		return nil, WriteFileOutput{}, fmt.Errorf("nodeID and path are required")
 	}
 
-	_, provider, _, err := utils.GetConfigStore()
+	sftpClient, connector, err := getSFTPClient(ctx, input.NodeID)
 	if err != nil {
-		return nil, WriteFileOutput{}, fmt.Errorf("failed to load config: %w", err)
+		return nil, WriteFileOutput{}, err
 	}
-
-	if _, ok := provider.GetNode(input.NodeID); !ok {
-		return nil, WriteFileOutput{}, fmt.Errorf("node '%s' not found", input.NodeID)
-	}
-
-	connector := ssh.NewConnector(provider)
 	defer connector.CloseAll()
-
-	sshClient, err := connector.Connect(ctx, input.NodeID)
-	if err != nil {
-		return nil, WriteFileOutput{}, fmt.Errorf("failed to connect to ssh: %w", err)
-	}
-
-	sftpClient, err := sftp.NewClient(sshClient)
-	if err != nil {
-		return nil, WriteFileOutput{}, fmt.Errorf("failed to create sftp client: %w", err)
-	}
 	defer func() { _ = sftpClient.Close() }()
 
 	flags := os.O_WRONLY | os.O_CREATE
@@ -178,27 +173,11 @@ func uploadFileHandler(ctx context.Context, req *mcp.CallToolRequest, input Tran
 		return nil, TransferFileOutput{}, fmt.Errorf("nodeID, localPath, and remotePath are required")
 	}
 
-	_, provider, _, err := utils.GetConfigStore()
+	sftpClient, connector, err := getSFTPClient(ctx, input.NodeID)
 	if err != nil {
-		return nil, TransferFileOutput{}, fmt.Errorf("failed to load config: %w", err)
+		return nil, TransferFileOutput{}, err
 	}
-
-	if _, ok := provider.GetNode(input.NodeID); !ok {
-		return nil, TransferFileOutput{}, fmt.Errorf("node '%s' not found", input.NodeID)
-	}
-
-	connector := ssh.NewConnector(provider)
 	defer connector.CloseAll()
-
-	sshClient, err := connector.Connect(ctx, input.NodeID)
-	if err != nil {
-		return nil, TransferFileOutput{}, fmt.Errorf("failed to connect to ssh: %w", err)
-	}
-
-	sftpClient, err := sftp.NewClient(sshClient)
-	if err != nil {
-		return nil, TransferFileOutput{}, fmt.Errorf("failed to create sftp client: %w", err)
-	}
 	defer func() { _ = sftpClient.Close() }()
 
 	if err := sftpClient.Upload(ctx, input.LocalPath, input.RemotePath, nil); err != nil {
@@ -213,27 +192,11 @@ func downloadFileHandler(ctx context.Context, req *mcp.CallToolRequest, input Tr
 		return nil, TransferFileOutput{}, fmt.Errorf("nodeID, localPath, and remotePath are required")
 	}
 
-	_, provider, _, err := utils.GetConfigStore()
+	sftpClient, connector, err := getSFTPClient(ctx, input.NodeID)
 	if err != nil {
-		return nil, TransferFileOutput{}, fmt.Errorf("failed to load config: %w", err)
+		return nil, TransferFileOutput{}, err
 	}
-
-	if _, ok := provider.GetNode(input.NodeID); !ok {
-		return nil, TransferFileOutput{}, fmt.Errorf("node '%s' not found", input.NodeID)
-	}
-
-	connector := ssh.NewConnector(provider)
 	defer connector.CloseAll()
-
-	sshClient, err := connector.Connect(ctx, input.NodeID)
-	if err != nil {
-		return nil, TransferFileOutput{}, fmt.Errorf("failed to connect to ssh: %w", err)
-	}
-
-	sftpClient, err := sftp.NewClient(sshClient)
-	if err != nil {
-		return nil, TransferFileOutput{}, fmt.Errorf("failed to create sftp client: %w", err)
-	}
 	defer func() { _ = sftpClient.Close() }()
 
 	if err := sftpClient.Download(ctx, input.RemotePath, input.LocalPath, nil); err != nil {

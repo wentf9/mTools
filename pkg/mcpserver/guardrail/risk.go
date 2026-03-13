@@ -60,7 +60,7 @@ var toolBaseRisk = map[string]RiskLevel{
 	"xops_fs_mv":      Moderate,
 	"xops_fs_cp":      Moderate,
 
-	"xops_fs_rm":  Dangerous,
+	"xops_fs_rm":   Dangerous,
 	"xops_ssh_run": Dangerous,
 }
 

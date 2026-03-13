@@ -83,67 +83,66 @@ xops exec user@host "df -h"
 	return cmd
 }
 
-func (o *ExecOptions) Complete(cmd *cobra.Command, args []string) {
-	o.args = args
-	if len(args) == 0 {
+func (o *ExecOptions) extractCommandFromArgs(args []string) {
+	hostPart := args[0]
+	cmdIdx := 1
+	if o.Tag != "" {
+		o.Command = strings.Join(args, " ")
 		return
 	}
-
-	if o.Command == "" && o.ShellFile == "" {
-		hostPart := args[0]
-		cmdIdx := 1
-
-		// 如果指定了 tag，args 全部视为命令内容
-		if o.Tag != "" {
-			o.Command = strings.Join(args, " ")
-			return
+	if len(args) > 1 && strings.HasPrefix(args[1], "@") {
+		hostPart = args[0] + args[1]
+		cmdIdx = 2
+	}
+	u, h, p := utils.ParseAddr(hostPart)
+	if h != "" && (strings.Contains(hostPart, "@") || !strings.Contains(hostPart, " ")) {
+		if o.Host == "" {
+			o.Host = h
 		}
+		if o.User == "" {
+			o.User = u
+		}
+		if o.Port == 0 {
+			o.Port = p
+		}
+		if o.Command == "" && len(args) > cmdIdx {
+			o.Command = strings.Join(args[cmdIdx:], " ")
+		}
+	} else {
+		if o.Command == "" {
+			o.Command = strings.Join(args, " ")
+		}
+	}
+}
 
-		// 支持 "iaas @10.238.221.45" 这种中间带空格的格式
+func (o *ExecOptions) extractHostFromArgs(args []string) {
+	if o.Host == "" && o.Tag == "" && len(args) > 0 {
+		hostPart := args[0]
 		if len(args) > 1 && strings.HasPrefix(args[1], "@") {
 			hostPart = args[0] + args[1]
-			cmdIdx = 2
 		}
-
 		u, h, p := utils.ParseAddr(hostPart)
-		// 如果解析出了主机，且不包含空格或者是 [user@]host 格式
-		if h != "" && (strings.Contains(hostPart, "@") || !strings.Contains(hostPart, " ")) {
-			if o.Host == "" {
-				o.Host = h
-			}
+		if h != "" {
+			o.Host = h
 			if o.User == "" {
 				o.User = u
 			}
 			if o.Port == 0 {
 				o.Port = p
 			}
-			if o.Command == "" && len(args) > cmdIdx {
-				o.Command = strings.Join(args[cmdIdx:], " ")
-			}
-		} else {
-			// 否则第一个参数不是主机，可能是命令的一部分
-			if o.Command == "" {
-				o.Command = strings.Join(args, " ")
-			}
 		}
+	}
+}
+
+func (o *ExecOptions) Complete(cmd *cobra.Command, args []string) {
+	o.args = args
+	if len(args) == 0 {
+		return
+	}
+	if o.Command == "" && o.ShellFile == "" {
+		o.extractCommandFromArgs(args)
 	} else {
-		// 已经有命令了，检查第一个参数是否是主机
-		if o.Host == "" && o.Tag == "" && len(args) > 0 {
-			hostPart := args[0]
-			if len(args) > 1 && strings.HasPrefix(args[1], "@") {
-				hostPart = args[0] + args[1]
-			}
-			u, h, p := utils.ParseAddr(hostPart)
-			if h != "" {
-				o.Host = h
-				if o.User == "" {
-					o.User = u
-				}
-				if o.Port == 0 {
-					o.Port = p
-				}
-			}
-		}
+		o.extractHostFromArgs(args)
 	}
 }
 
@@ -155,6 +154,14 @@ func (o *ExecOptions) Validate() error {
 		return fmt.Errorf("必须指定目标主机或标签组")
 	}
 	return nil
+}
+
+type execHostTask struct {
+	nodeID string
+	host   string
+	port   uint16
+	user   string
+	pass   string
 }
 
 func (o *ExecOptions) Run() error {
@@ -185,70 +192,17 @@ func (o *ExecOptions) Run() error {
 	ctx := context.Background()
 	wp := pkgutils.NewWorkerPool(uint(o.TaskCount))
 
-	type hostTask struct {
-		nodeID string
-		host   string
-		port   uint16
-		user   string
-		pass   string
-	}
-	var tasks []hostTask
+	var tasks []execHostTask
+	var errTask error
 
 	if o.Tag != "" {
-		nodes := provider.GetNodesByTag(o.Tag)
-		if len(nodes) == 0 {
-			return fmt.Errorf("标签组 %s 为空或不存在", o.Tag)
-		}
-		for nodeID := range nodes {
-			hostObj, _ := provider.GetHost(nodeID)
-			identity, _ := provider.GetIdentity(nodeID)
-			tasks = append(tasks, hostTask{
-				nodeID: nodeID,
-				host:   hostObj.Address,
-				port:   hostObj.Port,
-				user:   identity.User,
-				pass:   identity.Password,
-			})
-		}
+		tasks, errTask = o.buildTasksFromTags(provider)
 	} else {
-		hosts, err := utils.ParseHosts(o.Host, o.HostFile, "")
-		if err != nil {
-			return err
-		}
+		tasks, errTask = o.buildTasksFromHosts(provider)
+	}
 
-		for _, h := range hosts {
-			if h.User == "" {
-				h.User = o.User
-			}
-			if h.Password == "" {
-				h.Password = o.Password
-			}
-			if h.Port == 0 {
-				h.Port = o.Port
-			}
-
-			addr := utils.HostInfo{
-				Host:       h.Host,
-				Port:       h.Port,
-				User:       h.User,
-				Password:   h.Password,
-				Alias:      h.Alias,
-				KeyPath:    h.KeyPath,
-				Passphrase: h.Passphrase,
-			}
-			nodeID, _, err := o.getOrCreateNode(provider, addr)
-			if err != nil {
-				logger.PrintErrorf("[%s] 错误: %v", h.Host, err)
-				continue
-			}
-			tasks = append(tasks, hostTask{
-				nodeID: nodeID,
-				host:   h.Host,
-				port:   h.Port,
-				user:   h.User,
-				pass:   h.Password,
-			})
-		}
+	if errTask != nil {
+		return errTask
 	}
 
 	for _, task := range tasks {
@@ -314,11 +268,76 @@ func (o *ExecOptions) getOrCreateNode(provider config.ConfigProvider, addr utils
 		return nodeID, updated, nil
 	}
 
-	// 创建新节点
-	nodeID = fmt.Sprintf("%s@%s:%d", user, host, port)
-	sudoMode := "none"
+	nodeID, err := o.execCreateNewNode(provider, host, user, port, addr)
+	return nodeID, true, err
+}
+
+func (o *ExecOptions) buildTasksFromTags(provider config.ConfigProvider) ([]execHostTask, error) {
+	var tasks []execHostTask
+	nodes := provider.GetNodesByTag(o.Tag)
+	if len(nodes) == 0 {
+		return nil, fmt.Errorf("标签组 %s 为空或不存在", o.Tag)
+	}
+	for nodeID := range nodes {
+		hostObj, _ := provider.GetHost(nodeID)
+		identity, _ := provider.GetIdentity(nodeID)
+		tasks = append(tasks, execHostTask{
+			nodeID: nodeID,
+			host:   hostObj.Address,
+			port:   hostObj.Port,
+			user:   identity.User,
+			pass:   identity.Password,
+		})
+	}
+	return tasks, nil
+}
+
+func (o *ExecOptions) buildTasksFromHosts(provider config.ConfigProvider) ([]execHostTask, error) {
+	var tasks []execHostTask
+	hosts, err := utils.ParseHosts(o.Host, o.HostFile, "")
+	if err != nil {
+		return nil, err
+	}
+	for _, h := range hosts {
+		if h.User == "" {
+			h.User = o.User
+		}
+		if h.Password == "" {
+			h.Password = o.Password
+		}
+		if h.Port == 0 {
+			h.Port = o.Port
+		}
+		addr := utils.HostInfo{
+			Host:       h.Host,
+			Port:       h.Port,
+			User:       h.User,
+			Password:   h.Password,
+			Alias:      h.Alias,
+			KeyPath:    h.KeyPath,
+			Passphrase: h.Passphrase,
+		}
+		nodeID, _, err := o.getOrCreateNode(provider, addr)
+		if err != nil {
+			logger.PrintErrorf("[%s] 错误: %v", h.Host, err)
+			continue
+		}
+		tasks = append(tasks, execHostTask{
+			nodeID: nodeID,
+			host:   h.Host,
+			port:   h.Port,
+			user:   h.User,
+			pass:   h.Password,
+		})
+	}
+	return tasks, nil
+}
+
+func (o *ExecOptions) execCreateNewNode(provider config.ConfigProvider, host, user string, port uint16, addr utils.HostInfo) (string, error) {
+	nodeID := fmt.Sprintf("%s@%s:%d", user, host, port)
+	sudoMode := models.SudoModeNone
 	if o.Sudo {
-		sudoMode = "sudo"
+		sudoMode = models.SudoModeSudo
 	}
 
 	node := models.Node{
@@ -338,7 +357,7 @@ func (o *ExecOptions) getOrCreateNode(provider config.ConfigProvider, addr utils
 	if node.ProxyJump != "" {
 		jumpHost := provider.Find(node.ProxyJump)
 		if jumpHost == "" {
-			return "", false, fmt.Errorf("跳板机 %s 信息不存在", node.ProxyJump)
+			return "", fmt.Errorf("跳板机 %s 信息不存在", node.ProxyJump)
 		}
 		node.ProxyJump = jumpHost
 	}
@@ -347,7 +366,6 @@ func (o *ExecOptions) getOrCreateNode(provider config.ConfigProvider, addr utils
 		User: user,
 	}
 
-	// 优先使用 HostInfo 中的凭据，否则使用命令行选项
 	password := addr.Password
 	if password == "" && addr.KeyPath == "" {
 		if o.Password != "" {
@@ -355,7 +373,7 @@ func (o *ExecOptions) getOrCreateNode(provider config.ConfigProvider, addr utils
 		} else if o.KeyFile == "" {
 			pass, err := utils.ReadPasswordFromTerminal(fmt.Sprintf("请输入 %s@%s 的密码: ", user, host))
 			if err != nil {
-				return "", false, err
+				return "", err
 			}
 			password = pass
 		}
@@ -385,7 +403,19 @@ func (o *ExecOptions) getOrCreateNode(provider config.ConfigProvider, addr utils
 	provider.AddIdentity(node.IdentityRef, identity)
 	provider.AddNode(nodeID, node)
 
-	return nodeID, true, nil
+	return nodeID, nil
+}
+
+func appendExecAlias(slice []string, val string) ([]string, bool) {
+	if val == "" {
+		return slice, false
+	}
+	for _, item := range slice {
+		if item == val {
+			return slice, false
+		}
+	}
+	return append(slice, val), true
 }
 
 func (o *ExecOptions) updateNodeFromHostInfo(nodeID string, provider config.ConfigProvider, addr utils.HostInfo) bool {
@@ -410,26 +440,18 @@ func (o *ExecOptions) updateNodeFromHostInfo(nodeID string, provider config.Conf
 	}
 
 	// 更新别名
-	if addr.Alias != "" {
-		found := false
-		for _, a := range node.Alias {
-			if a == addr.Alias {
-				found = true
-				break
-			}
-		}
-		if !found {
-			node.Alias = append(node.Alias, addr.Alias)
-			updated = true
-		}
+	aliases, changed := appendExecAlias(node.Alias, addr.Alias)
+	if changed {
+		node.Alias = aliases
+		updated = true
 	}
 
-	sudoMode := "none"
+	sudoMode := models.SudoModeNone
 	if o.Sudo {
-		sudoMode = "sudo"
+		sudoMode = models.SudoModeSudo
 	}
 
-	if sudoMode != "none" && node.SudoMode != sudoMode {
+	if sudoMode != models.SudoModeNone && node.SudoMode != sudoMode {
 		node.SudoMode = sudoMode
 		updated = true
 	}

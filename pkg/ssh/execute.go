@@ -11,6 +11,8 @@ import (
 
 	"golang.org/x/crypto/ssh"
 	"golang.org/x/term"
+
+	"github.com/wentf9/xops-cli/pkg/models"
 )
 
 func (c *Client) RunWithSudo(ctx context.Context, command string) (string, error) {
@@ -18,13 +20,13 @@ func (c *Client) RunWithSudo(ctx context.Context, command string) (string, error
 	wrappedCmd := fmt.Sprintf("bash -l -c '%s'", strings.ReplaceAll(command, "'", "'\\''"))
 
 	switch c.node.SudoMode {
-	case "root":
+	case models.SudoModeRoot:
 		return c.Run(ctx, command)
-	case "sudo":
+	case models.SudoModeSudo:
 		return c.runWithSudo(ctx, wrappedCmd, c.identity.Password, nil)
-	case "sudoer":
+	case models.SudoModeSudoer:
 		return c.runWithSudo(ctx, wrappedCmd, "", nil)
-	case "su":
+	case models.SudoModeSu:
 		return c.runWithSu(command, c.node.SuPwd)
 	default:
 		return "", fmt.Errorf("unknown sudo mode: %s, please check config to set sudo mode", c.node.SudoMode)
@@ -35,13 +37,13 @@ func (c *Client) RunWithSudo(ctx context.Context, command string) (string, error
 func (c *Client) RunScriptWithSudo(ctx context.Context, scriptContent string) (string, error) {
 	c.maybeDetectSudoMode(ctx)
 	switch c.node.SudoMode {
-	case "root":
+	case models.SudoModeRoot:
 		return c.RunScript(ctx, scriptContent)
-	case "sudo":
+	case models.SudoModeSudo:
 		return c.runWithSudo(ctx, "bash -l -s", c.identity.Password, strings.NewReader(scriptContent))
-	case "sudoer":
+	case models.SudoModeSudoer:
 		return c.runWithSudo(ctx, "bash -l -s", "", strings.NewReader(scriptContent))
-	case "su":
+	case models.SudoModeSu:
 		return c.runWithSu(fmt.Sprintf("bash -l -c '%s'", strings.ReplaceAll(scriptContent, "'", "'\\''")), c.node.SuPwd)
 	default:
 		return "", fmt.Errorf("unsupported sudo mode: %s", c.node.SudoMode)
@@ -49,7 +51,7 @@ func (c *Client) RunScriptWithSudo(ctx context.Context, scriptContent string) (s
 }
 
 func (c *Client) runWithSudo(ctx context.Context, command string, password string, extraStdin io.Reader) (string, error) {
-	if password == "" && c.node.SudoMode == "sudo" {
+	if password == "" && c.node.SudoMode == models.SudoModeSudo {
 		return "", fmt.Errorf("sudo password is required but not provided")
 	}
 
@@ -107,27 +109,7 @@ func (c *Client) runWithSu(command string, password string) (string, error) {
 	var outputBuf bytes.Buffer
 	passwordPromptFound := make(chan bool)
 
-	go func() {
-		buf := make([]byte, 1024)
-		found := false
-		for {
-			n, err := stdout.Read(buf)
-			if n > 0 {
-				chunk := buf[:n]
-				outputBuf.Write(chunk)
-				if !found && (strings.Contains(string(chunk), "assword:") || strings.Contains(string(chunk), "密码")) {
-					found = true
-					passwordPromptFound <- true
-				}
-			}
-			if err != nil {
-				if !found {
-					close(passwordPromptFound)
-				}
-				break
-			}
-		}
-	}()
+	go processSuOutputForPassword(stdout, passwordPromptFound, &outputBuf)
 
 	select {
 	case <-passwordPromptFound:
@@ -148,9 +130,31 @@ func (c *Client) runWithSu(command string, password string) (string, error) {
 	return cleanOutput, nil
 }
 
+func processSuOutputForPassword(stdout io.Reader, passwordPromptFound chan<- bool, outputBuf *bytes.Buffer) {
+	buf := make([]byte, 1024)
+	found := false
+	for {
+		n, err := stdout.Read(buf)
+		if n > 0 {
+			chunk := buf[:n]
+			outputBuf.Write(chunk)
+			if !found && (strings.Contains(strings.ToLower(string(chunk)), "assword") || strings.Contains(string(chunk), "密码")) {
+				found = true
+				passwordPromptFound <- true
+			}
+		}
+		if err != nil {
+			if !found {
+				close(passwordPromptFound)
+			}
+			break
+		}
+	}
+}
+
 func (c *Client) ShellWithSudo(ctx context.Context) error {
 	c.maybeDetectSudoMode(ctx)
-	if c.node.SudoMode == "root" {
+	if c.node.SudoMode == models.SudoModeRoot {
 		return c.Shell(ctx)
 	}
 	session, err := c.sshClient.NewSession()
@@ -186,6 +190,43 @@ func (c *Client) ShellWithSudo(ctx context.Context) error {
 	}
 	defer func() { _ = term.Restore(fdIn, oldState) }()
 
+	startWindowResizeLoop(session, fdOut, width, height)
+
+	sudoCmd, password := c.getSudoParams()
+	_, _ = stdin.Write([]byte(sudoCmd + "\n"))
+
+	if password == "" {
+		go func() { _, _ = io.Copy(os.Stdout, stdout) }()
+		go func() { _, _ = io.Copy(os.Stderr, stderr) }()
+		go func() { _, _ = io.Copy(stdin, os.Stdin) }()
+		return session.Wait()
+	}
+
+	handlePasswordHandshake(stdout, stdin, password)
+
+	go func() { _, _ = io.Copy(os.Stdout, stdout) }()
+	go func() { _, _ = io.Copy(os.Stderr, stderr) }()
+	go func() { _, _ = io.Copy(stdin, os.Stdin) }()
+
+	return session.Wait()
+}
+
+func (c *Client) getSudoParams() (string, string) {
+	switch c.node.SudoMode {
+	case models.SudoModeSudo:
+		return "sudo -i", c.identity.Password
+	case models.SudoModeSudoer:
+		return "sudo -i", ""
+	case models.SudoModeSu:
+		return "su -", c.node.SuPwd
+	case models.SudoModeRoot, "":
+		return "", ""
+	default:
+		return "", ""
+	}
+}
+
+func startWindowResizeLoop(session *ssh.Session, fdOut, width, height int) {
 	go func() {
 		lastW, lastH := width, height
 		ticker := time.NewTicker(1 * time.Second)
@@ -199,36 +240,11 @@ func (c *Client) ShellWithSudo(ctx context.Context) error {
 			}
 		}
 	}()
+}
 
-	var sudoCmd string
-	var password string
-	switch c.node.SudoMode {
-	case "sudo":
-		sudoCmd = "sudo -i"
-		password = c.identity.Password
-	case "sudoer":
-		sudoCmd = "sudo -i"
-		password = ""
-	case "su":
-		sudoCmd = "su -"
-		password = c.node.SuPwd
-	case "root":
-		sudoCmd = ""
-		password = ""
-	default:
-		sudoCmd = ""
-	}
-	_, _ = stdin.Write([]byte(sudoCmd + "\n"))
-
-	if password == "" {
-		go func() { _, _ = io.Copy(os.Stdout, stdout) }()
-		go func() { _, _ = io.Copy(os.Stderr, stderr) }()
-		go func() { _, _ = io.Copy(stdin, os.Stdin) }()
-		return session.Wait()
-	}
+func handlePasswordHandshake(stdout io.Reader, stdin io.Writer, password string) {
 	buf := make([]byte, 1024)
 	var outputHistory bytes.Buffer
-	passwordSent := false
 	done := make(chan struct{})
 
 	go func() {
@@ -246,31 +262,19 @@ HandshakeLoop:
 			if err != nil {
 				break HandshakeLoop
 			}
-			if n <= 0 {
-				continue
-			}
-			chunk := buf[:n]
-			if passwordSent {
-				continue
-			}
-			outputHistory.Write(chunk)
-			text := outputHistory.String()
-			if outputHistory.Len() > 500 {
-				outputHistory.Reset()
-			}
-			if strings.Contains(strings.ToLower(text), "assword") || strings.Contains(text, "密码") {
-				_, _ = stdin.Write([]byte(password + "\n"))
-				_ = true
-				break HandshakeLoop
+			if n > 0 {
+				outputHistory.Write(buf[:n])
+				text := outputHistory.String()
+				if outputHistory.Len() > 500 {
+					outputHistory.Reset()
+				}
+				if strings.Contains(strings.ToLower(text), "assword") || strings.Contains(text, "密码") {
+					_, _ = stdin.Write([]byte(password + "\n"))
+					break HandshakeLoop
+				}
 			}
 		}
 	}
-
-	go func() { _, _ = io.Copy(os.Stdout, stdout) }()
-	go func() { _, _ = io.Copy(os.Stderr, stderr) }()
-	go func() { _, _ = io.Copy(stdin, os.Stdin) }()
-
-	return session.Wait()
 }
 
 func cleanSuOutput(raw string) string {

@@ -125,7 +125,7 @@ func getOrCreateNode(provider config.ConfigProvider, addr utils.HostInfo) (strin
 	node := models.Node{
 		HostRef:     fmt.Sprintf("%s:%d", host, port),
 		IdentityRef: fmt.Sprintf("%s@%s", user, host),
-		SudoMode:    "none",
+		SudoMode:    models.SudoModeAuto,
 	}
 
 	if addr.Alias != "" {
@@ -180,30 +180,18 @@ func updateNodeFromHostInfo(nodeID string, provider config.ConfigProvider, addr 
 
 	// 更新别名
 	if addr.Alias != "" {
-		found := false
-		for _, a := range node.Alias {
-			if a == addr.Alias {
-				found = true
-				break
-			}
-		}
-		if !found {
-			node.Alias = append(node.Alias, addr.Alias)
+		aliases, changed := appendUnique(node.Alias, addr.Alias)
+		if changed {
+			node.Alias = aliases
 			updated = true
 		}
 	}
 
 	// 更新标签
 	if Tag != "" {
-		found := false
-		for _, t := range node.Tags {
-			if t == Tag {
-				found = true
-				break
-			}
-		}
-		if !found {
-			node.Tags = append(node.Tags, Tag)
+		tags, changed := appendUnique(node.Tags, Tag)
+		if changed {
+			node.Tags = tags
 			updated = true
 		}
 	}
@@ -214,4 +202,16 @@ func updateNodeFromHostInfo(nodeID string, provider config.ConfigProvider, addr 
 	}
 
 	return updated
+}
+
+func appendUnique(slice []string, val string) ([]string, bool) {
+	if val == "" {
+		return slice, false
+	}
+	for _, item := range slice {
+		if item == val {
+			return slice, false
+		}
+	}
+	return append(slice, val), true
 }

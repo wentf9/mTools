@@ -7,9 +7,9 @@ import (
 	"strings"
 	"syscall"
 
+	"github.com/spf13/cobra"
 	"github.com/wentf9/xops-cli/pkg/logger"
 	"github.com/wentf9/xops-cli/pkg/mcpserver"
-	"github.com/spf13/cobra"
 )
 
 func NewCmdMcp() *cobra.Command {

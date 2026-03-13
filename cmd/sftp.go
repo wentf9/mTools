@@ -78,49 +78,10 @@ func (o *SftpOptions) Run() error {
 		updated = update(nodeID, &o.SshOptions, provider)
 	} else {
 		updated = true
-		nodeID = fmt.Sprintf("%s@%s:%d", o.User, o.Host, o.Port)
-		node := models.Node{
-			HostRef:     fmt.Sprintf("%s:%d", o.Host, o.Port),
-			IdentityRef: fmt.Sprintf("%s@%s", o.User, o.Host),
-			ProxyJump:   o.JumpHost,
-			SudoMode:    "sudo",
-			Tags:        o.Tags,
+		nodeID, err = o.createNewNode(provider)
+		if err != nil {
+			return err
 		}
-		if node.ProxyJump != "" {
-			jumpHost := provider.Find(node.ProxyJump)
-			if jumpHost == "" {
-				return fmt.Errorf("跳板机 %s 信息不存在,请先保存跳板机信息", node.ProxyJump)
-			}
-			node.ProxyJump = jumpHost
-		}
-		hostObj := models.Host{
-			Address: strings.TrimSpace(o.Host),
-			Port:    o.Port,
-		}
-		if o.Alias != "" {
-			node.Alias = append(node.Alias, strings.TrimSpace(o.Alias))
-		}
-		identity := models.Identity{
-			User: strings.TrimSpace(o.User),
-		}
-		if o.Password == "" && o.KeyFile == "" {
-			if pass, err := utils.ReadPasswordFromTerminal("请输入密码: "); err != nil {
-				return err
-			} else {
-				identity.Password = pass
-				identity.AuthType = "password"
-			}
-		} else if o.Password != "" {
-			identity.Password = o.Password
-			identity.AuthType = "password"
-		} else if o.KeyFile != "" {
-			identity.KeyPath = o.KeyFile
-			identity.Passphrase = o.KeyPass
-			identity.AuthType = "key"
-		}
-		provider.AddHost(node.HostRef, hostObj)
-		provider.AddIdentity(node.IdentityRef, identity)
-		provider.AddNode(nodeID, node)
 	}
 	connector := ssh.NewConnector(provider)
 	ctx, cancel := context.WithTimeout(context.Background(), 10*time.Second)
@@ -154,6 +115,53 @@ func (o *SftpOptions) Run() error {
 		}
 	}
 	return nil
+}
+
+func (o *SftpOptions) createNewNode(provider config.ConfigProvider) (string, error) {
+	nodeID := fmt.Sprintf("%s@%s:%d", o.User, o.Host, o.Port)
+	node := models.Node{
+		HostRef:     fmt.Sprintf("%s:%d", o.Host, o.Port),
+		IdentityRef: fmt.Sprintf("%s@%s", o.User, o.Host),
+		ProxyJump:   o.JumpHost,
+		SudoMode:    models.SudoModeAuto,
+		Tags:        o.Tags,
+	}
+	if node.ProxyJump != "" {
+		jumpHost := provider.Find(node.ProxyJump)
+		if jumpHost == "" {
+			return "", fmt.Errorf("跳板机 %s 信息不存在,请先保存跳板机信息", node.ProxyJump)
+		}
+		node.ProxyJump = jumpHost
+	}
+	hostObj := models.Host{
+		Address: strings.TrimSpace(o.Host),
+		Port:    o.Port,
+	}
+	if o.Alias != "" {
+		node.Alias = append(node.Alias, strings.TrimSpace(o.Alias))
+	}
+	identity := models.Identity{
+		User: strings.TrimSpace(o.User),
+	}
+	if o.Password == "" && o.KeyFile == "" {
+		pass, err := utils.ReadPasswordFromTerminal("请输入密码: ")
+		if err != nil {
+			return "", err
+		}
+		identity.Password = pass
+		identity.AuthType = "password"
+	} else if o.Password != "" {
+		identity.Password = o.Password
+		identity.AuthType = "password"
+	} else if o.KeyFile != "" {
+		identity.KeyPath = o.KeyFile
+		identity.Passphrase = o.KeyPass
+		identity.AuthType = "key"
+	}
+	provider.AddHost(node.HostRef, hostObj)
+	provider.AddIdentity(node.IdentityRef, identity)
+	provider.AddNode(nodeID, node)
+	return nodeID, nil
 }
 
 func init() {

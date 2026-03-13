@@ -16,6 +16,18 @@ type Host struct {
 	Port    uint16   `yaml:"port"`
 }
 
+// SudoMode 定义提权模式
+type SudoMode string
+
+const (
+	SudoModeNone   SudoMode = "none"
+	SudoModeSudo   SudoMode = "sudo"
+	SudoModeSudoer SudoMode = "sudoer"
+	SudoModeSu     SudoMode = "su"
+	SudoModeRoot   SudoMode = "root"
+	SudoModeAuto   SudoMode = "auto"
+)
+
 // Node 是用户操作的最小单元，聚合了 Host 和 Identity
 type Node struct {
 	Alias []string `yaml:"alias,omitempty"`
@@ -29,8 +41,8 @@ type Node struct {
 	ProxyJump string `yaml:"proxy_jump,omitempty"` // 指向另一个 Node 的 Name
 
 	// 提权配置
-	SudoMode string `yaml:"sudo_mode"` // "none", "sudo", "sudoer", "su", "root"(已是root), "auto"(自动探测)
-	SuPwd    string `yaml:"su_pwd,omitempty"`
+	SudoMode SudoMode `yaml:"sudo_mode"` // 使用 SudoMode 枚举
+	SuPwd    string   `yaml:"su_pwd,omitempty"`
 }
 
 // NodeFilter 用于批量操作时筛选节点

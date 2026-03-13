@@ -4,9 +4,9 @@ import (
 	"fmt"
 	"strings"
 
+	"github.com/spf13/cobra"
 	"github.com/wentf9/xops-cli/cmd/utils"
 	"github.com/wentf9/xops-cli/pkg/logger"
-	"github.com/spf13/cobra"
 )
 
 func NewCmdInventoryTagAdd() *cobra.Command {

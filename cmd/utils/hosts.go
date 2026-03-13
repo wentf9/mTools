@@ -47,31 +47,9 @@ func ReadCSVFile(path string) ([]HostInfo, error) {
 		return nil, fmt.Errorf("读取CSV表头失败: %w", err)
 	}
 
-	// 建立列索引映射
-	colMap := make(map[string]int)
-	for i, col := range header {
-		colMap[strings.ToLower(strings.TrimSpace(col))] = i
-	}
+	mapping := buildCSVMapping(header)
 
-	// 定义字段映射关系
-	findIdx := func(names ...string) int {
-		for _, name := range names {
-			if idx, ok := colMap[strings.ToLower(name)]; ok {
-				return idx
-			}
-		}
-		return -1
-	}
-
-	idxHost := findIdx("host", "主机", "主机地址", "ip", "address")
-	idxPort := findIdx("port", "端口")
-	idxAlias := findIdx("alias", "别名", "name")
-	idxUser := findIdx("user", "用户", "用户名", "username")
-	idxPass := findIdx("password", "密码", "登录密码")
-	idxKey := findIdx("key", "私钥", "私钥地址", "keypath", "identity_file")
-	idxKeyPass := findIdx("keypass", "key_pass", "私钥密码", "passphrase")
-
-	if idxHost == -1 {
+	if mapping.host == -1 {
 		return nil, fmt.Errorf("CSV文件表头必须包含 '主机' 或 'IP' 列")
 	}
 
@@ -85,36 +63,10 @@ func ReadCSVFile(path string) ([]HostInfo, error) {
 			return nil, fmt.Errorf("读取CSV记录失败: %w", err)
 		}
 
-		getVal := func(idx int) string {
-			if idx != -1 && idx < len(record) {
-				return strings.TrimSpace(record[idx])
-			}
-			return ""
+		hostInfo := parseHostRecord(record, mapping)
+		if hostInfo != nil {
+			hosts = append(hosts, *hostInfo)
 		}
-
-		hostStr := getVal(idxHost)
-		if hostStr == "" {
-			continue
-		}
-
-		host, port := ParseHost(hostStr)
-		// 如果CSV中有专门的端口列，则覆盖解析出的端口
-		if pStr := getVal(idxPort); pStr != "" {
-			var p uint16
-			if _, err := fmt.Sscanf(pStr, "%d", &p); err == nil && p != 0 {
-				port = p
-			}
-		}
-
-		hosts = append(hosts, HostInfo{
-			Host:       host,
-			Port:       port,
-			Alias:      getVal(idxAlias),
-			User:       getVal(idxUser),
-			Password:   getVal(idxPass),
-			KeyPath:    getVal(idxKey),
-			Passphrase: getVal(idxKeyPass),
-		})
 	}
 
 	if len(hosts) == 0 {
@@ -163,4 +115,66 @@ func ParseHosts(ip, hostFile, csvFile string) ([]HostInfo, error) {
 		}
 	}
 	return HostsInfo, nil
+}
+
+type csvHostMapping struct {
+	host, port, alias, user, pass, key, keyPass int
+}
+
+func buildCSVMapping(header []string) csvHostMapping {
+	colMap := make(map[string]int)
+	for i, col := range header {
+		colMap[strings.ToLower(strings.TrimSpace(col))] = i
+	}
+
+	findIdx := func(names ...string) int {
+		for _, name := range names {
+			if idx, ok := colMap[strings.ToLower(name)]; ok {
+				return idx
+			}
+		}
+		return -1
+	}
+
+	return csvHostMapping{
+		host:    findIdx("host", "主机", "主机地址", "ip", "address"),
+		port:    findIdx("port", "端口"),
+		alias:   findIdx("alias", "别名", "name"),
+		user:    findIdx("user", "用户", "用户名", "username"),
+		pass:    findIdx("password", "密码", "登录密码"),
+		key:     findIdx("key", "私钥", "私钥地址", "keypath", "identity_file"),
+		keyPass: findIdx("keypass", "key_pass", "私钥密码", "passphrase"),
+	}
+}
+
+func parseHostRecord(record []string, mapping csvHostMapping) *HostInfo {
+	getVal := func(idx int) string {
+		if idx != -1 && idx < len(record) {
+			return strings.TrimSpace(record[idx])
+		}
+		return ""
+	}
+
+	hostStr := getVal(mapping.host)
+	if hostStr == "" {
+		return nil
+	}
+
+	host, port := ParseHost(hostStr)
+	if pStr := getVal(mapping.port); pStr != "" {
+		var p uint16
+		if _, err := fmt.Sscanf(pStr, "%d", &p); err == nil && p != 0 {
+			port = p
+		}
+	}
+
+	return &HostInfo{
+		Host:       host,
+		Port:       port,
+		Alias:      getVal(mapping.alias),
+		User:       getVal(mapping.user),
+		Password:   getVal(mapping.pass),
+		KeyPath:    getVal(mapping.key),
+		Passphrase: getVal(mapping.keyPass),
+	}
 }

@@ -4,8 +4,8 @@ import (
 	"context"
 	"fmt"
 
-	"github.com/wentf9/xops-cli/pkg/config"
 	"github.com/modelcontextprotocol/go-sdk/mcp"
+	"github.com/wentf9/xops-cli/pkg/config"
 )
 
 // Guardrail coordinates risk classification, policy evaluation, approval,

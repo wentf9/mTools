@@ -3,10 +3,10 @@ package cmd
 import (
 	"os"
 
+	"github.com/spf13/cobra"
 	"github.com/wentf9/xops-cli/cmd/host"
 	"github.com/wentf9/xops-cli/cmd/version"
 	"github.com/wentf9/xops-cli/pkg/logger"
-	"github.com/spf13/cobra"
 )
 
 var rootCmd = &cobra.Command{

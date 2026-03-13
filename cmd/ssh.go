@@ -125,49 +125,10 @@ func (o *SshOptions) Run() error {
 		updated = update(nodeID, o, provider)
 	} else {
 		updated = true
-		nodeID = fmt.Sprintf("%s@%s:%d", o.User, o.Host, o.Port)
-		node := models.Node{
-			HostRef:     fmt.Sprintf("%s:%d", o.Host, o.Port),
-			IdentityRef: fmt.Sprintf("%s@%s", o.User, o.Host),
-			ProxyJump:   o.JumpHost,
-			SudoMode:    "sudo",
-			Tags:        o.Tags,
+		nodeID, err = o.createNewNode(provider)
+		if err != nil {
+			return err
 		}
-		if node.ProxyJump != "" {
-			jumpHost := provider.Find(node.ProxyJump)
-			if jumpHost == "" {
-				return fmt.Errorf("跳板机 %s 信息不存在,请先保存跳板机信息", node.ProxyJump)
-			}
-			node.ProxyJump = jumpHost
-		}
-		hostObj := models.Host{
-			Address: strings.TrimSpace(o.Host),
-			Port:    o.Port,
-		}
-		if o.Alias != "" {
-			node.Alias = append(node.Alias, strings.TrimSpace(o.Alias))
-		}
-		identity := models.Identity{
-			User: strings.TrimSpace(o.User),
-		}
-		if o.Password == "" && o.KeyFile == "" {
-			if pass, err := utils.ReadPasswordFromTerminal("请输入密码: "); err != nil {
-				return err
-			} else {
-				identity.Password = pass
-				identity.AuthType = "password"
-			}
-		} else if o.Password != "" {
-			identity.Password = o.Password
-			identity.AuthType = "password"
-		} else if o.KeyFile != "" {
-			identity.KeyPath = o.KeyFile
-			identity.Passphrase = o.KeyPass
-			identity.AuthType = "key"
-		}
-		provider.AddHost(node.HostRef, hostObj)
-		provider.AddIdentity(node.IdentityRef, identity)
-		provider.AddNode(nodeID, node)
 	}
 	connector := ssh.NewConnector(provider)
 	ctx, cancel := context.WithTimeout(context.Background(), 10*time.Second)
@@ -194,55 +155,113 @@ func (o *SshOptions) Run() error {
 	return nil
 }
 
-func update(nodeID string, o *SshOptions, provider config.ConfigProvider) bool {
+func updateNodeFields(node *models.Node, o *SshOptions, provider config.ConfigProvider) bool {
 	nodeUpdated := false
-	identityUpdated := false
-	node, _ := provider.GetNode(nodeID)
-	identity, _ := provider.GetIdentity(nodeID)
-	if o.Password != "" || o.KeyFile != "" || o.JumpHost != "" || o.Sudo || o.Alias != "" || len(o.Tags) > 0 {
-		if o.JumpHost != "" {
-			jumpHost := provider.Find(o.JumpHost)
-			if jumpHost != "" && jumpHost != node.ProxyJump {
-				node.ProxyJump = jumpHost
+	if o.JumpHost != "" {
+		jumpHost := provider.Find(o.JumpHost)
+		if jumpHost != "" && jumpHost != node.ProxyJump {
+			node.ProxyJump = jumpHost
+			nodeUpdated = true
+		}
+	}
+	if o.Sudo {
+		node.SudoMode = models.SudoModeSudo
+		nodeUpdated = true
+	}
+	if o.Alias != "" {
+		node.Alias = append(node.Alias, o.Alias)
+		nodeUpdated = true
+	}
+	if len(o.Tags) > 0 {
+		tagMap := make(map[string]bool)
+		for _, t := range node.Tags {
+			tagMap[t] = true
+		}
+		for _, t := range o.Tags {
+			if !tagMap[t] {
+				node.Tags = append(node.Tags, t)
 				nodeUpdated = true
 			}
 		}
-		if o.Sudo {
-			node.SudoMode = "sudo"
-			nodeUpdated = true
-		}
-		if o.Alias != "" {
-			node.Alias = append(node.Alias, o.Alias)
-			nodeUpdated = true
-		}
-		if len(o.Tags) > 0 {
-			// 添加新标签，去重
-			tagMap := make(map[string]bool)
-			for _, t := range node.Tags {
-				tagMap[t] = true
-			}
-			for _, t := range o.Tags {
-				if !tagMap[t] {
-					node.Tags = append(node.Tags, t)
-					nodeUpdated = true
-				}
-			}
-		}
-		if o.Password != "" {
-			identity.Password = o.Password
-			identity.AuthType = "password"
-			identityUpdated = true
-		} else if o.KeyFile != "" {
-			identity.KeyPath = o.KeyFile
-			identity.AuthType = "key"
-			identityUpdated = true
-		}
-		if o.KeyPass != "" {
-			identity.Passphrase = o.KeyPass
-			identityUpdated = true
-		}
-		provider.AddIdentity(node.IdentityRef, identity)
 	}
+	return nodeUpdated
+}
+
+func updateIdentityFields(identity *models.Identity, o *SshOptions) bool {
+	identityUpdated := false
+	if o.Password != "" {
+		identity.Password = o.Password
+		identity.AuthType = "password"
+		identityUpdated = true
+	} else if o.KeyFile != "" {
+		identity.KeyPath = o.KeyFile
+		identity.AuthType = "key"
+		identityUpdated = true
+	}
+	if o.KeyPass != "" {
+		identity.Passphrase = o.KeyPass
+		identityUpdated = true
+	}
+	return identityUpdated
+}
+
+func (o *SshOptions) createNewNode(provider config.ConfigProvider) (string, error) {
+	nodeID := fmt.Sprintf("%s@%s:%d", o.User, o.Host, o.Port)
+	node := models.Node{
+		HostRef:     fmt.Sprintf("%s:%d", o.Host, o.Port),
+		IdentityRef: fmt.Sprintf("%s@%s", o.User, o.Host),
+		ProxyJump:   o.JumpHost,
+		SudoMode:    models.SudoModeAuto,
+		Tags:        o.Tags,
+	}
+	if node.ProxyJump != "" {
+		jumpHost := provider.Find(node.ProxyJump)
+		if jumpHost == "" {
+			return "", fmt.Errorf("跳板机 %s 信息不存在,请先保存跳板机信息", node.ProxyJump)
+		}
+		node.ProxyJump = jumpHost
+	}
+	hostObj := models.Host{
+		Address: strings.TrimSpace(o.Host),
+		Port:    o.Port,
+	}
+	if o.Alias != "" {
+		node.Alias = append(node.Alias, strings.TrimSpace(o.Alias))
+	}
+	identity := models.Identity{
+		User: strings.TrimSpace(o.User),
+	}
+	if o.Password == "" && o.KeyFile == "" {
+		pass, err := utils.ReadPasswordFromTerminal("请输入密码: ")
+		if err != nil {
+			return "", err
+		}
+		identity.Password = pass
+		identity.AuthType = "password"
+	} else if o.Password != "" {
+		identity.Password = o.Password
+		identity.AuthType = "password"
+	} else if o.KeyFile != "" {
+		identity.KeyPath = o.KeyFile
+		identity.Passphrase = o.KeyPass
+		identity.AuthType = "key"
+	}
+	provider.AddHost(node.HostRef, hostObj)
+	provider.AddIdentity(node.IdentityRef, identity)
+	provider.AddNode(nodeID, node)
+	return nodeID, nil
+}
+
+func update(nodeID string, o *SshOptions, provider config.ConfigProvider) bool {
+	if o.Password == "" && o.KeyFile == "" && o.JumpHost == "" && !o.Sudo && o.Alias == "" && len(o.Tags) == 0 {
+		return false
+	}
+	node, _ := provider.GetNode(nodeID)
+	identity, _ := provider.GetIdentity(nodeID)
+
+	nodeUpdated := updateNodeFields(&node, o, provider)
+	identityUpdated := updateIdentityFields(&identity, o)
+
 	if nodeUpdated {
 		provider.AddNode(nodeID, node)
 	}

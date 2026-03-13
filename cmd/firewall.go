@@ -14,8 +14,8 @@ import (
 	"github.com/wentf9/xops-cli/pkg/logger"
 	"github.com/wentf9/xops-cli/pkg/ssh"
 
-	pkgutils "github.com/wentf9/xops-cli/pkg/utils"
 	"github.com/spf13/cobra"
+	pkgutils "github.com/wentf9/xops-cli/pkg/utils"
 )
 
 type FirewallOptions struct {
@@ -74,30 +74,37 @@ func init() {
 func (o *FirewallOptions) RunOnHosts(ctx context.Context, action func(fw firewall.Firewall) (string, error)) error {
 	// 如果没有指定主机，默认本地模式
 	if o.Host == "" && o.HostFile == "" {
-		if runtime.GOOS != "linux" {
-			return fmt.Errorf("防火墙管理功能仅支持 Linux 系统 (当前系统为 %s)", runtime.GOOS)
-		}
-		pwd := cmdutils.GetLocalSudoPassword()
-		exec := executor.NewLocalExecutor(pwd)
-		fw, err := firewall.DetectFirewall(ctx, exec)
-		if err != nil {
-			return err
-		}
-		out, err := action(fw)
-		if err != nil {
-			logger.PrintErrorf("[LOCAL] (%s) Error: %v\nOutput: %s", fw.Name(), err, out)
-		} else {
-			logger.PrintSuccessf("[LOCAL] (%s) Success\n%s", fw.Name(), out)
-		}
-		if o.Reload {
-			if _, err := fw.Reload(ctx); err != nil {
-				logger.PrintErrorf("[LOCAL] 重启防火墙失败: %v", err)
-			}
-		}
-		return nil
+		return o.runLocalFirewall(ctx, action)
 	}
-
 	// 远程模式
+	return o.runRemoteFirewalls(ctx, action)
+}
+
+func (o *FirewallOptions) runLocalFirewall(ctx context.Context, action func(fw firewall.Firewall) (string, error)) error {
+	if runtime.GOOS != "linux" {
+		return fmt.Errorf("防火墙管理功能仅支持 Linux 系统 (当前系统为 %s)", runtime.GOOS)
+	}
+	pwd := cmdutils.GetLocalSudoPassword()
+	exec := executor.NewLocalExecutor(pwd)
+	fw, err := firewall.DetectFirewall(ctx, exec)
+	if err != nil {
+		return err
+	}
+	out, err := action(fw)
+	if err != nil {
+		logger.PrintErrorf("[LOCAL] (%s) Error: %v\nOutput: %s", fw.Name(), err, out)
+	} else {
+		logger.PrintSuccessf("[LOCAL] (%s) Success\n%s", fw.Name(), out)
+	}
+	if o.Reload {
+		if _, err := fw.Reload(ctx); err != nil {
+			logger.PrintErrorf("[LOCAL] 重启防火墙失败: %v", err)
+		}
+	}
+	return nil
+}
+
+func (o *FirewallOptions) runRemoteFirewalls(ctx context.Context, action func(fw firewall.Firewall) (string, error)) error {
 	configPath, keyPath := cmdutils.GetConfigFilePath()
 	configStore := config.NewDefaultStore(configPath, keyPath)
 	cfg, err := configStore.Load()
@@ -126,67 +133,8 @@ func (o *FirewallOptions) RunOnHosts(ctx context.Context, action func(fw firewal
 	}
 
 	wp := pkgutils.NewWorkerPool(uint(o.TaskCount))
-
-	executeOnHost := func(h string) {
-		wp.Execute(func() {
-			rawHost := strings.TrimSpace(h)
-			if rawHost == "" {
-				return
-			}
-
-			nodeID := provider.Find(rawHost)
-			u, hs, p := cmdutils.ParseAddr(rawHost)
-			if nodeID == "" {
-				if u == "" {
-					u = o.User
-					if u == "" {
-						u = cmdutils.GetCurrentUser()
-					}
-				}
-				if p == 0 {
-					p = o.Port
-					if p == 0 {
-						p = 22
-					}
-				}
-				nodeID = provider.Find(fmt.Sprintf("%s@%s:%d", u, hs, p))
-			}
-
-			if nodeID == "" {
-				logger.PrintErrorf("[%s@%s:%d] 未找到该主机匹配的节点配置，请先通过 inventory 添加", u, hs, p)
-				return
-			}
-
-			client, err := connector.Connect(ctx, nodeID)
-			if err != nil {
-				logger.PrintErrorf("[%s] 连接失败: %v", rawHost, err)
-				return
-			}
-
-			exec := executor.NewSSHExecutor(client)
-			fw, err := firewall.DetectFirewall(ctx, exec)
-			if err != nil {
-				logger.PrintErrorf("[%s] 探测防火墙失败: %v", rawHost, err)
-				return
-			}
-
-			out, err := action(fw)
-			if err != nil {
-				logger.PrintErrorf("[%s] 失败: %v\n输出: %s", rawHost, err, out)
-			} else {
-				logger.PrintSuccessf("[%s] 成功 (%s)\n%s", rawHost, fw.Name(), out)
-			}
-
-			if o.Reload {
-				if _, err := fw.Reload(ctx); err != nil {
-					logger.PrintErrorf("[%s] 重启防火墙失败: %v", rawHost, err)
-				}
-			}
-		})
-	}
-
 	for _, h := range hosts {
-		executeOnHost(h)
+		o.executeOnSingleHost(ctx, h, provider, connector, wp, action)
 	}
 
 	wp.Wait()
@@ -194,6 +142,64 @@ func (o *FirewallOptions) RunOnHosts(ctx context.Context, action func(fw firewal
 		logger.PrintErrorf("保存配置失败: %v", err)
 	}
 	return nil
+}
+
+func (o *FirewallOptions) executeOnSingleHost(ctx context.Context, h string, provider config.ConfigProvider, connector *ssh.Connector, wp pkgutils.WorkerPool, action func(fw firewall.Firewall) (string, error)) {
+	wp.Execute(func() {
+		rawHost := strings.TrimSpace(h)
+		if rawHost == "" {
+			return
+		}
+
+		nodeID := provider.Find(rawHost)
+		u, hs, p := cmdutils.ParseAddr(rawHost)
+		if nodeID == "" {
+			if u == "" {
+				u = o.User
+				if u == "" {
+					u = cmdutils.GetCurrentUser()
+				}
+			}
+			if p == 0 {
+				p = o.Port
+				if p == 0 {
+					p = 22
+				}
+			}
+			nodeID = provider.Find(fmt.Sprintf("%s@%s:%d", u, hs, p))
+		}
+
+		if nodeID == "" {
+			logger.PrintErrorf("[%s@%s:%d] 未找到该主机匹配的节点配置，请先通过 inventory 添加", u, hs, p)
+			return
+		}
+
+		client, err := connector.Connect(ctx, nodeID)
+		if err != nil {
+			logger.PrintErrorf("[%s] 连接失败: %v", rawHost, err)
+			return
+		}
+
+		exec := executor.NewSSHExecutor(client)
+		fw, err := firewall.DetectFirewall(ctx, exec)
+		if err != nil {
+			logger.PrintErrorf("[%s] 探测防火墙失败: %v", rawHost, err)
+			return
+		}
+
+		out, err := action(fw)
+		if err != nil {
+			logger.PrintErrorf("[%s] 失败: %v\n输出: %s", rawHost, err, out)
+		} else {
+			logger.PrintSuccessf("[%s] 成功 (%s)\n%s", rawHost, fw.Name(), out)
+		}
+
+		if o.Reload {
+			if _, err := fw.Reload(ctx); err != nil {
+				logger.PrintErrorf("[%s] 重启防火墙失败: %v", rawHost, err)
+			}
+		}
+	})
 }
 
 func newFirewallListCmd() *cobra.Command {

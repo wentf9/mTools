@@ -4,8 +4,8 @@ import (
 	"net"
 	"sync"
 
-	"github.com/wentf9/xops-cli/pkg/logger"
 	"github.com/spf13/cobra"
+	"github.com/wentf9/xops-cli/pkg/logger"
 )
 
 // dnsCmd represents the dns command

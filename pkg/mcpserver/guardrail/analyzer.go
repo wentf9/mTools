@@ -7,29 +7,29 @@ import (
 
 // blocked patterns are always denied — no approval can override them.
 var blockedPatterns = []*regexp.Regexp{
-	regexp.MustCompile(`rm\s+(-[^\s]*\s+)*/([\s;|&]|$)`),        // rm targeting root
-	regexp.MustCompile(`mkfs(\.\w+)?\s+`),                         // format filesystem
-	regexp.MustCompile(`dd\s+.*if=/dev/`),                          // raw disk read
-	regexp.MustCompile(`dd\s+.*of=/dev/`),                          // raw disk write
-	regexp.MustCompile(`>\s*/dev/sd`),                              // write to block device
-	regexp.MustCompile(`:\(\)\s*\{\s*:\|:\s*&\s*\}\s*;\s*:`),      // fork bomb
-	regexp.MustCompile(`chmod\s+(-[^\s]+\s+)*777\s+/($|\s)`),      // chmod 777 on root
-	regexp.MustCompile(`echo\s+.*>\s*/proc/`),                      // write to /proc
+	regexp.MustCompile(`rm\s+(-[^\s]*\s+)*/([\s;|&]|$)`),     // rm targeting root
+	regexp.MustCompile(`mkfs(\.\w+)?\s+`),                    // format filesystem
+	regexp.MustCompile(`dd\s+.*if=/dev/`),                    // raw disk read
+	regexp.MustCompile(`dd\s+.*of=/dev/`),                    // raw disk write
+	regexp.MustCompile(`>\s*/dev/sd`),                        // write to block device
+	regexp.MustCompile(`:\(\)\s*\{\s*:\|:\s*&\s*\}\s*;\s*:`), // fork bomb
+	regexp.MustCompile(`chmod\s+(-[^\s]+\s+)*777\s+/($|\s)`), // chmod 777 on root
+	regexp.MustCompile(`echo\s+.*>\s*/proc/`),                // write to /proc
 }
 
 // dangerous command patterns that elevate risk to Dangerous.
 var dangerousPatterns = []*regexp.Regexp{
-	regexp.MustCompile(`rm\s+(-[^\s]*\s+)*-?r`),                   // recursive delete
+	regexp.MustCompile(`rm\s+(-[^\s]*\s+)*-?r`), // recursive delete
 	regexp.MustCompile(`\b(shutdown|reboot|halt|poweroff|init\s+[06])\b`),
 	regexp.MustCompile(`\bsystemctl\s+(stop|disable|mask)\b`),
 	regexp.MustCompile(`\bkill\s+-9\b`),
 	regexp.MustCompile(`\bkillall\b`),
-	regexp.MustCompile(`\biptables\s+-F\b`),                        // flush iptables
+	regexp.MustCompile(`\biptables\s+-F\b`), // flush iptables
 	regexp.MustCompile(`\bnft\s+flush\b`),
 	regexp.MustCompile(`\bufw\s+disable\b`),
-	regexp.MustCompile(`>\s*/etc/`),                                // overwrite /etc files
+	regexp.MustCompile(`>\s*/etc/`), // overwrite /etc files
 	regexp.MustCompile(`\bchown\s+(-[^\s]+\s+)*root\b`),
-	regexp.MustCompile(`\bcurl\b.*\|\s*(ba)?sh`),                   // pipe-to-shell
+	regexp.MustCompile(`\bcurl\b.*\|\s*(ba)?sh`), // pipe-to-shell
 	regexp.MustCompile(`\bwget\b.*\|\s*(ba)?sh`),
 }
 

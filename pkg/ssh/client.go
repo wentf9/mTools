@@ -148,7 +148,7 @@ func (c *Client) Shell(ctx context.Context) error {
 
 func (c *Client) maybeDetectSudoMode(ctx context.Context) {
 	// 如果已经有确定的 SudoMode，且不是 "auto" 或空，则不再探测
-	if c.node.SudoMode != "" && c.node.SudoMode != "auto" && c.node.SudoMode != "none" {
+	if c.node.SudoMode != "" && c.node.SudoMode != models.SudoModeAuto && c.node.SudoMode != models.SudoModeNone {
 		return
 	}
 
@@ -158,34 +158,34 @@ func (c *Client) maybeDetectSudoMode(ctx context.Context) {
 		// 稳健检查：只要最后一行输出是 0，即认为是 root
 		lines := strings.Split(strings.TrimSpace(out), "\n")
 		if len(lines) > 0 && strings.TrimSpace(lines[len(lines)-1]) == "0" {
-			c.updateSudoMode("root")
+			c.updateSudoMode(models.SudoModeRoot)
 			return
 		}
 	}
 
 	// 2. 探测是否有免密 sudo 权限
 	if _, err := c.RunWithoutLogin(ctx, "sudo -n true"); err == nil {
-		c.updateSudoMode("sudoer")
+		c.updateSudoMode(models.SudoModeSudoer)
 		return
 	}
 
 	// 3. 检查是否有密码，如果有则推测为普通 sudo
 	if c.identity.Password != "" {
-		c.updateSudoMode("sudo")
+		c.updateSudoMode(models.SudoModeSudo)
 		return
 	}
 
 	// 4. 检查是否有 su 密码
 	if c.node.SuPwd != "" {
-		c.updateSudoMode("su")
+		c.updateSudoMode(models.SudoModeSu)
 		return
 	}
 
 	// 默认兜底
-	c.updateSudoMode("none")
+	c.updateSudoMode(models.SudoModeNone)
 }
 
-func (c *Client) updateSudoMode(mode string) {
+func (c *Client) updateSudoMode(mode models.SudoMode) {
 	c.node.SudoMode = mode
 	if c.provider != nil && c.nodeName != "" {
 		c.provider.AddNode(c.nodeName, c.node)
