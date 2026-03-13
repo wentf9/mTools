@@ -27,8 +27,11 @@ func NewCmdInventoryTagAdd() *cobra.Command {
 			}
 
 			updatedCount := 0
-			for _, name := range nodeNames {
-				name = strings.TrimSpace(name)
+			for _, query := range nodeNames {
+				name := provider.Find(strings.TrimSpace(query))
+				if name == "" {
+					continue
+				}
 				if node, ok := provider.GetNode(name); ok {
 					exists := false
 					for _, t := range node.Tags {
@@ -73,8 +76,11 @@ func NewCmdInventoryTagRemove() *cobra.Command {
 			}
 
 			updatedCount := 0
-			for _, name := range nodeNames {
-				name = strings.TrimSpace(name)
+			for _, query := range nodeNames {
+				name := provider.Find(strings.TrimSpace(query))
+				if name == "" {
+					continue
+				}
 				if node, ok := provider.GetNode(name); ok {
 					newTags, found := make([]string, 0), false
 					for _, t := range node.Tags {

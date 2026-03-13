@@ -23,16 +23,18 @@ func NewCmdInventoryEdit() *cobra.Command {
 		Short: "修改已存储节点的信息",
 		Args:  cobra.ExactArgs(1),
 		RunE: func(cmd *cobra.Command, args []string) error {
-			oldName := args[0]
+			query := args[0]
 			store, provider, cfg, err := utils.GetConfigStore()
 			if err != nil {
 				return err
 			}
 
-			node, ok := provider.GetNode(oldName)
-			if !ok {
-				return fmt.Errorf("节点 %s 不存在", oldName)
+			oldName := provider.Find(query)
+			if oldName == "" {
+				return fmt.Errorf("节点 %s 不存在", query)
 			}
+
+			node, _ := provider.GetNode(oldName)
 
 			host, _ := provider.GetHost(oldName)
 			identity, _ := provider.GetIdentity(oldName)
@@ -108,14 +110,15 @@ func NewCmdInventoryDelete() *cobra.Command {
 		Short: "删除一个存储的节点",
 		Args:  cobra.ExactArgs(1),
 		RunE: func(cmd *cobra.Command, args []string) error {
-			name := args[0]
+			query := args[0]
 			store, provider, cfg, err := utils.GetConfigStore()
 			if err != nil {
 				return err
 			}
 
-			if _, ok := provider.GetNode(name); !ok {
-				return fmt.Errorf("节点 %s 不存在", name)
+			name := provider.Find(query)
+			if name == "" {
+				return fmt.Errorf("节点 %s 不存在", query)
 			}
 			provider.DeleteNode(name)
 			if err := store.Save(cfg); err != nil {

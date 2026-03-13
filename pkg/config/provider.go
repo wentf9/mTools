@@ -38,22 +38,45 @@ func (cp Provider) add(nodeID string) {
 	if !ok {
 		return
 	}
-	cp.lookupIndex.Set(nodeID, nodeID)
+
+	address := host.Address
+	port := host.Port
 	user := identity.User
+
+	// 1. nodeID 映射
+	cp.lookupIndex.Set(nodeID, nodeID)
+
+	// 2. IP/地址 映射
+	cp.lookupIndex.Set(address, nodeID)
+
+	// 3. User@Address 映射
 	if user != "" {
-		cp.lookupIndex.Set(fmt.Sprintf("%s@%s:%d", user, host.Address, host.Port), nodeID)
-		for _, addr := range host.Alias {
-			if addr == "" {
-				continue
-			}
-			cp.lookupIndex.Set(fmt.Sprintf("%s@%s:%d", user, addr, host.Port), nodeID)
-		}
+		cp.lookupIndex.Set(fmt.Sprintf("%s@%s", user, address), nodeID)
+		cp.lookupIndex.Set(fmt.Sprintf("%s@%s:%d", user, address, port), nodeID)
 	}
-	for _, alias := range node.Alias {
-		if alias == "" {
+
+	// 4. 节点别名映射
+	for _, a := range node.Alias {
+		if a == "" {
 			continue
 		}
-		cp.lookupIndex.Set(alias, nodeID)
+		cp.lookupIndex.Set(a, nodeID)
+		if user != "" {
+			cp.lookupIndex.Set(fmt.Sprintf("%s@%s", user, a), nodeID)
+			cp.lookupIndex.Set(fmt.Sprintf("%s@%s:%d", user, a, port), nodeID)
+		}
+	}
+
+	// 5. 主机别名映射
+	for _, a := range host.Alias {
+		if a == "" {
+			continue
+		}
+		cp.lookupIndex.Set(a, nodeID)
+		if user != "" {
+			cp.lookupIndex.Set(fmt.Sprintf("%s@%s", user, a), nodeID)
+			cp.lookupIndex.Set(fmt.Sprintf("%s@%s:%d", user, a, port), nodeID)
+		}
 	}
 }
 
@@ -98,20 +121,47 @@ func (cp Provider) AddIdentity(identityID string, identity models.Identity) {
 }
 
 func (cp Provider) DeleteNode(nodeID string) {
-	if _, ok := cp.cfg.Nodes.Get(nodeID); ok {
-		// 这里简单处理，暂时不删除引用的 Host 和 Identity，因为可能被多个 Node 引用
-		// 但实际上目前的实现中，HostRef 和 IdentityRef 往往是唯一的
-		cp.cfg.Nodes.Remove(nodeID)
+	node, ok := cp.cfg.Nodes.Get(nodeID)
+	if !ok {
+		return
+	}
 
-		// 从索引中删除
-		for _, key := range cp.lookupIndex.Keys() {
-			if val, ok := cp.lookupIndex.Get(key); ok && val == nodeID {
-				cp.lookupIndex.Remove(key)
+	hostRef := node.HostRef
+	identityRef := node.IdentityRef
+
+	// 1. 删除节点本身
+	cp.cfg.Nodes.Remove(nodeID)
+
+	// 2. 从索引中删除
+	for _, key := range cp.lookupIndex.Keys() {
+		if val, ok := cp.lookupIndex.Get(key); ok && val == nodeID {
+			cp.lookupIndex.Remove(key)
+		}
+	}
+
+	// 3. 检查 HostRef 和 IdentityRef 是否还在被其他节点引用
+	hostUsed := false
+	identityUsed := false
+	for _, k := range cp.cfg.Nodes.Keys() {
+		if n, ok := cp.cfg.Nodes.Get(k); ok {
+			if n.HostRef == hostRef {
+				hostUsed = true
+			}
+			if n.IdentityRef == identityRef {
+				identityUsed = true
 			}
 		}
+		if hostUsed && identityUsed {
+			break
+		}
+	}
 
-		// 如果 Host 和 Identity 没有被其他 Node 引用，也可以考虑删除，但为了安全起见暂时保留
-		// 或者根据业务逻辑决定是否级联删除
+	// 如果不再被引用，则清理
+	if !hostUsed && hostRef != "" {
+		cp.cfg.Hosts.Remove(hostRef)
+	}
+	if !identityUsed && identityRef != "" {
+		cp.cfg.Identities.Remove(identityRef)
 	}
 }
 
