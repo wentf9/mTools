@@ -12,3 +12,11 @@ linters:
     - copyloopvar
     - errorlint
     - unconvert
+    - govet
+    - staticcheck
+    - unused
+    - gocyclo
+linters-settings:
+  gocyclo:
+    min-complexity: 15
+

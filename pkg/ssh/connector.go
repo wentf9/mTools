@@ -11,6 +11,7 @@ import (
 	"github.com/wentf9/xops-cli/pkg/models"
 	"github.com/wentf9/xops-cli/pkg/utils/concurrent"
 	"golang.org/x/crypto/ssh"
+	"golang.org/x/crypto/ssh/agent"
 	"golang.org/x/sync/singleflight"
 )
 
@@ -90,9 +91,12 @@ func (c *Connector) Connect(ctx context.Context, nodeName string) (*Client, erro
 		}
 
 		// 4. 构建目标 SSH 配置 (认证信息)
-		sshConfig, err := c.buildSSHConfig(identity)
+		sshConfig, cleanup, err := c.buildSSHConfig(identity)
 		if err != nil {
 			return nil, fmt.Errorf("failed to build ssh config for '%s': %w", nodeName, err)
+		}
+		if cleanup != nil {
+			defer cleanup()
 		}
 
 		// 5. 建立底层 TCP 连接 (通过 Dialer)
@@ -134,25 +138,26 @@ func (c *Connector) CloseAll() {
 }
 
 // buildSSHConfig 根据 Identity 模型构建 ssh.ClientConfig
-func (c *Connector) buildSSHConfig(id models.Identity) (*ssh.ClientConfig, error) {
+func (c *Connector) buildSSHConfig(id models.Identity) (*ssh.ClientConfig, func(), error) {
+	var cleanup func()
 	authMethods := []ssh.AuthMethod{}
 
 	// 根据 AuthType 处理不同的认证方式
 	switch id.AuthType {
 	case "password":
 		if id.Password == "" {
-			return nil, fmt.Errorf("auth type is password but password is empty")
+			return nil, nil, fmt.Errorf("auth type is password but password is empty")
 		}
 		authMethods = append(authMethods, ssh.Password(id.Password))
 
 	case "key":
 		if id.KeyPath == "" {
-			return nil, fmt.Errorf("auth type is key but key_path is empty")
+			return nil, nil, fmt.Errorf("auth type is key but key_path is empty")
 		}
 		// 读取私钥文件
 		keyBytes, err := os.ReadFile(expandHomeDir(id.KeyPath))
 		if err != nil {
-			return nil, fmt.Errorf("failed to read key file: %w", err)
+			return nil, nil, fmt.Errorf("failed to read key file: %w", err)
 		}
 
 		var signer ssh.Signer
@@ -164,12 +169,29 @@ func (c *Connector) buildSSHConfig(id models.Identity) (*ssh.ClientConfig, error
 			signer, err = ssh.ParsePrivateKey(keyBytes)
 		}
 		if err != nil {
-			return nil, fmt.Errorf("failed to parse private key: %w", err)
+			return nil, nil, fmt.Errorf("failed to parse private key: %w", err)
 		}
 		authMethods = append(authMethods, ssh.PublicKeys(signer))
 
+	case "agent":
+		socket := os.Getenv("SSH_AUTH_SOCK")
+		if socket == "" {
+			return nil, nil, fmt.Errorf("auth type is agent but SSH_AUTH_SOCK is not set")
+		}
+		conn, err := net.Dial("unix", socket)
+		if err != nil {
+			return nil, nil, fmt.Errorf("failed to connect to ssh-agent: %w", err)
+		}
+
+		agentClient := agent.NewClient(conn)
+		authMethods = append(authMethods, ssh.PublicKeysCallback(agentClient.Signers))
+
+		cleanup = func() {
+			_ = conn.Close()
+		}
+
 	default:
-		return nil, fmt.Errorf("unsupported auth type: %s", id.AuthType)
+		return nil, nil, fmt.Errorf("unsupported auth type: %s", id.AuthType)
 	}
 
 	return &ssh.ClientConfig{
@@ -177,7 +199,7 @@ func (c *Connector) buildSSHConfig(id models.Identity) (*ssh.ClientConfig, error
 		Auth:            authMethods,
 		HostKeyCallback: ssh.InsecureIgnoreHostKey(), // TODO: 生产环境应集成 known_hosts 检查
 		Timeout:         15 * time.Second,
-	}, nil
+	}, cleanup, nil
 }
 
 // expandHomeDir 简单的路径处理辅助函数
