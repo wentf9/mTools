@@ -90,7 +90,7 @@ func (o *FirewallOptions) RunOnHosts(ctx context.Context, action func(fw firewal
 			logger.PrintSuccessf("[LOCAL] (%s) Success\n%s", fw.Name(), out)
 		}
 		if o.Reload {
-			if err := fw.Reload(ctx); err != nil {
+			if _, err := fw.Reload(ctx); err != nil {
 				logger.PrintErrorf("[LOCAL] 重启防火墙失败: %v", err)
 			}
 		}
@@ -178,7 +178,7 @@ func (o *FirewallOptions) RunOnHosts(ctx context.Context, action func(fw firewal
 			}
 
 			if o.Reload {
-				if err := fw.Reload(ctx); err != nil {
+				if _, err := fw.Reload(ctx); err != nil {
 					logger.PrintErrorf("[%s] 重启防火墙失败: %v", rawHost, err)
 				}
 			}

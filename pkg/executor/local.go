@@ -92,7 +92,7 @@ func (e *LocalExecutor) InteractiveWithSudo(ctx context.Context, args []string) 
 		// 注入密码
 		_, _ = stdin.Write([]byte(e.password + "\n"))
 		// 将本地标准输入转发给进程
-		go func() { _ = io.Copy(stdin, os.Stdin) }()
+		go func() { _, _ = io.Copy(stdin, os.Stdin) }()
 		return c.Wait()
 	} else {
 		// 无密码模式，直接连接标准流
