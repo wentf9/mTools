@@ -98,10 +98,10 @@ xops firewall port 80 --proto tcp
 
 ## 📂 配置文件
 
-工具默认将配置存储在用户家目录下的 `.xopss` 文件夹中：
-- `~/.xopss/xops_config.yaml`: 存储节点、主机及身份认证信息（敏感字段已加密）。
-- `~/.xopss/secret.key`: 用于加解密的密钥文件，请务必妥善保管，首次运行时自动生成。
-- `~/.xopss/audit.log`: MCP 护栏审计日志（JSON Lines 格式，记录 Agent 的所有工具调用）。
+工具默认将配置存储在用户家目录下的 `.xops` 文件夹中：
+- `~/.xops/xops_config.yaml`: 存储节点、主机及身份认证信息（敏感字段已加密）。
+- `~/.xops/secret.key`: 用于加解密的密钥文件，请务必妥善保管，首次运行时自动生成。
+- `~/.xops/audit.log`: MCP 护栏审计日志（JSON Lines 格式，记录 Agent 的所有工具调用）。
 
 完整的配置项说明及示例请参考 [xops_config.example.yaml](xops_config.example.yaml)。
 
