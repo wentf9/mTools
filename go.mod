@@ -6,7 +6,7 @@ require (
 	github.com/modelcontextprotocol/go-sdk v1.4.0
 	github.com/pkg/sftp v1.13.10
 	github.com/prometheus-community/pro-bing v0.8.0
-	github.com/schollz/progressbar/v3 v3.18.0
+	github.com/schollz/progressbar/v3 v3.19.0
 	github.com/spf13/cobra v1.10.2
 	golang.org/x/crypto v0.49.0
 	golang.org/x/sync v0.20.0
