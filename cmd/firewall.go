@@ -46,7 +46,7 @@ var firewallCmd = &cobra.Command{
 	Long: `支持多后端 (firewalld, ufw, iptables, nftables) 的防火墙管理工具。
 会自动探测目标主机使用的防火墙类型。`,
 	Run: func(cmd *cobra.Command, args []string) {
-		cmd.Help()
+		_ = cmd.Help()
 	},
 }
 
@@ -90,7 +90,9 @@ func (o *FirewallOptions) RunOnHosts(ctx context.Context, action func(fw firewal
 			logger.PrintSuccessf("[LOCAL] (%s) Success\n%s", fw.Name(), out)
 		}
 		if o.Reload {
-			fw.Reload(ctx)
+			if err := fw.Reload(ctx); err != nil {
+				logger.PrintErrorf("[LOCAL] 重启防火墙失败: %v", err)
+			}
 		}
 		return nil
 	}
@@ -176,7 +178,9 @@ func (o *FirewallOptions) RunOnHosts(ctx context.Context, action func(fw firewal
 			}
 
 			if o.Reload {
-				fw.Reload(ctx)
+				if err := fw.Reload(ctx); err != nil {
+					logger.PrintErrorf("[%s] 重启防火墙失败: %v", rawHost, err)
+				}
 			}
 		})
 	}
@@ -186,7 +190,9 @@ func (o *FirewallOptions) RunOnHosts(ctx context.Context, action func(fw firewal
 	}
 
 	wp.Wait()
-	configStore.Save(cfg)
+	if err := configStore.Save(cfg); err != nil {
+		logger.PrintErrorf("保存配置失败: %v", err)
+	}
 	return nil
 }
 

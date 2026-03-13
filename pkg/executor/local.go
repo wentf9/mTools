@@ -51,8 +51,8 @@ func (e *LocalExecutor) RunWithSudo(ctx context.Context, cmd string) (string, er
 	}
 
 	go func() {
-		defer stdin.Close()
-		io.WriteString(stdin, e.password+"\n")
+		defer func() { _ = stdin.Close() }()
+		_, _ = io.WriteString(stdin, e.password+"\n")
 	}()
 
 	out, err := c.CombinedOutput()
@@ -90,9 +90,9 @@ func (e *LocalExecutor) InteractiveWithSudo(ctx context.Context, args []string) 
 			return err
 		}
 		// 注入密码
-		stdin.Write([]byte(e.password + "\n"))
+		_, _ = stdin.Write([]byte(e.password + "\n"))
 		// 将本地标准输入转发给进程
-		go io.Copy(stdin, os.Stdin)
+		go func() { _ = io.Copy(stdin, os.Stdin) }()
 		return c.Wait()
 	} else {
 		// 无密码模式，直接连接标准流

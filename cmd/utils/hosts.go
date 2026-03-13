@@ -99,8 +99,7 @@ func ReadCSVFile(path string) ([]HostInfo, error) {
 		// 如果CSV中有专门的端口列，则覆盖解析出的端口
 		if pStr := getVal(idxPort); pStr != "" {
 			var p uint16
-			fmt.Sscanf(pStr, "%d", &p)
-			if p != 0 {
+			if _, err := fmt.Sscanf(pStr, "%d", &p); err == nil && p != 0 {
 				port = p
 			}
 		}

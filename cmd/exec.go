@@ -288,7 +288,9 @@ func (o *ExecOptions) Run() error {
 	}
 
 	wp.Wait()
-	configStore.Save(cfg)
+	if err := configStore.Save(cfg); err != nil {
+		logger.PrintErrorf("保存配置失败: %v", err)
+	}
 	return nil
 }
 

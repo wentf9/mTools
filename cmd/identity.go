@@ -20,7 +20,7 @@ func NewCmdIdentity() *cobra.Command {
 		Short:   "管理认证信息模板",
 		Long:    `管理存储的认证信息模板（用户、密码、私钥）。通过别名可以在添加主机时快速复用。`,
 		Run: func(cmd *cobra.Command, args []string) {
-			cmd.Help()
+			_ = cmd.Help()
 		},
 	}
 
