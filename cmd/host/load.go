@@ -6,13 +6,13 @@ import (
 	"os"
 	"strings"
 
+	"github.com/spf13/cobra"
 	"github.com/wentf9/xops-cli/cmd/utils"
 	"github.com/wentf9/xops-cli/pkg/config"
 	"github.com/wentf9/xops-cli/pkg/logger"
 	"github.com/wentf9/xops-cli/pkg/models"
 	"github.com/wentf9/xops-cli/pkg/ssh"
 	pkgutils "github.com/wentf9/xops-cli/pkg/utils"
-	"github.com/spf13/cobra"
 )
 
 var TemplateFile string
@@ -39,7 +39,7 @@ func RunInventoryLoad(cmdObj *cobra.Command, args []string) error {
 		header := "主机,端口,别名,用户,密码,私钥,私钥密码\n"
 		err := os.WriteFile(TemplateFile, []byte(header), 0644)
 		if err != nil {
-			return fmt.Errorf("导出模板失败: %v", err)
+			return fmt.Errorf("导出模板失败: %w", err)
 		}
 		logger.PrintSuccessf("成功导出模板到: %s", TemplateFile)
 		return nil
@@ -51,7 +51,7 @@ func RunInventoryLoad(cmdObj *cobra.Command, args []string) error {
 	csvFile := args[0]
 	hosts, err := utils.ReadCSVFile(csvFile)
 	if err != nil {
-		return fmt.Errorf("读取CSV文件失败: %v", err)
+		return fmt.Errorf("读取CSV文件失败: %w", err)
 	}
 
 	return ExecuteLoadHost(hosts)
@@ -62,7 +62,7 @@ func ExecuteLoadHost(hosts []utils.HostInfo) error {
 	configStore := config.NewDefaultStore(configPath, keyPath)
 	cfg, err := configStore.Load()
 	if err != nil {
-		return fmt.Errorf("加载配置文件失败: %v", err)
+		return fmt.Errorf("加载配置文件失败: %w", err)
 	}
 	provider := config.NewProvider(cfg)
 	connector := ssh.NewConnector(provider)
@@ -74,14 +74,14 @@ func ExecuteLoadHost(hosts []utils.HostInfo) error {
 	for _, host := range hosts {
 		h := host // capture
 		wp.Execute(func() {
-			nodeId, _, err := getOrCreateNode(provider, h)
+			nodeID, _, err := getOrCreateNode(provider, h)
 			if err != nil {
 				logger.PrintErrorf("[%s] 配置生成失败: %v", h.Host, err)
 				return
 			}
 
 			// 验证连接
-			client, err := connector.Connect(ctx, nodeId)
+			client, err := connector.Connect(ctx, nodeID)
 			if err != nil {
 				logger.PrintErrorf("[%s] 验证失败: %v", h.Host, err)
 				return
@@ -109,18 +109,18 @@ func getOrCreateNode(provider config.ConfigProvider, addr utils.HostInfo) (strin
 		port = 22
 	}
 
-	nodeId := provider.Find(fmt.Sprintf("%s@%s:%d", user, host, port))
-	if nodeId == "" {
-		nodeId = provider.Find(host)
+	nodeID := provider.Find(fmt.Sprintf("%s@%s:%d", user, host, port))
+	if nodeID == "" {
+		nodeID = provider.Find(host)
 	}
 
-	if nodeId != "" {
-		updated := updateNodeFromHostInfo(nodeId, provider, addr)
-		return nodeId, updated, nil
+	if nodeID != "" {
+		updated := updateNodeFromHostInfo(nodeID, provider, addr)
+		return nodeID, updated, nil
 	}
 
 	// 创建新节点
-	nodeId = fmt.Sprintf("%s@%s:%d", user, host, port)
+	nodeID = fmt.Sprintf("%s@%s:%d", user, host, port)
 
 	node := models.Node{
 		HostRef:     fmt.Sprintf("%s:%d", host, port),
@@ -152,14 +152,14 @@ func getOrCreateNode(provider config.ConfigProvider, addr utils.HostInfo) (strin
 
 	provider.AddHost(node.HostRef, models.Host{Address: host, Port: port})
 	provider.AddIdentity(node.IdentityRef, identity)
-	provider.AddNode(nodeId, node)
+	provider.AddNode(nodeID, node)
 
-	return nodeId, true, nil
+	return nodeID, true, nil
 }
 
-func updateNodeFromHostInfo(nodeId string, provider config.ConfigProvider, addr utils.HostInfo) bool {
-	node, _ := provider.GetNode(nodeId)
-	identity, _ := provider.GetIdentity(nodeId)
+func updateNodeFromHostInfo(nodeID string, provider config.ConfigProvider, addr utils.HostInfo) bool {
+	node, _ := provider.GetNode(nodeID)
+	identity, _ := provider.GetIdentity(nodeID)
 	updated := false
 
 	// 更新密码或密钥
@@ -209,7 +209,7 @@ func updateNodeFromHostInfo(nodeId string, provider config.ConfigProvider, addr 
 	}
 
 	if updated {
-		provider.AddNode(nodeId, node)
+		provider.AddNode(nodeID, node)
 		provider.AddIdentity(node.IdentityRef, identity)
 	}
 

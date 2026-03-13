@@ -6,13 +6,13 @@ import (
 	"os"
 	"strings"
 
+	"github.com/spf13/cobra"
 	"github.com/wentf9/xops-cli/cmd/utils"
 	"github.com/wentf9/xops-cli/pkg/config"
 	"github.com/wentf9/xops-cli/pkg/logger"
 	"github.com/wentf9/xops-cli/pkg/models"
 	"github.com/wentf9/xops-cli/pkg/ssh"
 	pkgutils "github.com/wentf9/xops-cli/pkg/utils"
-	"github.com/spf13/cobra"
 )
 
 type ExecOptions struct {
@@ -162,7 +162,7 @@ func (o *ExecOptions) Run() error {
 	configStore := config.NewDefaultStore(configPath, keyPath)
 	cfg, err := configStore.Load()
 	if err != nil {
-		return fmt.Errorf("加载配置文件失败: %v", err)
+		return fmt.Errorf("加载配置文件失败: %w", err)
 	}
 	provider := config.NewProvider(cfg)
 	connector := ssh.NewConnector(provider)
@@ -174,7 +174,7 @@ func (o *ExecOptions) Run() error {
 	if o.ShellFile != "" {
 		content, err := os.ReadFile(o.ShellFile)
 		if err != nil {
-			return fmt.Errorf("读取脚本文件失败: %v", err)
+			return fmt.Errorf("读取脚本文件失败: %w", err)
 		}
 		execCmd = string(content)
 		isScript = true
@@ -186,7 +186,7 @@ func (o *ExecOptions) Run() error {
 	wp := pkgutils.NewWorkerPool(uint(o.TaskCount))
 
 	type hostTask struct {
-		nodeId string
+		nodeID string
 		host   string
 		port   uint16
 		user   string
@@ -199,11 +199,11 @@ func (o *ExecOptions) Run() error {
 		if len(nodes) == 0 {
 			return fmt.Errorf("标签组 %s 为空或不存在", o.Tag)
 		}
-		for nodeId := range nodes {
-			hostObj, _ := provider.GetHost(nodeId)
-			identity, _ := provider.GetIdentity(nodeId)
+		for nodeID := range nodes {
+			hostObj, _ := provider.GetHost(nodeID)
+			identity, _ := provider.GetIdentity(nodeID)
 			tasks = append(tasks, hostTask{
-				nodeId: nodeId,
+				nodeID: nodeID,
 				host:   hostObj.Address,
 				port:   hostObj.Port,
 				user:   identity.User,
@@ -228,21 +228,21 @@ func (o *ExecOptions) Run() error {
 			}
 
 			addr := utils.HostInfo{
-				Host:     h.Host,
-				Port:     h.Port,
-				User:     h.User,
-				Password: h.Password,
-				Alias:    h.Alias,
-				KeyPath:  h.KeyPath,
+				Host:       h.Host,
+				Port:       h.Port,
+				User:       h.User,
+				Password:   h.Password,
+				Alias:      h.Alias,
+				KeyPath:    h.KeyPath,
 				Passphrase: h.Passphrase,
 			}
-			nodeId, _, err := o.getOrCreateNode(provider, addr)
+			nodeID, _, err := o.getOrCreateNode(provider, addr)
 			if err != nil {
 				logger.PrintErrorf("[%s] 错误: %v", h.Host, err)
 				continue
 			}
 			tasks = append(tasks, hostTask{
-				nodeId: nodeId,
+				nodeID: nodeID,
 				host:   h.Host,
 				port:   h.Port,
 				user:   h.User,
@@ -251,12 +251,10 @@ func (o *ExecOptions) Run() error {
 		}
 	}
 
-
-
 	for _, task := range tasks {
 		t := task // capture range variable
 		wp.Execute(func() {
-			client, err := connector.Connect(ctx, t.nodeId)
+			client, err := connector.Connect(ctx, t.nodeID)
 			if err != nil {
 				logger.PrintErrorf("[%s] 连接失败: %v", t.host, err)
 				return
@@ -306,18 +304,18 @@ func (o *ExecOptions) getOrCreateNode(provider config.ConfigProvider, addr utils
 		port = 22
 	}
 
-	nodeId := provider.Find(fmt.Sprintf("%s@%s:%d", user, host, port))
-	if nodeId == "" {
-		nodeId = provider.Find(host)
+	nodeID := provider.Find(fmt.Sprintf("%s@%s:%d", user, host, port))
+	if nodeID == "" {
+		nodeID = provider.Find(host)
 	}
 
-	if nodeId != "" {
-		updated := o.updateNodeFromHostInfo(nodeId, provider, addr)
-		return nodeId, updated, nil
+	if nodeID != "" {
+		updated := o.updateNodeFromHostInfo(nodeID, provider, addr)
+		return nodeID, updated, nil
 	}
 
 	// 创建新节点
-	nodeId = fmt.Sprintf("%s@%s:%d", user, host, port)
+	nodeID = fmt.Sprintf("%s@%s:%d", user, host, port)
 	sudoMode := "none"
 	if o.Sudo {
 		sudoMode = "sudo"
@@ -385,14 +383,14 @@ func (o *ExecOptions) getOrCreateNode(provider config.ConfigProvider, addr utils
 
 	provider.AddHost(node.HostRef, models.Host{Address: host, Port: port})
 	provider.AddIdentity(node.IdentityRef, identity)
-	provider.AddNode(nodeId, node)
+	provider.AddNode(nodeID, node)
 
-	return nodeId, true, nil
+	return nodeID, true, nil
 }
 
-func (o *ExecOptions) updateNodeFromHostInfo(nodeId string, provider config.ConfigProvider, addr utils.HostInfo) bool {
-	node, _ := provider.GetNode(nodeId)
-	identity, _ := provider.GetIdentity(nodeId)
+func (o *ExecOptions) updateNodeFromHostInfo(nodeID string, provider config.ConfigProvider, addr utils.HostInfo) bool {
+	node, _ := provider.GetNode(nodeID)
+	identity, _ := provider.GetIdentity(nodeID)
 	updated := false
 
 	// 更新密码或密钥
@@ -442,7 +440,7 @@ func (o *ExecOptions) updateNodeFromHostInfo(nodeId string, provider config.Conf
 	}
 
 	if updated {
-		provider.AddNode(nodeId, node)
+		provider.AddNode(nodeID, node)
 		provider.AddIdentity(node.IdentityRef, identity)
 	}
 

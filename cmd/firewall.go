@@ -134,9 +134,9 @@ func (o *FirewallOptions) RunOnHosts(ctx context.Context, action func(fw firewal
 				return
 			}
 
-			nodeId := provider.Find(rawHost)
+			nodeID := provider.Find(rawHost)
 			u, hs, p := cmdutils.ParseAddr(rawHost)
-			if nodeId == "" {
+			if nodeID == "" {
 				if u == "" {
 					u = o.User
 					if u == "" {
@@ -149,15 +149,15 @@ func (o *FirewallOptions) RunOnHosts(ctx context.Context, action func(fw firewal
 						p = 22
 					}
 				}
-				nodeId = provider.Find(fmt.Sprintf("%s@%s:%d", u, hs, p))
+				nodeID = provider.Find(fmt.Sprintf("%s@%s:%d", u, hs, p))
 			}
 
-			if nodeId == "" {
+			if nodeID == "" {
 				logger.PrintErrorf("[%s@%s:%d] 未找到该主机匹配的节点配置，请先通过 inventory 添加", u, hs, p)
 				return
 			}
 
-			client, err := connector.Connect(ctx, nodeId)
+			client, err := connector.Connect(ctx, nodeID)
 			if err != nil {
 				logger.PrintErrorf("[%s] 连接失败: %v", rawHost, err)
 				return

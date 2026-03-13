@@ -4,11 +4,11 @@ import (
 	"context"
 	"fmt"
 
+	"github.com/modelcontextprotocol/go-sdk/mcp"
 	"github.com/wentf9/xops-cli/cmd/utils"
 	"github.com/wentf9/xops-cli/pkg/mcpserver/guardrail"
 	"github.com/wentf9/xops-cli/pkg/models"
 	"github.com/wentf9/xops-cli/pkg/ssh"
-	"github.com/modelcontextprotocol/go-sdk/mcp"
 )
 
 type ListNodesInput struct {
@@ -33,7 +33,7 @@ type ListNodesOutput struct {
 func listNodesHandler(ctx context.Context, req *mcp.CallToolRequest, input ListNodesInput) (*mcp.CallToolResult, ListNodesOutput, error) {
 	_, provider, _, err := utils.GetConfigStore()
 	if err != nil {
-		return nil, ListNodesOutput{}, fmt.Errorf("failed to load config: %v", err)
+		return nil, ListNodesOutput{}, fmt.Errorf("failed to load config: %w", err)
 	}
 
 	var nodeMap map[string]models.Node
@@ -44,12 +44,12 @@ func listNodesHandler(ctx context.Context, req *mcp.CallToolRequest, input ListN
 	}
 
 	var nodes []NodeInfo
-	for nodeId, node := range nodeMap {
-		host, _ := provider.GetHost(nodeId)
-		identity, _ := provider.GetIdentity(nodeId)
+	for nodeID, node := range nodeMap {
+		host, _ := provider.GetHost(nodeID)
+		identity, _ := provider.GetIdentity(nodeID)
 
 		nodes = append(nodes, NodeInfo{
-			ID:        nodeId,
+			ID:        nodeID,
 			Alias:     node.Alias,
 			Address:   fmt.Sprintf("%s:%d", host.Address, host.Port),
 			User:      identity.User,
@@ -66,7 +66,7 @@ func listNodesHandler(ctx context.Context, req *mcp.CallToolRequest, input ListN
 }
 
 type SshRunInput struct {
-	NodeID  string `json:"nodeId" jsonschema:"The ID of the node to execute command on"`
+	NodeID  string `json:"nodeID" jsonschema:"The ID of the node to execute command on"`
 	Command string `json:"command" jsonschema:"The shell command to execute"`
 	Sudo    bool   `json:"sudo,omitempty" jsonschema:"Whether to use sudo to execute the command"`
 }
@@ -79,12 +79,12 @@ type SshRunOutput struct {
 
 func sshRunHandler(ctx context.Context, req *mcp.CallToolRequest, input SshRunInput) (*mcp.CallToolResult, SshRunOutput, error) {
 	if input.NodeID == "" || input.Command == "" {
-		return nil, SshRunOutput{}, fmt.Errorf("nodeId and command are required")
+		return nil, SshRunOutput{}, fmt.Errorf("nodeID and command are required")
 	}
 
 	_, provider, _, err := utils.GetConfigStore()
 	if err != nil {
-		return nil, SshRunOutput{}, fmt.Errorf("failed to load config: %v", err)
+		return nil, SshRunOutput{}, fmt.Errorf("failed to load config: %w", err)
 	}
 
 	_, ok := provider.GetNode(input.NodeID)
@@ -97,7 +97,7 @@ func sshRunHandler(ctx context.Context, req *mcp.CallToolRequest, input SshRunIn
 
 	client, err := connector.Connect(ctx, input.NodeID)
 	if err != nil {
-		return nil, SshRunOutput{}, fmt.Errorf("failed to connect to node: %v", err)
+		return nil, SshRunOutput{}, fmt.Errorf("failed to connect to node: %w", err)
 	}
 
 	var output string

@@ -8,8 +8,8 @@ import (
 	"os"
 	"time"
 
-	cmdutils "github.com/wentf9/xops-cli/cmd/utils"
 	"github.com/spf13/cobra"
+	cmdutils "github.com/wentf9/xops-cli/cmd/utils"
 	"golang.org/x/term"
 )
 
@@ -55,8 +55,8 @@ var ncCmd = &cobra.Command{
 			if err != nil {
 				return fmt.Errorf("无法监听端口 %d: %w", port, err)
 			}
-			defer listener.Close()
-			fmt.Fprintf(os.Stderr, "正在监听端口 %d...\n", port)
+			defer func() { _ = listener.Close() }()
+			_, _ = fmt.Fprintf(os.Stderr, "正在监听端口 %d...\n", port)
 			conn, err := listener.Accept()
 			if err != nil {
 				return fmt.Errorf("接受连接失败: %w", err)
@@ -71,13 +71,13 @@ var ncCmd = &cobra.Command{
 		addr := net.JoinHostPort(args[0], args[1])
 		conn, err := net.DialTimeout(network, addr, time.Second*10)
 		if err != nil {
-			return fmt.Errorf("failed to connect to %s: %v", addr, err)
+			return fmt.Errorf("failed to connect to %s: %w", addr, err)
 		}
-		fmt.Fprintf(os.Stderr, "已连接到 %s\n", addr)
-		defer conn.Close()
+		_, _ = fmt.Fprintf(os.Stderr, "已连接到 %s\n", addr)
+		defer func() { _ = conn.Close() }()
 		if term.IsTerminal(0) {
 
-			fmt.Fprintf(os.Stderr, "警告: 你正在交互式终端中运行此命令,将不会发送数据,建议通过管道或重定向将数据传输到此命令\n")
+			_, _ = fmt.Fprintf(os.Stderr, "警告: 你正在交互式终端中运行此命令,将不会发送数据,建议通过管道或重定向将数据传输到此命令\n")
 			return nil
 		}
 		reader := bufio.NewReader(os.Stdin)
@@ -104,15 +104,15 @@ var ncCmd = &cobra.Command{
 }
 
 func handleConnection(conn net.Conn) error {
-	defer conn.Close()
+	defer func() { _ = conn.Close() }()
 
 	// 获取客户端地址
 	clientAddr := conn.RemoteAddr().String()
-	fmt.Fprintf(os.Stderr, "新连接来自: %s\n", clientAddr)
+	_, _ = fmt.Fprintf(os.Stderr, "新连接来自: %s\n", clientAddr)
 	writer := bufio.NewWriter(os.Stdout)
 	// 使用 bufio.Reader 读取数据（支持按行或批量读）
 	reader := bufio.NewReader(conn)
-	fmt.Fprintf(os.Stderr, "来自 %s 的请求内容:\n", clientAddr)
+	_, _ = fmt.Fprintf(os.Stderr, "来自 %s 的请求内容:\n", clientAddr)
 	buffer := make([]byte, 1024*1024*10) // 10MB 缓冲区
 	for {
 		n, err := reader.Read(buffer)
@@ -122,12 +122,12 @@ func handleConnection(conn net.Conn) error {
 			if err != nil {
 				return fmt.Errorf("写入输出失败: %w", err)
 			}
-			writer.Flush()
+			_ = writer.Flush()
 		}
 		if err != nil {
 			// 客户端断开或读取出错
 			if err == io.EOF {
-				fmt.Fprintf(os.Stderr, "连接 %s 关闭\n", clientAddr)
+				_, _ = fmt.Fprintf(os.Stderr, "连接 %s 关闭\n", clientAddr)
 				return nil
 			}
 			return fmt.Errorf("连接 %s 出错: %w", clientAddr, err)

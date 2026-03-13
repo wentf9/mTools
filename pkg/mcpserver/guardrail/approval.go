@@ -63,19 +63,19 @@ func applyFallback(elicitErr error, risk RiskLevel, fallback string) error {
 
 func buildApprovalMessage(risk RiskLevel, input RiskInput) string {
 	var b strings.Builder
-	b.WriteString(fmt.Sprintf("⚠️ [Risk: %s] Operation requires your approval\n\n", strings.ToUpper(risk.String())))
-	b.WriteString(fmt.Sprintf("Tool:  %s\n", input.ToolName))
+	fmt.Fprintf(&b, "⚠️ [Risk: %s] Operation requires your approval\n\n", strings.ToUpper(risk.String()))
+	fmt.Fprintf(&b, "Tool:  %s\n", input.ToolName)
 	if input.NodeID != "" {
-		b.WriteString(fmt.Sprintf("Node:  %s\n", input.NodeID))
+		fmt.Fprintf(&b, "Node:  %s\n", input.NodeID)
 	}
 	if input.Command != "" {
-		b.WriteString(fmt.Sprintf("Command: %s\n", input.Command))
+		fmt.Fprintf(&b, "Command: %s\n", input.Command)
 	}
 	if input.Sudo {
 		b.WriteString("Sudo: yes\n")
 	}
 	if len(input.Paths) > 0 {
-		b.WriteString(fmt.Sprintf("Paths: %s\n", strings.Join(input.Paths, ", ")))
+		fmt.Fprintf(&b, "Paths: %s\n", strings.Join(input.Paths, ", "))
 	}
 	b.WriteString("\nDo you approve this operation?")
 	return b.String()

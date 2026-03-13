@@ -34,9 +34,9 @@ func (k *KeyAuth) GetMethod() (ssh.AuthMethod, error) {
 	}
 	var signer ssh.Signer
 	if k.Passphrase != "" {
-		signer, err = ssh.ParsePrivateKeyWithPassphrase(keyData, []byte(k.Passphrase))
+		signer, _ = ssh.ParsePrivateKeyWithPassphrase(keyData, []byte(k.Passphrase))
 	} else {
-		signer, err = ssh.ParsePrivateKey(keyData)
+		signer, _ = ssh.ParsePrivateKey(keyData)
 	}
 	return ssh.PublicKeys(signer), nil
 }

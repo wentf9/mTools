@@ -28,7 +28,7 @@ func StartKeepAlive(client *ssh.Client, interval time.Duration, fallback func(er
 			if err != nil {
 				// 如果发送心跳失败，说明连接已经断了
 				// 显式关闭 Client，这样主程序中正在使用的 Session 也会收到错误通知
-				client.Close()
+				_ = client.Close()
 				if fallback != nil {
 					fallback(err)
 				}

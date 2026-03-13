@@ -8,12 +8,12 @@ import (
 
 	"strings"
 
+	"github.com/spf13/cobra"
 	"github.com/wentf9/xops-cli/cmd/utils"
 	"github.com/wentf9/xops-cli/pkg/config"
 	"github.com/wentf9/xops-cli/pkg/models"
 	"github.com/wentf9/xops-cli/pkg/sftp"
 	"github.com/wentf9/xops-cli/pkg/ssh"
-	"github.com/spf13/cobra"
 )
 
 type SftpOptions struct {
@@ -44,7 +44,7 @@ xops sftp user@host[:port] [-P password] [--task maxTask] [--thread maxThread]
 		RunE: func(cmd *cobra.Command, args []string) error {
 			o.Complete(cmd, args)
 			if err := o.Validate(); err != nil {
-				return fmt.Errorf("参数错误: %v", err)
+				return fmt.Errorf("参数错误: %w", err)
 			}
 			return o.Run()
 		},
@@ -65,20 +65,20 @@ func (o *SftpOptions) Run() error {
 	configStore := config.NewDefaultStore(utils.GetConfigFilePath())
 	cfg, err := configStore.Load()
 	if err != nil {
-		return fmt.Errorf("加载配置文件失败: %v", err)
+		return fmt.Errorf("加载配置文件失败: %w", err)
 	}
 
 	provider := config.NewProvider(cfg)
 
-	var nodeId string
+	var nodeID string
 	updated := false
-	if nodeId = provider.Find(o.Host); nodeId != "" {
-		updated = update(nodeId, &o.SshOptions, provider)
-	} else if nodeId = provider.Find(fmt.Sprintf("%s@%s:%d", o.User, o.Host, o.Port)); nodeId != "" {
-		updated = update(nodeId, &o.SshOptions, provider)
+	if nodeID = provider.Find(o.Host); nodeID != "" {
+		updated = update(nodeID, &o.SshOptions, provider)
+	} else if nodeID = provider.Find(fmt.Sprintf("%s@%s:%d", o.User, o.Host, o.Port)); nodeID != "" {
+		updated = update(nodeID, &o.SshOptions, provider)
 	} else {
 		updated = true
-		nodeId = fmt.Sprintf("%s@%s:%d", o.User, o.Host, o.Port)
+		nodeID = fmt.Sprintf("%s@%s:%d", o.User, o.Host, o.Port)
 		node := models.Node{
 			HostRef:     fmt.Sprintf("%s:%d", o.Host, o.Port),
 			IdentityRef: fmt.Sprintf("%s@%s", o.User, o.Host),
@@ -120,14 +120,14 @@ func (o *SftpOptions) Run() error {
 		}
 		provider.AddHost(node.HostRef, hostObj)
 		provider.AddIdentity(node.IdentityRef, identity)
-		provider.AddNode(nodeId, node)
+		provider.AddNode(nodeID, node)
 	}
 	connector := ssh.NewConnector(provider)
 	ctx, cancel := context.WithTimeout(context.Background(), 10*time.Second)
 	defer cancel()
-	client, err := connector.Connect(ctx, nodeId)
+	client, err := connector.Connect(ctx, nodeID)
 	if err != nil {
-		return fmt.Errorf("连接失败: %v", err)
+		return fmt.Errorf("连接失败: %w", err)
 	}
 	sftpClient, err := sftp.NewClient(
 		client,
@@ -135,22 +135,22 @@ func (o *SftpOptions) Run() error {
 		sftp.WithThreadsPerFile(o.maxThread),
 	)
 	if err != nil {
-		return fmt.Errorf("连接失败: %v", err)
+		return fmt.Errorf("连接失败: %w", err)
 	}
-	defer sftpClient.Close()
-	defer client.Close()
+	defer func() { _ = sftpClient.Close() }()
+	defer func() { _ = client.Close() }()
 	// 启动 Shell
 	// 使用 os.Stdin, os.Stdout 绑定到当前终端
 	shell, err := sftpClient.NewShell(os.Stdin, os.Stdout, os.Stderr)
 	if err != nil {
-		return fmt.Errorf("sftp交互式环境创建失败: %v", err)
+		return fmt.Errorf("sftp交互式环境创建失败: %w", err)
 	}
 	if err := shell.Run(context.Background()); err != nil {
-		return fmt.Errorf("sftp交互式环境启动失败: %v", err)
+		return fmt.Errorf("sftp交互式环境启动失败: %w", err)
 	}
 	if updated {
 		if err := configStore.Save(cfg); err != nil {
-			return fmt.Errorf("保存配置文件失败: %v", err)
+			return fmt.Errorf("保存配置文件失败: %w", err)
 		}
 	}
 	return nil

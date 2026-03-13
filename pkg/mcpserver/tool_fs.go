@@ -5,17 +5,17 @@ import (
 	"fmt"
 	"time"
 
+	"github.com/modelcontextprotocol/go-sdk/mcp"
 	"github.com/wentf9/xops-cli/cmd/utils"
 	"github.com/wentf9/xops-cli/pkg/mcpserver/guardrail"
 	"github.com/wentf9/xops-cli/pkg/sftp"
 	"github.com/wentf9/xops-cli/pkg/ssh"
-	"github.com/modelcontextprotocol/go-sdk/mcp"
 )
 
 // ======================== LS ========================
 
 type FSListInput struct {
-	NodeID string `json:"nodeId" jsonschema:"Node ID for the remote machine"`
+	NodeID string `json:"nodeID" jsonschema:"Node ID for the remote machine"`
 	Path   string `json:"path" jsonschema:"Absolute path to the remote directory"`
 }
 
@@ -34,12 +34,12 @@ type FSListOutput struct {
 
 func fsLsHandler(ctx context.Context, req *mcp.CallToolRequest, input FSListInput) (*mcp.CallToolResult, FSListOutput, error) {
 	if input.NodeID == "" || input.Path == "" {
-		return nil, FSListOutput{}, fmt.Errorf("nodeId and path are required")
+		return nil, FSListOutput{}, fmt.Errorf("nodeID and path are required")
 	}
 
 	_, provider, _, err := utils.GetConfigStore()
 	if err != nil {
-		return nil, FSListOutput{}, fmt.Errorf("failed to load config: %v", err)
+		return nil, FSListOutput{}, fmt.Errorf("failed to load config: %w", err)
 	}
 
 	connector := ssh.NewConnector(provider)
@@ -47,18 +47,18 @@ func fsLsHandler(ctx context.Context, req *mcp.CallToolRequest, input FSListInpu
 
 	sshClient, err := connector.Connect(ctx, input.NodeID)
 	if err != nil {
-		return nil, FSListOutput{}, fmt.Errorf("failed to connect to ssh: %v", err)
+		return nil, FSListOutput{}, fmt.Errorf("failed to connect to ssh: %w", err)
 	}
 
 	sftpClient, err := sftp.NewClient(sshClient)
 	if err != nil {
-		return nil, FSListOutput{}, fmt.Errorf("failed to create sftp client: %v", err)
+		return nil, FSListOutput{}, fmt.Errorf("failed to create sftp client: %w", err)
 	}
-	defer sftpClient.Close()
+	defer func() { _ = sftpClient.Close() }()
 
 	infos, err := sftpClient.SFTPClient().ReadDir(input.Path)
 	if err != nil {
-		return nil, FSListOutput{}, fmt.Errorf("ls failed: %v", err)
+		return nil, FSListOutput{}, fmt.Errorf("ls failed: %w", err)
 	}
 
 	var files []FileInfo
@@ -81,7 +81,7 @@ func fsLsHandler(ctx context.Context, req *mcp.CallToolRequest, input FSListInpu
 // ======================== MKDIR ========================
 
 type FSMkdirInput struct {
-	NodeID string `json:"nodeId" jsonschema:"Node ID for the remote machine"`
+	NodeID string `json:"nodeID" jsonschema:"Node ID for the remote machine"`
 	Path   string `json:"path" jsonschema:"Absolute path to the directory to create"`
 }
 
@@ -91,7 +91,7 @@ type FSBaseOutput struct {
 
 func fsMkdirHandler(ctx context.Context, req *mcp.CallToolRequest, input FSMkdirInput) (*mcp.CallToolResult, FSBaseOutput, error) {
 	if input.NodeID == "" || input.Path == "" {
-		return nil, FSBaseOutput{}, fmt.Errorf("nodeId and path are required")
+		return nil, FSBaseOutput{}, fmt.Errorf("nodeID and path are required")
 	}
 
 	_, provider, _, err := utils.GetConfigStore()
@@ -111,10 +111,10 @@ func fsMkdirHandler(ctx context.Context, req *mcp.CallToolRequest, input FSMkdir
 	if err != nil {
 		return nil, FSBaseOutput{}, err
 	}
-	defer sftpClient.Close()
+	defer func() { _ = sftpClient.Close() }()
 
 	if err := sftpClient.SFTPClient().MkdirAll(input.Path); err != nil {
-		return nil, FSBaseOutput{}, fmt.Errorf("mkdir failed: %v", err)
+		return nil, FSBaseOutput{}, fmt.Errorf("mkdir failed: %w", err)
 	}
 
 	return nil, FSBaseOutput{Status: "success"}, nil
@@ -123,13 +123,13 @@ func fsMkdirHandler(ctx context.Context, req *mcp.CallToolRequest, input FSMkdir
 // ======================== TOUCH ========================
 
 type FSTouchInput struct {
-	NodeID string `json:"nodeId" jsonschema:"Node ID for the remote machine"`
+	NodeID string `json:"nodeID" jsonschema:"Node ID for the remote machine"`
 	Path   string `json:"path" jsonschema:"Absolute path to the file to create"`
 }
 
 func fsTouchHandler(ctx context.Context, req *mcp.CallToolRequest, input FSTouchInput) (*mcp.CallToolResult, FSBaseOutput, error) {
 	if input.NodeID == "" || input.Path == "" {
-		return nil, FSBaseOutput{}, fmt.Errorf("nodeId and path are required")
+		return nil, FSBaseOutput{}, fmt.Errorf("nodeID and path are required")
 	}
 
 	_, provider, _, err := utils.GetConfigStore()
@@ -149,13 +149,13 @@ func fsTouchHandler(ctx context.Context, req *mcp.CallToolRequest, input FSTouch
 	if err != nil {
 		return nil, FSBaseOutput{}, err
 	}
-	defer sftpClient.Close()
+	defer func() { _ = sftpClient.Close() }()
 
 	file, err := sftpClient.SFTPClient().Create(input.Path)
 	if err != nil {
-		return nil, FSBaseOutput{}, fmt.Errorf("touch failed: %v", err)
+		return nil, FSBaseOutput{}, fmt.Errorf("touch failed: %w", err)
 	}
-	file.Close()
+	_ = file.Close()
 
 	return nil, FSBaseOutput{Status: "success"}, nil
 }
@@ -163,14 +163,14 @@ func fsTouchHandler(ctx context.Context, req *mcp.CallToolRequest, input FSTouch
 // ======================== MV / RENAME ========================
 
 type FSMvInput struct {
-	NodeID string `json:"nodeId" jsonschema:"Node ID for the remote machine"`
+	NodeID string `json:"nodeID" jsonschema:"Node ID for the remote machine"`
 	Old    string `json:"oldPath" jsonschema:"Original absolute path"`
 	New    string `json:"newPath" jsonschema:"New absolute destination path"`
 }
 
 func fsMvHandler(ctx context.Context, req *mcp.CallToolRequest, input FSMvInput) (*mcp.CallToolResult, FSBaseOutput, error) {
 	if input.NodeID == "" || input.Old == "" || input.New == "" {
-		return nil, FSBaseOutput{}, fmt.Errorf("nodeId, oldPath and newPath are required")
+		return nil, FSBaseOutput{}, fmt.Errorf("nodeID, oldPath and newPath are required")
 	}
 
 	_, provider, _, err := utils.GetConfigStore()
@@ -190,10 +190,10 @@ func fsMvHandler(ctx context.Context, req *mcp.CallToolRequest, input FSMvInput)
 	if err != nil {
 		return nil, FSBaseOutput{}, err
 	}
-	defer sftpClient.Close()
+	defer func() { _ = sftpClient.Close() }()
 
 	if err := sftpClient.SFTPClient().Rename(input.Old, input.New); err != nil {
-		return nil, FSBaseOutput{}, fmt.Errorf("mv failed: %v", err)
+		return nil, FSBaseOutput{}, fmt.Errorf("mv failed: %w", err)
 	}
 
 	return nil, FSBaseOutput{Status: "success"}, nil
@@ -202,13 +202,13 @@ func fsMvHandler(ctx context.Context, req *mcp.CallToolRequest, input FSMvInput)
 // ======================== RM (Bypass via SSH run) ========================
 
 type FSRmInput struct {
-	NodeID string `json:"nodeId" jsonschema:"Node ID for the remote machine"`
+	NodeID string `json:"nodeID" jsonschema:"Node ID for the remote machine"`
 	Path   string `json:"path" jsonschema:"Absolute path to the file/directory to securely delete"`
 }
 
 func fsRmHandler(ctx context.Context, req *mcp.CallToolRequest, input FSRmInput) (*mcp.CallToolResult, FSBaseOutput, error) {
 	if input.NodeID == "" || input.Path == "" {
-		return nil, FSBaseOutput{}, fmt.Errorf("nodeId and path are required")
+		return nil, FSBaseOutput{}, fmt.Errorf("nodeID and path are required")
 	}
 
 	_, provider, _, err := utils.GetConfigStore()
@@ -227,7 +227,7 @@ func fsRmHandler(ctx context.Context, req *mcp.CallToolRequest, input FSRmInput)
 	cmd := fmt.Sprintf("rm -rf '%s'", input.Path)
 	output, err := sshClient.Run(ctx, cmd)
 	if err != nil {
-		return nil, FSBaseOutput{}, fmt.Errorf("rm failed: %v, output: %s", err, output)
+		return nil, FSBaseOutput{}, fmt.Errorf("rm failed: %w, output: %s", err, output)
 	}
 
 	return nil, FSBaseOutput{Status: "success"}, nil
@@ -236,14 +236,14 @@ func fsRmHandler(ctx context.Context, req *mcp.CallToolRequest, input FSRmInput)
 // ======================== CP (Bypass via SSH run) ========================
 
 type FSCpInput struct {
-	NodeID string `json:"nodeId" jsonschema:"Node ID for the remote machine"`
+	NodeID string `json:"nodeID" jsonschema:"Node ID for the remote machine"`
 	Src    string `json:"srcPath" jsonschema:"Absolute path to source"`
 	Dest   string `json:"destPath" jsonschema:"Absolute path to destination"`
 }
 
 func fsCpHandler(ctx context.Context, req *mcp.CallToolRequest, input FSCpInput) (*mcp.CallToolResult, FSBaseOutput, error) {
 	if input.NodeID == "" || input.Src == "" || input.Dest == "" {
-		return nil, FSBaseOutput{}, fmt.Errorf("nodeId, srcPath and destPath are required")
+		return nil, FSBaseOutput{}, fmt.Errorf("nodeID, srcPath and destPath are required")
 	}
 
 	_, provider, _, err := utils.GetConfigStore()
@@ -262,7 +262,7 @@ func fsCpHandler(ctx context.Context, req *mcp.CallToolRequest, input FSCpInput)
 	cmd := fmt.Sprintf("cp -r '%s' '%s'", input.Src, input.Dest)
 	output, err := sshClient.Run(ctx, cmd)
 	if err != nil {
-		return nil, FSBaseOutput{}, fmt.Errorf("cp failed: %v, output: %s", err, output)
+		return nil, FSBaseOutput{}, fmt.Errorf("cp failed: %w, output: %s", err, output)
 	}
 
 	return nil, FSBaseOutput{Status: "success"}, nil

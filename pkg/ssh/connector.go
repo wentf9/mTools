@@ -109,7 +109,7 @@ func (c *Connector) Connect(ctx context.Context, nodeName string) (*Client, erro
 		// 使用 NewClientConn 接管底层的 conn
 		ncc, chans, reqs, err := ssh.NewClientConn(conn, targetAddr, sshConfig)
 		if err != nil {
-			conn.Close()
+			_ = conn.Close()
 			return nil, fmt.Errorf("ssh handshake failed for '%s': %w", nodeName, err)
 		}
 		rawClient := ssh.NewClient(ncc, chans, reqs)
@@ -127,7 +127,7 @@ func (c *Connector) Connect(ctx context.Context, nodeName string) (*Client, erro
 // CloseAll 关闭所有缓存的连接 (在程序退出前调用)
 func (c *Connector) CloseAll() {
 	c.clients.IterCb(func(name string, client *ssh.Client) bool {
-		client.Close()
+		_ = client.Close()
 		return true
 	})
 	c.clients.Clear()

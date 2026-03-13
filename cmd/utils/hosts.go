@@ -9,6 +9,7 @@ import (
 	"strings"
 )
 
+// HostInfo 存储从CSV或参数中解析出的主机信息
 type HostInfo struct {
 	Host       string
 	Port       uint16
@@ -19,6 +20,7 @@ type HostInfo struct {
 	Passphrase string
 }
 
+// ReadCSVFile 从指定路径读取CSV文件并解析为主机列表
 func ReadCSVFile(path string) ([]HostInfo, error) {
 	if filepath.IsLocal(path) {
 		if wd, err := os.Getwd(); err == nil {
@@ -29,9 +31,9 @@ func ReadCSVFile(path string) ([]HostInfo, error) {
 	file, err := os.Open(path)
 	if err != nil {
 		if os.IsNotExist(err) {
-			return nil, fmt.Errorf("CSV文件不存在: %v", err)
+			return nil, fmt.Errorf("CSV文件不存在: %w", err)
 		}
-		return nil, fmt.Errorf("无法打开CSV文件: %v", err)
+		return nil, fmt.Errorf("无法打开CSV文件: %w", err)
 	}
 	defer func() { _ = file.Close() }()
 
@@ -42,7 +44,7 @@ func ReadCSVFile(path string) ([]HostInfo, error) {
 	// 读取表头
 	header, err := reader.Read()
 	if err != nil {
-		return nil, fmt.Errorf("读取CSV表头失败: %v", err)
+		return nil, fmt.Errorf("读取CSV表头失败: %w", err)
 	}
 
 	// 建立列索引映射
@@ -80,7 +82,7 @@ func ReadCSVFile(path string) ([]HostInfo, error) {
 			break
 		}
 		if err != nil {
-			return nil, fmt.Errorf("读取CSV记录失败: %v", err)
+			return nil, fmt.Errorf("读取CSV记录失败: %w", err)
 		}
 
 		getVal := func(idx int) string {
@@ -122,6 +124,7 @@ func ReadCSVFile(path string) ([]HostInfo, error) {
 	return hosts, nil
 }
 
+// ParseHosts 综合处理单主机、主机文件和CSV文件中的主机信息
 func ParseHosts(ip, hostFile, csvFile string) ([]HostInfo, error) {
 	var hosts []string
 	var HostsInfo []HostInfo

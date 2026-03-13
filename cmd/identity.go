@@ -6,11 +6,11 @@ import (
 	"sort"
 	"text/tabwriter"
 
+	"github.com/spf13/cobra"
 	"github.com/wentf9/xops-cli/cmd/utils"
 	"github.com/wentf9/xops-cli/pkg/config"
 	"github.com/wentf9/xops-cli/pkg/logger"
 	"github.com/wentf9/xops-cli/pkg/models"
-	"github.com/spf13/cobra"
 )
 
 func NewCmdIdentity() *cobra.Command {
@@ -127,7 +127,7 @@ func NewCmdIdentityList() *cobra.Command {
 			}
 
 			w := tabwriter.NewWriter(os.Stdout, 0, 0, 3, ' ', 0)
-			fmt.Fprintln(w, "别名/名称\t用户\t认证方式\t详细信息")
+			_, _ = fmt.Fprintln(w, "别名/名称\t用户\t认证方式\t详细信息")
 
 			keys := make([]string, 0, len(identities))
 			for k := range identities {
@@ -145,14 +145,14 @@ func NewCmdIdentityList() *cobra.Command {
 					detail = "******"
 				}
 
-				fmt.Fprintf(w, "%s\t%s\t%s\t%s\n",
+				_, _ = fmt.Fprintf(w, "%s\t%s\t%s\t%s\n",
 					name,
 					id.User,
 					id.AuthType,
 					detail,
 				)
 			}
-			w.Flush()
+			_ = w.Flush()
 		},
 	}
 }
@@ -213,7 +213,7 @@ func NewCmdIdentityAdd() *cobra.Command {
 			provider.AddIdentity(name, identity)
 
 			if err := configStore.Save(cfg); err != nil {
-				return fmt.Errorf("保存配置文件失败: %v", err)
+				return fmt.Errorf("保存配置文件失败: %w", err)
 			}
 
 			logger.PrintSuccessf("成功添加认证模板: %s", name)

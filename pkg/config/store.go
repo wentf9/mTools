@@ -11,6 +11,7 @@ import (
 	"gopkg.in/yaml.v3"
 )
 
+// Store 定义了配置存储和持久化的接口
 type Store interface {
 	Load() (*Configuration, error)
 	Save(cfg *Configuration) error
@@ -140,6 +141,7 @@ func (s *defaultStore) Save(cfg *Configuration) error {
 	return file.CreateFileRecursive(s.Path, data, 0600)
 }
 
+// NewDefaultStore 创建一个默认的文件系统配置存储实例
 func NewDefaultStore(path string, keyPath string) Store {
 	return &defaultStore{
 		Path:    path,

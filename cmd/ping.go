@@ -8,9 +8,9 @@ import (
 	"net"
 	"time"
 
-	"github.com/wentf9/xops-cli/pkg/logger"
 	ping "github.com/prometheus-community/pro-bing"
 	"github.com/spf13/cobra"
+	"github.com/wentf9/xops-cli/pkg/logger"
 )
 
 // pingCmd represents the ping command
@@ -33,7 +33,7 @@ var pingCmd = &cobra.Command{
 		ip := args[0]
 
 		if resolve, err := net.ResolveIPAddr("ip", ip); err != nil {
-			return fmt.Errorf("提供的主机名无法解析为ip地址: %v", err)
+			return fmt.Errorf("提供的主机名无法解析为ip地址: %w", err)
 		} else {
 			logger.PrintInfof("主机名 [%s] 的IP地址为: [%s]", ip, resolve.String())
 			ip = resolve.String()
@@ -50,7 +50,7 @@ var pingCmd = &cobra.Command{
 				logger.PrintErrorf("主机 %s 的端口 %s 已关闭或被过滤: %v", ip, port, err)
 				return nil // 命令本身执行成功，所以不返回错误
 			}
-			conn.Close()
+			_ = conn.Close()
 			logger.PrintSuccessf("主机 %s 的端口 %s 是开放的!", ip, port)
 			return nil
 		}

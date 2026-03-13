@@ -3,10 +3,10 @@ package host
 import (
 	"fmt"
 
+	"github.com/spf13/cobra"
 	"github.com/wentf9/xops-cli/cmd/utils"
 	"github.com/wentf9/xops-cli/pkg/logger"
 	"github.com/wentf9/xops-cli/pkg/models"
-	"github.com/spf13/cobra"
 )
 
 func NewCmdInventoryAdd() *cobra.Command {
@@ -33,7 +33,7 @@ func NewCmdInventoryAdd() *cobra.Command {
 
 			store, provider, cfg, err := utils.GetConfigStore()
 			if err != nil {
-				return fmt.Errorf("加载配置文件失败: %v", err)
+				return fmt.Errorf("加载配置文件失败: %w", err)
 			}
 
 			if port == 0 {
@@ -91,7 +91,7 @@ func NewCmdInventoryAdd() *cobra.Command {
 			provider.AddNode(name, node)
 
 			if err := store.Save(cfg); err != nil {
-				return fmt.Errorf("保存配置文件失败: %v", err)
+				return fmt.Errorf("保存配置文件失败: %w", err)
 			}
 
 			logger.PrintSuccessf("成功添加节点: %s", name)

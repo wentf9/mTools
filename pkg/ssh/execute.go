@@ -57,7 +57,7 @@ func (c *Client) runWithSudo(ctx context.Context, command string, password strin
 	if err != nil {
 		return "", err
 	}
-	defer session.Close()
+	defer func() { _ = session.Close() }()
 
 	if password != "" {
 		if extraStdin != nil {
@@ -78,7 +78,7 @@ func (c *Client) runWithSu(command string, password string) (string, error) {
 	if err != nil {
 		return "", err
 	}
-	defer session.Close()
+	defer func() { _ = session.Close() }()
 
 	modes := ssh.TerminalModes{
 		ssh.ECHO:          0,
@@ -86,7 +86,7 @@ func (c *Client) runWithSu(command string, password string) (string, error) {
 		ssh.TTY_OP_OSPEED: 14400,
 	}
 	if err := session.RequestPty("xterm", 80, 40, modes); err != nil {
-		return "", fmt.Errorf("request for pty failed: %v", err)
+		return "", fmt.Errorf("request for pty failed: %w", err)
 	}
 
 	stdin, err := session.StdinPipe()
@@ -101,7 +101,7 @@ func (c *Client) runWithSu(command string, password string) (string, error) {
 	cmd := fmt.Sprintf("export LC_ALL=C; su - root -c '%s'", strings.ReplaceAll(command, "'", "'\\''"))
 
 	if err := session.Start(cmd); err != nil {
-		return "", fmt.Errorf("failed to start command: %v", err)
+		return "", fmt.Errorf("failed to start command: %w", err)
 	}
 
 	var outputBuf bytes.Buffer
@@ -133,7 +133,7 @@ func (c *Client) runWithSu(command string, password string) (string, error) {
 	case <-passwordPromptFound:
 		_, err = stdin.Write([]byte(password + "\n"))
 		if err != nil {
-			return "", fmt.Errorf("failed to send password: %v", err)
+			return "", fmt.Errorf("failed to send password: %w", err)
 		}
 	case <-time.After(5 * time.Second):
 		return outputBuf.String(), fmt.Errorf("timeout waiting for password prompt")
@@ -142,7 +142,7 @@ func (c *Client) runWithSu(command string, password string) (string, error) {
 	err = session.Wait()
 	cleanOutput := cleanSuOutput(outputBuf.String())
 	if err != nil {
-		return cleanOutput, fmt.Errorf("command execution failed: %v", err)
+		return cleanOutput, fmt.Errorf("command execution failed: %w", err)
 	}
 
 	return cleanOutput, nil
@@ -157,7 +157,7 @@ func (c *Client) ShellWithSudo(ctx context.Context) error {
 	if err != nil {
 		return err
 	}
-	defer session.Close()
+	defer func() { _ = session.Close() }()
 	modes := ssh.TerminalModes{
 		ssh.ECHO:          1,
 		ssh.TTY_OP_ISPEED: 14400,
@@ -170,21 +170,21 @@ func (c *Client) ShellWithSudo(ctx context.Context) error {
 		width, height = 80, 40
 	}
 	if err := session.RequestPty("xterm-256color", height, width, modes); err != nil {
-		return fmt.Errorf("request for pty failed: %v", err)
+		return fmt.Errorf("request for pty failed: %w", err)
 	}
 	stdin, _ := session.StdinPipe()
 	stdout, _ := session.StdoutPipe()
 	stderr, _ := session.StderrPipe()
 
 	if err := session.Shell(); err != nil {
-		return fmt.Errorf("start Shell failed: %v", err)
+		return fmt.Errorf("start Shell failed: %w", err)
 	}
 
 	oldState, err := term.MakeRaw(fdIn)
 	if err != nil {
-		return fmt.Errorf("can not set term to Raw : %v", err)
+		return fmt.Errorf("can not set term to Raw : %w", err)
 	}
-	defer term.Restore(fdIn, oldState)
+	defer func() { _ = term.Restore(fdIn, oldState) }()
 
 	go func() {
 		lastW, lastH := width, height
@@ -194,7 +194,7 @@ func (c *Client) ShellWithSudo(ctx context.Context) error {
 		for range ticker.C {
 			currW, currH, _ := term.GetSize(fdOut)
 			if currW != lastW || currH != lastH {
-				session.WindowChange(currH, currW)
+				_ = session.WindowChange(currH, currW)
 				lastW, lastH = currW, currH
 			}
 		}
@@ -218,12 +218,12 @@ func (c *Client) ShellWithSudo(ctx context.Context) error {
 	default:
 		sudoCmd = ""
 	}
-	stdin.Write([]byte(sudoCmd + "\n"))
+	_, _ = stdin.Write([]byte(sudoCmd + "\n"))
 
 	if password == "" {
-		go io.Copy(os.Stdout, stdout)
-		go io.Copy(os.Stderr, stderr)
-		go io.Copy(stdin, os.Stdin)
+		go func() { _, _ = io.Copy(os.Stdout, stdout) }()
+		go func() { _, _ = io.Copy(os.Stderr, stderr) }()
+		go func() { _, _ = io.Copy(stdin, os.Stdin) }()
 		return session.Wait()
 	}
 	buf := make([]byte, 1024)
@@ -259,16 +259,16 @@ HandshakeLoop:
 				outputHistory.Reset()
 			}
 			if strings.Contains(strings.ToLower(text), "assword") || strings.Contains(text, "密码") {
-				stdin.Write([]byte(password + "\n"))
-				passwordSent = true
+				_, _ = stdin.Write([]byte(password + "\n"))
+				_ = true
 				break HandshakeLoop
 			}
 		}
 	}
 
-	go io.Copy(os.Stdout, stdout)
-	go io.Copy(os.Stderr, stderr)
-	go io.Copy(stdin, os.Stdin)
+	go func() { _, _ = io.Copy(os.Stdout, stdout) }()
+	go func() { _, _ = io.Copy(os.Stderr, stderr) }()
+	go func() { _, _ = io.Copy(stdin, os.Stdin) }()
 
 	return session.Wait()
 }

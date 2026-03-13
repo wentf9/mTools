@@ -1,0 +1,14 @@
+version: 2
+run:
+  timeout: 5m
+  tests: true
+  modules-download-mode: readonly
+
+linters:
+  enable:
+    - errcheck
+    - ineffassign
+    - misspell
+    - copyloopvar
+    - errorlint
+    - unconvert

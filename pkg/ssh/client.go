@@ -68,7 +68,7 @@ func (c *Client) runRaw(ctx context.Context, wrappedCmd string) (string, error) 
 	if err != nil {
 		return "", err
 	}
-	defer session.Close()
+	defer func() { _ = session.Close() }()
 	return startWithTimeout(ctx, session, wrappedCmd)
 }
 
@@ -78,7 +78,7 @@ func (c *Client) RunScript(ctx context.Context, scriptContent string) (string, e
 	if err != nil {
 		return "", err
 	}
-	defer session.Close()
+	defer func() { _ = session.Close() }()
 
 	session.Stdin = strings.NewReader(scriptContent)
 	// 使用 bash -l -s 从 stdin 读取脚本，以加载环境变量
@@ -90,7 +90,7 @@ func (c *Client) Shell(ctx context.Context) error {
 	if err != nil {
 		return err
 	}
-	defer session.Close()
+	defer func() { _ = session.Close() }()
 	// 配置 PTY (终端模式)
 	modes := ssh.TerminalModes{
 		ssh.ECHO:          1,
@@ -105,7 +105,7 @@ func (c *Client) Shell(ctx context.Context) error {
 		width, height = 80, 40
 	}
 	if err := session.RequestPty("xterm-256color", height, width, modes); err != nil {
-		return fmt.Errorf("request for pty failed: %v", err)
+		return fmt.Errorf("request for pty failed: %w", err)
 	}
 	// 获取管道
 	stdin, _ := session.StdinPipe()
@@ -114,15 +114,15 @@ func (c *Client) Shell(ctx context.Context) error {
 
 	// 启动 Shell
 	if err := session.Shell(); err != nil {
-		return fmt.Errorf("start Shell failed: %v", err)
+		return fmt.Errorf("start Shell failed: %w", err)
 	}
 
 	// 设置本地终端为 Raw 模式
 	oldState, err := term.MakeRaw(fdIn)
 	if err != nil {
-		return fmt.Errorf("can not set term to Raw : %v", err)
+		return fmt.Errorf("can not set term to Raw : %w", err)
 	}
-	defer term.Restore(fdIn, oldState)
+	defer func() { _ = term.Restore(fdIn, oldState) }()
 	// ================= Windows 窗口大小自适应 =================
 	go func() {
 		lastW, lastH := width, height
@@ -132,16 +132,16 @@ func (c *Client) Shell(ctx context.Context) error {
 		for range ticker.C {
 			currW, currH, _ := term.GetSize(fdOut)
 			if currW != lastW || currH != lastH {
-				session.WindowChange(currH, currW)
+				_ = session.WindowChange(currH, currW)
 				lastW, lastH = currW, currH
 			}
 		}
 	}()
-	go io.Copy(os.Stdout, stdout)
-	go io.Copy(os.Stderr, stderr)
+	go func() { _, _ = io.Copy(os.Stdout, stdout) }()
+	go func() { _, _ = io.Copy(os.Stderr, stderr) }()
 
 	// 启动协程处理用户输入
-	go io.Copy(stdin, os.Stdin)
+	go func() { _, _ = io.Copy(stdin, os.Stdin) }()
 
 	return session.Wait()
 }
@@ -200,7 +200,7 @@ func startWithTimeout(ctx context.Context, session *ssh.Session, command string)
 	session.Stderr = syncWriter
 
 	if err := session.Start(command); err != nil {
-		return "", fmt.Errorf("failed to start command: %v", err)
+		return "", fmt.Errorf("failed to start command: %w", err)
 	}
 	done := make(chan error, 1)
 	go func() {
@@ -211,12 +211,12 @@ func startWithTimeout(ctx context.Context, session *ssh.Session, command string)
 	case err := <-done:
 		output := syncWriter.String()
 		if err != nil {
-			return output, fmt.Errorf("failed to run command: %v, output: %s", err, output)
+			return output, fmt.Errorf("failed to run command: %w, output: %s", err, output)
 		}
 		return output, nil
 	case <-ctx.Done():
 		if killErr := session.Signal(ssh.SIGKILL); killErr != nil {
-			return syncWriter.String(), fmt.Errorf("failed to kill command after context done: %v", killErr)
+			return syncWriter.String(), fmt.Errorf("failed to kill command after context done: %w", killErr)
 		}
 		return syncWriter.String(), ctx.Err()
 	}

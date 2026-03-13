@@ -7,11 +7,11 @@ import (
 	"strings"
 	"time"
 
+	"github.com/spf13/cobra"
 	"github.com/wentf9/xops-cli/cmd/utils"
 	"github.com/wentf9/xops-cli/pkg/config"
 	"github.com/wentf9/xops-cli/pkg/models"
 	"github.com/wentf9/xops-cli/pkg/ssh"
-	"github.com/spf13/cobra"
 )
 
 type SshOptions struct {
@@ -52,7 +52,7 @@ xops -h host -u user
 		RunE: func(cmd *cobra.Command, args []string) error {
 			o.Complete(cmd, args)
 			if err := o.Validate(); err != nil {
-				return fmt.Errorf("参数错误: %v", err)
+				return fmt.Errorf("参数错误: %w", err)
 			}
 			return o.Run()
 		},
@@ -103,7 +103,7 @@ func (o *SshOptions) Validate() error {
 		o.Port = 22
 	}
 	if strings.Contains(o.Alias, "@") || strings.Contains(o.Alias, ":") {
-		return errors.New("别名中不可含有<@>或<:>符号!")
+		return errors.New("别名中不可含有<@>或<:>符号")
 	}
 	return nil
 }
@@ -112,20 +112,20 @@ func (o *SshOptions) Run() error {
 	configStore := config.NewDefaultStore(utils.GetConfigFilePath())
 	cfg, err := configStore.Load()
 	if err != nil {
-		return fmt.Errorf("加载配置文件失败: %v", err)
+		return fmt.Errorf("加载配置文件失败: %w", err)
 	}
 
 	provider := config.NewProvider(cfg)
 
-	var nodeId string
+	var nodeID string
 	updated := false
-	if nodeId = provider.Find(o.Host); nodeId != "" {
-		updated = update(nodeId, o, provider)
-	} else if nodeId = provider.Find(fmt.Sprintf("%s@%s:%d", o.User, o.Host, o.Port)); nodeId != "" {
-		updated = update(nodeId, o, provider)
+	if nodeID = provider.Find(o.Host); nodeID != "" {
+		updated = update(nodeID, o, provider)
+	} else if nodeID = provider.Find(fmt.Sprintf("%s@%s:%d", o.User, o.Host, o.Port)); nodeID != "" {
+		updated = update(nodeID, o, provider)
 	} else {
 		updated = true
-		nodeId = fmt.Sprintf("%s@%s:%d", o.User, o.Host, o.Port)
+		nodeID = fmt.Sprintf("%s@%s:%d", o.User, o.Host, o.Port)
 		node := models.Node{
 			HostRef:     fmt.Sprintf("%s:%d", o.Host, o.Port),
 			IdentityRef: fmt.Sprintf("%s@%s", o.User, o.Host),
@@ -167,38 +167,38 @@ func (o *SshOptions) Run() error {
 		}
 		provider.AddHost(node.HostRef, hostObj)
 		provider.AddIdentity(node.IdentityRef, identity)
-		provider.AddNode(nodeId, node)
+		provider.AddNode(nodeID, node)
 	}
 	connector := ssh.NewConnector(provider)
 	ctx, cancel := context.WithTimeout(context.Background(), 10*time.Second)
 	defer cancel()
-	client, err := connector.Connect(ctx, nodeId)
+	client, err := connector.Connect(ctx, nodeID)
 	if err != nil {
-		return fmt.Errorf("连接失败: %v", err)
+		return fmt.Errorf("连接失败: %w", err)
 	}
-	defer client.Close()
+	defer func() { _ = client.Close() }()
 	if o.Sudo {
 		if err := client.ShellWithSudo(ctx); err != nil {
-			return fmt.Errorf("启动sudo环境失败: %v", err)
+			return fmt.Errorf("启动sudo环境失败: %w", err)
 		}
 	} else {
 		if err := client.Shell(ctx); err != nil {
-			return fmt.Errorf("启动交互式终端失败: %v", err)
+			return fmt.Errorf("启动交互式终端失败: %w", err)
 		}
 	}
 	if updated {
 		if err := configStore.Save(cfg); err != nil {
-			return fmt.Errorf("保存配置文件失败: %v", err)
+			return fmt.Errorf("保存配置文件失败: %w", err)
 		}
 	}
 	return nil
 }
 
-func update(nodeId string, o *SshOptions, provider config.ConfigProvider) bool {
+func update(nodeID string, o *SshOptions, provider config.ConfigProvider) bool {
 	nodeUpdated := false
 	identityUpdated := false
-	node, _ := provider.GetNode(nodeId)
-	identity, _ := provider.GetIdentity(nodeId)
+	node, _ := provider.GetNode(nodeID)
+	identity, _ := provider.GetIdentity(nodeID)
 	if o.Password != "" || o.KeyFile != "" || o.JumpHost != "" || o.Sudo || o.Alias != "" || len(o.Tags) > 0 {
 		if o.JumpHost != "" {
 			jumpHost := provider.Find(o.JumpHost)
@@ -244,7 +244,7 @@ func update(nodeId string, o *SshOptions, provider config.ConfigProvider) bool {
 		provider.AddIdentity(node.IdentityRef, identity)
 	}
 	if nodeUpdated {
-		provider.AddNode(nodeId, node)
+		provider.AddNode(nodeID, node)
 	}
 	if identityUpdated {
 		provider.AddIdentity(node.IdentityRef, identity)

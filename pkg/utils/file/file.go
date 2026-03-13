@@ -18,7 +18,7 @@ func CreateFileRecursive(filePath string, content []byte, perm os.FileMode) erro
 	if err != nil {
 		return err
 	}
-	defer file.Close()
+	defer func() { _ = file.Close() }()
 
 	// 写入内容
 	if content != nil {

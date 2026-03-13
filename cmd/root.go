@@ -20,7 +20,7 @@ var rootCmd = &cobra.Command{
 			version.PrintFullVersion()
 			os.Exit(0)
 		}
-		cmd.Help()
+		_ = cmd.Help()
 		os.Exit(0)
 	},
 	PersistentPreRun: func(cmd *cobra.Command, args []string) {

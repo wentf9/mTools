@@ -349,14 +349,14 @@ func (m *Map[K, V]) String() string {
 // [Key] val
 // [Key] val
 func (m *Map[K, V]) Print(w io.Writer) {
-	fmt.Fprintln(w, "--- ConcurrentMap Content ---")
+	_, _ = fmt.Fprintln(w, "--- ConcurrentMap Content ---")
 	count := 0
 	m.IterCb(func(k K, v V) bool {
-		fmt.Fprintf(w, "[%v] %v\n", k, v)
+		_, _ = fmt.Fprintf(w, "[%v] %v\n", k, v)
 		count++
 		return true
 	})
-	fmt.Fprintf(w, "--- Total: %d items ---\n", count)
+	_, _ = fmt.Fprintf(w, "--- Total: %d items ---\n", count)
 }
 
 // PrettyPrint 以格式化的 JSON 样式打印 (适合调试复杂结构)

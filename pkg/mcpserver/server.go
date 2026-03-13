@@ -4,9 +4,9 @@ import (
 	"context"
 	"fmt"
 
+	"github.com/modelcontextprotocol/go-sdk/mcp"
 	"github.com/wentf9/xops-cli/cmd/utils"
 	"github.com/wentf9/xops-cli/pkg/mcpserver/guardrail"
-	"github.com/modelcontextprotocol/go-sdk/mcp"
 )
 
 func Serve(ctx context.Context) error {
@@ -28,7 +28,7 @@ func Serve(ctx context.Context) error {
 
 	transport := &mcp.StdioTransport{}
 	if err := server.Run(ctx, transport); err != nil {
-		return fmt.Errorf("MCP Server error: %v", err)
+		return fmt.Errorf("MCP Server error: %w", err)
 	}
 	return nil
 }

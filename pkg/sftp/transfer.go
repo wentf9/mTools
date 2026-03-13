@@ -2,6 +2,7 @@ package sftp
 
 import (
 	"context"
+	"errors"
 	"fmt"
 	"io"
 	"os"
@@ -20,12 +21,14 @@ func (c *Client) Upload(ctx context.Context, localPath, remotePath string, progr
 	if info.IsDir() {
 		return c.UploadDirectory(ctx, localPath, remotePath, progress)
 	}
+
 	// 检查远程路径是否是目录
 	remoteStat, err := c.sftpClient.Stat(remotePath)
 	if err == nil && remoteStat.IsDir() {
 		// 如果是目录，拼接文件名
 		remotePath = c.JoinPath(remotePath, filepath.Base(localPath))
 	}
+
 	return c.UploadFile(ctx, localPath, remotePath, info.Size(), info.Mode(), progress)
 }
 
@@ -55,15 +58,15 @@ func (c *Client) UploadFile(ctx context.Context, localPath, remotePath string, s
 	if err != nil {
 		return err
 	}
-	defer srcFile.Close()
+	defer func() { _ = srcFile.Close() }()
 
 	dstFile, err := c.sftpClient.Create(remotePath)
 	if err != nil {
 		return err
 	}
-	defer dstFile.Close()
+	defer func() { _ = dstFile.Close() }()
 
-	c.sftpClient.Chmod(remotePath, mode)
+	_ = c.sftpClient.Chmod(remotePath, mode)
 
 	// 如果文件极小或并发设为1，走简单流式传输
 	if size < c.config.ChunkSize || c.config.ThreadsPerFile <= 1 {
@@ -72,7 +75,7 @@ func (c *Client) UploadFile(ctx context.Context, localPath, remotePath string, s
 	}
 
 	// 显式并发分块上传
-	g, ctx := errgroup.WithContext(ctx)
+	g, _ := errgroup.WithContext(ctx)
 	chunkSize := c.config.ChunkSize
 	// 使用信号量限制并发数
 	sem := make(chan struct{}, c.config.ThreadsPerFile)
@@ -90,7 +93,7 @@ func (c *Client) UploadFile(ctx context.Context, localPath, remotePath string, s
 
 			buf := make([]byte, currSize)
 			n, err := srcFile.ReadAt(buf, currOffset)
-			if err != nil && err != io.EOF {
+			if err != nil && !errors.Is(err, io.EOF) {
 				return err
 			}
 			if n <= 0 {
@@ -117,22 +120,22 @@ func (c *Client) DownloadFile(ctx context.Context, remotePath, localPath string,
 	if err != nil {
 		return err
 	}
-	defer srcFile.Close()
+	defer func() { _ = srcFile.Close() }()
 
 	dstFile, err := os.Create(localPath)
 	if err != nil {
 		return err
 	}
-	defer dstFile.Close()
+	defer func() { _ = dstFile.Close() }()
 
-	os.Chmod(localPath, mode)
+	_ = os.Chmod(localPath, mode)
 
 	if size < c.config.ChunkSize || c.config.ThreadsPerFile <= 1 {
 		_, err = io.Copy(dstFile, srcFile)
 		return err
 	}
 
-	g, ctx := errgroup.WithContext(ctx)
+	g, _ := errgroup.WithContext(ctx)
 	chunkSize := c.config.ChunkSize
 	sem := make(chan struct{}, c.config.ThreadsPerFile)
 
@@ -149,7 +152,7 @@ func (c *Client) DownloadFile(ctx context.Context, remotePath, localPath string,
 
 			buf := make([]byte, currSize)
 			n, err := srcFile.ReadAt(buf, currOffset)
-			if err != nil && err != io.EOF {
+			if err != nil && !errors.Is(err, io.EOF) {
 				return err
 			}
 			if n <= 0 {
@@ -198,16 +201,10 @@ func (c *Client) StreamTransfer(r io.Reader, w io.Writer, progress ProgressCallb
 
 func (c *Client) UploadDirectory(ctx context.Context, localDir, remoteDir string, progress ProgressCallback) error {
 	// 1. 确保远程根目录存在
-	if err := c.sftpClient.MkdirAll(remoteDir); err != nil {
-		// MkdirAll 可能会因为目录已存在报错，可以忽略
-	}
+	_ = c.sftpClient.MkdirAll(remoteDir)
 
 	// 2. 遍历本地目录收集文件
-	// 为了更好地控制并发，我们先收集文件列表，或者在 Walk 过程中直接分发
-	// 使用 errgroup 控制文件级并发
 	g, ctx := errgroup.WithContext(ctx)
-
-	// 文件并发限制信号量
 	sem := make(chan struct{}, c.config.ConcurrentFiles)
 
 	err := filepath.Walk(localDir, func(path string, info os.FileInfo, err error) error {
@@ -223,22 +220,16 @@ func (c *Client) UploadDirectory(ctx context.Context, localDir, remoteDir string
 			return err
 		}
 
-		// 拼接远程路径 (注意 SFTP 必须用 forward slash)
-		// filepath.ToSlash 用于处理 Windows 路径分隔符
 		remoteDest := c.JoinPath(remoteDir, filepath.ToSlash(relPath))
 
 		if info.IsDir() {
-			// 目录顺序创建，不走并发
 			return c.sftpClient.MkdirAll(remoteDest)
 		}
 
-		// 文件：放入并发队列
-		// 必须在此处拷贝变量给闭包
 		loopPath := path
 		loopDest := remoteDest
 		loopInfo := info
 
-		// 获取信号量
 		sem <- struct{}{}
 		g.Go(func() error {
 			defer func() { <-sem }()
@@ -263,7 +254,6 @@ func (c *Client) DownloadDirectory(ctx context.Context, remoteDir, localDir stri
 	g, ctx := errgroup.WithContext(ctx)
 	sem := make(chan struct{}, c.config.ConcurrentFiles)
 
-	// 使用 SFTP Walk 遍历
 	walker := c.sftpClient.Walk(remoteDir)
 	for walker.Step() {
 		if err := walker.Err(); err != nil {
@@ -278,13 +268,13 @@ func (c *Client) DownloadDirectory(ctx context.Context, remoteDir, localDir stri
 
 		relPath, err := filepath.Rel(remoteDir, path)
 		if err != nil {
-			continue // 应该是路径问题，跳过
+			continue
 		}
 
 		localDest := filepath.Join(localDir, relPath)
 
 		if info.IsDir() {
-			os.MkdirAll(localDest, info.Mode())
+			_ = os.MkdirAll(localDest, info.Mode())
 			continue
 		}
 

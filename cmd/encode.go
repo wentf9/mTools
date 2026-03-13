@@ -191,10 +191,10 @@ func stringToUnicode(s string) string {
 	var result strings.Builder
 	for _, r := range s {
 		if r <= 0xFFFF {
-			result.WriteString(fmt.Sprintf("\\u%04x", r))
+			fmt.Fprintf(&result, "\\u%04x", r)
 		} else {
 			// 处理超过U+FFFF的字符（如emoji）
-			result.WriteString(fmt.Sprintf("\\U%08x", r))
+			fmt.Fprintf(&result, "\\U%08x", r)
 		}
 	}
 	return result.String()
@@ -206,7 +206,7 @@ func unicodeToString(s string) (string, error) {
 	var result string
 	err := json.Unmarshal([]byte(str), &result)
 	if err != nil {
-		return "", fmt.Errorf("无效的Unicode序列: %v", err)
+		return "", fmt.Errorf("无效的Unicode序列: %w", err)
 	}
 	return result, nil
 }
@@ -215,7 +215,7 @@ func unicodeToString(s string) (string, error) {
 func stringToUTF8(s string) string {
 	var result strings.Builder
 	for _, r := range s {
-		result.WriteString(fmt.Sprintf("&#x%X;", r))
+		fmt.Fprintf(&result, "&#x%X;", r)
 	}
 	return result.String()
 }

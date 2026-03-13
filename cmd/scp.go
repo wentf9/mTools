@@ -8,6 +8,8 @@ import (
 	"strings"
 	"time"
 
+	"github.com/schollz/progressbar/v3"
+	"github.com/spf13/cobra"
 	cmdutils "github.com/wentf9/xops-cli/cmd/utils"
 	"github.com/wentf9/xops-cli/pkg/config"
 	"github.com/wentf9/xops-cli/pkg/logger"
@@ -15,8 +17,6 @@ import (
 	"github.com/wentf9/xops-cli/pkg/sftp"
 	"github.com/wentf9/xops-cli/pkg/ssh"
 	pkgutils "github.com/wentf9/xops-cli/pkg/utils"
-	"github.com/schollz/progressbar/v3"
-	"github.com/spf13/cobra"
 )
 
 type ScpOptions struct {
@@ -155,7 +155,7 @@ func (o *ScpOptions) Run() error {
 	configStore := config.NewDefaultStore(configPath, keyPath)
 	cfg, err := configStore.Load()
 	if err != nil {
-		return fmt.Errorf("加载配置文件失败: %v", err)
+		return fmt.Errorf("加载配置文件失败: %w", err)
 	}
 	provider := config.NewProvider(cfg)
 	connector := ssh.NewConnector(provider)
@@ -190,15 +190,15 @@ func (o *ScpOptions) Run() error {
 }
 
 func (o *ScpOptions) runUpload(ctx context.Context, localPath string, dst PathInfo, provider config.ConfigProvider, connector *ssh.Connector, configStore config.Store, cfg *config.Configuration) error {
-	nodeId, updated, err := o.getOrCreateNodeForPath(provider, dst, "")
+	nodeID, updated, err := o.getOrCreateNodeForPath(provider, dst, "")
 	if err != nil {
 		return err
 	}
 	if updated {
-		configStore.Save(cfg)
+		if err := configStore.Save(cfg); err != nil { logger.PrintErrorf("保存配置失败: %v", err) }
 	}
 
-	client, err := connector.Connect(ctx, nodeId)
+	client, err := connector.Connect(ctx, nodeID)
 	if err != nil {
 		return err
 	}
@@ -207,7 +207,7 @@ func (o *ScpOptions) runUpload(ctx context.Context, localPath string, dst PathIn
 	if err != nil {
 		return err
 	}
-	defer sftpCli.Close()
+	defer func() { _ = sftpCli.Close() }()
 
 	var progress sftp.ProgressCallback
 	if o.Progress {
@@ -235,22 +235,22 @@ func (o *ScpOptions) runUpload(ctx context.Context, localPath string, dst PathIn
 				BarEnd:        "]",
 			}),
 		)
-		progress = func(n int) { bar.Add(n) }
+		progress = func(n int) { _ = bar.Add(n) }
 	}
 
 	return sftpCli.Upload(ctx, localPath, dst.Path, progress)
 }
 
 func (o *ScpOptions) runDownload(ctx context.Context, src PathInfo, localPath string, provider config.ConfigProvider, connector *ssh.Connector, configStore config.Store, cfg *config.Configuration) error {
-	nodeId, updated, err := o.getOrCreateNodeForPath(provider, src, "")
+	nodeID, updated, err := o.getOrCreateNodeForPath(provider, src, "")
 	if err != nil {
 		return err
 	}
 	if updated {
-		configStore.Save(cfg)
+		if err := configStore.Save(cfg); err != nil { logger.PrintErrorf("保存配置失败: %v", err) }
 	}
 
-	client, err := connector.Connect(ctx, nodeId)
+	client, err := connector.Connect(ctx, nodeID)
 	if err != nil {
 		return err
 	}
@@ -259,7 +259,7 @@ func (o *ScpOptions) runDownload(ctx context.Context, src PathInfo, localPath st
 	if err != nil {
 		return err
 	}
-	defer sftpCli.Close()
+	defer func() { _ = sftpCli.Close() }()
 
 	// 只 Stat 一次
 	stat, err := sftpCli.SFTPClient().Stat(src.Path)
@@ -289,7 +289,7 @@ func (o *ScpOptions) runDownload(ctx context.Context, src PathInfo, localPath st
 				BarEnd:        "]",
 			}),
 		)
-		progress = func(n int) { bar.Add(n) }
+		progress = func(n int) { _ = bar.Add(n) }
 	}
 
 	if stat.IsDir() {
@@ -316,7 +316,7 @@ func (o *ScpOptions) runRemoteToRemote(ctx context.Context, src, dst PathInfo, p
 	}
 
 	if srcUpdated || dstUpdated {
-		configStore.Save(cfg)
+		if err := configStore.Save(cfg); err != nil { logger.PrintErrorf("保存配置失败: %v", err) }
 	}
 
 	srcClient, err := connector.Connect(ctx, srcNodeId)
@@ -332,19 +332,19 @@ func (o *ScpOptions) runRemoteToRemote(ctx context.Context, src, dst PathInfo, p
 	if err != nil {
 		return err
 	}
-	defer srcSftp.Close()
+	defer func() { _ = srcSftp.Close() }()
 
 	dstSftp, err := sftp.NewClient(dstClient)
 	if err != nil {
 		return err
 	}
-	defer dstSftp.Close()
+	defer func() { _ = dstSftp.Close() }()
 
 	srcFile, err := srcSftp.SFTPClient().Open(src.Path)
 	if err != nil {
 		return err
 	}
-	defer srcFile.Close()
+	defer func() { _ = srcFile.Close() }()
 
 	stat, err := srcFile.Stat()
 	if err != nil {
@@ -361,12 +361,12 @@ func (o *ScpOptions) runRemoteToRemote(ctx context.Context, src, dst PathInfo, p
 	if err != nil {
 		return err
 	}
-	defer dstFile.Close()
+	defer func() { _ = dstFile.Close() }()
 
 	var progress sftp.ProgressCallback
 	if o.Progress {
 		bar := progressbar.DefaultBytes(stat.Size(), "Relaying "+filepath.Base(src.Path))
-		progress = func(n int) { bar.Add(n) }
+		progress = func(n int) { _ = bar.Add(n) }
 	}
 
 	return dstSftp.StreamTransfer(srcFile, dstFile, progress)
@@ -380,8 +380,8 @@ func (o *ScpOptions) runBatch(ctx context.Context, provider config.ConfigProvide
 		if len(nodes) == 0 {
 			return fmt.Errorf("标签组 %s 为空或不存在", o.Tag)
 		}
-		for nodeId := range nodes {
-			nid := nodeId // capture
+		for nodeID := range nodes {
+			nid := nodeID // capture
 			hostObj, _ := provider.GetHost(nid)
 			identity, _ := provider.GetIdentity(nid)
 			wp.Execute(func() {
@@ -418,16 +418,16 @@ func (o *ScpOptions) runBatch(ctx context.Context, provider config.ConfigProvide
 }
 
 func (o *ScpOptions) executeTransfer(ctx context.Context, label string, addr PathInfo, specificPassword string, provider config.ConfigProvider, connector *ssh.Connector, configStore config.Store, cfg *config.Configuration) {
-	nodeId, updated, err := o.getOrCreateNodeForPath(provider, addr, specificPassword)
+	nodeID, updated, err := o.getOrCreateNodeForPath(provider, addr, specificPassword)
 	if err != nil {
 		logger.PrintErrorf("[%s] 错误: %v", label, err)
 		return
 	}
 	if updated {
-		configStore.Save(cfg)
+		if err := configStore.Save(cfg); err != nil { logger.PrintErrorf("保存配置失败: %v", err) }
 	}
 
-	client, err := connector.Connect(ctx, nodeId)
+	client, err := connector.Connect(ctx, nodeID)
 	if err != nil {
 		logger.PrintErrorf("[%s] 连接失败: %v", label, err)
 		return
@@ -438,7 +438,7 @@ func (o *ScpOptions) executeTransfer(ctx context.Context, label string, addr Pat
 		logger.PrintErrorf("[%s] SFTP失败: %v", label, err)
 		return
 	}
-	defer sftpCli.Close()
+	defer func() { _ = sftpCli.Close() }()
 
 	err = sftpCli.Upload(ctx, o.Source, o.Dest, nil)
 	if err != nil {
@@ -477,18 +477,18 @@ func (o *ScpOptions) getOrCreateNodeForPath(provider config.ConfigProvider, path
 	host = strings.TrimSpace(host)
 	user = strings.TrimSpace(user)
 
-	nodeId := provider.Find(host)
-	if nodeId == "" {
-		nodeId = provider.Find(fmt.Sprintf("%s@%s:%d", user, host, port))
+	nodeID := provider.Find(host)
+	if nodeID == "" {
+		nodeID = provider.Find(fmt.Sprintf("%s@%s:%d", user, host, port))
 	}
 
-	if nodeId != "" {
-		updated := o.updateNode(nodeId, provider, specificPassword)
-		return nodeId, updated, nil
+	if nodeID != "" {
+		updated := o.updateNode(nodeID, provider, specificPassword)
+		return nodeID, updated, nil
 	}
 
 	// 创建新节点
-	nodeId = fmt.Sprintf("%s@%s:%d", user, host, port)
+	nodeID = fmt.Sprintf("%s@%s:%d", user, host, port)
 	node := models.Node{
 		HostRef:     fmt.Sprintf("%s:%d", host, port),
 		IdentityRef: fmt.Sprintf("%s@%s", user, host),
@@ -536,14 +536,14 @@ func (o *ScpOptions) getOrCreateNodeForPath(provider config.ConfigProvider, path
 
 	provider.AddHost(node.HostRef, models.Host{Address: host, Port: port})
 	provider.AddIdentity(node.IdentityRef, identity)
-	provider.AddNode(nodeId, node)
+	provider.AddNode(nodeID, node)
 
-	return nodeId, true, nil
+	return nodeID, true, nil
 }
 
-func (o *ScpOptions) updateNode(nodeId string, provider config.ConfigProvider, specificPassword string) bool {
-	node, _ := provider.GetNode(nodeId)
-	identity, _ := provider.GetIdentity(nodeId)
+func (o *ScpOptions) updateNode(nodeID string, provider config.ConfigProvider, specificPassword string) bool {
+	node, _ := provider.GetNode(nodeID)
+	identity, _ := provider.GetIdentity(nodeID)
 	updated := false
 
 	password := specificPassword

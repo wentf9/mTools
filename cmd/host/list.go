@@ -50,13 +50,13 @@ func NewCmdInventoryList() *cobra.Command {
 			}
 			sort.Strings(keys)
 
-			for _, nodeId := range keys {
-				node := nodes[nodeId]
-				host, _ := provider.GetHost(nodeId)
-				identity, _ := provider.GetIdentity(nodeId)
+			for _, nodeID := range keys {
+				node := nodes[nodeID]
+				host, _ := provider.GetHost(nodeID)
+				identity, _ := provider.GetIdentity(nodeID)
 
 				_, _ = fmt.Fprintf(w, "%s\t%s\t%s\t%s\t%s\t%s\t%s\n",
-					nodeId,
+					nodeID,
 					strings.Join(node.Alias, ", "),
 					fmt.Sprintf("%s:%d", host.Address, host.Port),
 					identity.User,

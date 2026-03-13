@@ -31,16 +31,16 @@ func GetLocalSudoPassword() string {
 		return ""
 	}
 
-	nodeId := provider.Find("localhost")
-	if nodeId == "" {
-		nodeId = provider.Find("local")
+	nodeID := provider.Find("localhost")
+	if nodeID == "" {
+		nodeID = provider.Find("local")
 	}
-	if nodeId == "" {
-		nodeId = provider.Find(GetCurrentUser())
+	if nodeID == "" {
+		nodeID = provider.Find(GetCurrentUser())
 	}
 
-	if nodeId != "" {
-		if id, ok := provider.GetIdentity(nodeId); ok {
+	if nodeID != "" {
+		if id, ok := provider.GetIdentity(nodeID); ok {
 			return id.Password
 		}
 	}
@@ -50,8 +50,8 @@ func GetLocalSudoPassword() string {
 // ParseAddr 解析 user@host:port 格式的字符串
 func ParseAddr(input string) (string, string, uint16) {
 	input = strings.TrimSpace(input)
-	var user, host string = "", ""
-	var port uint16 = 0
+	var user, host string
+	var port uint16
 	if atIndex := strings.LastIndex(input, ":"); atIndex != -1 {
 		p := ParsePort(input[atIndex+1:])
 		if p != 0 {
@@ -69,8 +69,8 @@ func ParseAddr(input string) (string, string, uint16) {
 
 // ParseHost 解析 host:port 格式的字符串
 func ParseHost(input string) (string, uint16) {
-	var host string = ""
-	var port uint16 = 0
+	var host string
+	var port uint16
 	if atIndex := strings.Index(input, ":"); atIndex != -1 {
 		port = ParsePort(input[atIndex+1:])
 		input = input[:atIndex]
@@ -118,7 +118,7 @@ func GetPasswordFilePath() string {
 // ReadPasswordFromTerminal 从终端安全地读取密码
 func ReadPasswordFromTerminal(prompt string) (string, error) {
 	fmt.Print(prompt)
-	password, err := term.ReadPassword(int(syscall.Stdin))
+	password, err := term.ReadPassword(syscall.Stdin)
 	fmt.Println()
 	if err != nil {
 		return "", err
