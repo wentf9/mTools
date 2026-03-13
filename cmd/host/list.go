@@ -42,7 +42,7 @@ func NewCmdInventoryList() *cobra.Command {
 			}
 
 			w := tabwriter.NewWriter(os.Stdout, 0, 0, 3, ' ', 0)
-			fmt.Fprintln(w, "名称/ID\t别名\t主机地址\t用户\t认证方式\t跳板机\t标签")
+			_, _ = fmt.Fprintln(w, "名称/ID\t别名\t主机地址\t用户\t认证方式\t跳板机\t标签")
 
 			keys := make([]string, 0, len(nodes))
 			for k := range nodes {
@@ -55,7 +55,7 @@ func NewCmdInventoryList() *cobra.Command {
 				host, _ := provider.GetHost(nodeId)
 				identity, _ := provider.GetIdentity(nodeId)
 
-				fmt.Fprintf(w, "%s\t%s\t%s\t%s\t%s\t%s\t%s\n",
+				_, _ = fmt.Fprintf(w, "%s\t%s\t%s\t%s\t%s\t%s\t%s\n",
 					nodeId,
 					strings.Join(node.Alias, ", "),
 					fmt.Sprintf("%s:%d", host.Address, host.Port),
@@ -65,7 +65,7 @@ func NewCmdInventoryList() *cobra.Command {
 					strings.Join(node.Tags, ", "),
 				)
 			}
-			w.Flush()
+			_ = w.Flush()
 		},
 	}
 	cmd.Flags().StringVarP(&tagFilter, "tag", "t", "", "按标签筛选节点")
@@ -97,7 +97,7 @@ func NewCmdInventoryTags() *cobra.Command {
 			}
 
 			w := tabwriter.NewWriter(os.Stdout, 0, 0, 3, ' ', 0)
-			fmt.Fprintln(w, "标签\t节点数量")
+			_, _ = fmt.Fprintln(w, "标签\t节点数量")
 
 			tags := make([]string, 0, len(tagMap))
 			for t := range tagMap {
@@ -106,9 +106,9 @@ func NewCmdInventoryTags() *cobra.Command {
 			sort.Strings(tags)
 
 			for _, t := range tags {
-				fmt.Fprintf(w, "%s\t%d\n", t, tagMap[t])
+				_, _ = fmt.Fprintf(w, "%s\t%d\n", t, tagMap[t])
 			}
-			w.Flush()
+			_ = w.Flush()
 		},
 	}
 }

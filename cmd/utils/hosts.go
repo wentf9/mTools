@@ -33,7 +33,7 @@ func ReadCSVFile(path string) ([]HostInfo, error) {
 		}
 		return nil, fmt.Errorf("无法打开CSV文件: %v", err)
 	}
-	defer file.Close()
+	defer func() { _ = file.Close() }()
 
 	reader := csv.NewReader(file)
 	// 允许不一致的列数（可选，视CSV规范而定）

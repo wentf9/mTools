@@ -86,7 +86,7 @@ func ExecuteLoadHost(hosts []utils.HostInfo) error {
 				logger.PrintErrorf("[%s] 验证失败: %v", h.Host, err)
 				return
 			}
-			client.Close()
+			_ = client.Close()
 
 			logger.PrintSuccessf("[%s] 验证通过并已保存", h.Host)
 
