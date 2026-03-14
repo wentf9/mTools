@@ -7,6 +7,7 @@ import (
 	"github.com/spf13/cobra"
 	"github.com/wentf9/xops-cli/cmd/utils"
 	"github.com/wentf9/xops-cli/pkg/executor"
+	"github.com/wentf9/xops-cli/pkg/i18n"
 	"github.com/wentf9/xops-cli/pkg/logger"
 )
 
@@ -18,13 +19,9 @@ var (
 // sudoCmd represents the sudo command
 var sudoCmd = &cobra.Command{
 	Use:   "sudo [command]",
-	Short: "在本机sudo执行命令",
-	Long: `在本机sudo执行命令，支持从配置文件中自动获取密码。
-示例:
-  xops sudo "ss -tlpn"
-  xops sudo -s
-  xops sudo "firewall-cmd --list-all" -p mypassword`,
-	Args: cobra.ArbitraryArgs,
+	Short: i18n.T("sudo_short"),
+	Long:  i18n.T("sudo_long"),
+	Args:  cobra.ArbitraryArgs,
 	RunE: func(cmd *cobra.Command, args []string) error {
 		// 1. 获取密码
 		pwd := sudoPassword
@@ -34,7 +31,7 @@ var sudoCmd = &cobra.Command{
 		}
 		if pwd == "" {
 
-			p, err := utils.ReadPasswordFromTerminal("请输入sudo密码(无密码请直接回车):")
+			p, err := utils.ReadPasswordFromTerminal(i18n.T("prompt_sudo_password"))
 			if err == nil {
 				pwd = p
 			}
@@ -53,7 +50,7 @@ var sudoCmd = &cobra.Command{
 		fullCmd := strings.Join(args, " ")
 		output, err := exec.RunWithSudo(context.Background(), fullCmd)
 		if err != nil {
-			logger.PrintErrorf("sudo执行失败: %v", err)
+			logger.PrintError(i18n.Tf("sudo_exec_failed", map[string]any{"Error": err}))
 			return nil
 		}
 		// sudo 输出保持纯净，因为直接展示目标机回显
@@ -64,6 +61,6 @@ var sudoCmd = &cobra.Command{
 
 func init() {
 	rootCmd.AddCommand(sudoCmd)
-	sudoCmd.Flags().StringVarP(&sudoPassword, "passwd", "p", "", "本地 sudo 密码")
-	sudoCmd.Flags().BoolVarP(&sudoShell, "shell", "s", false, "直接进入 root 环境 (类似 sudo -s)")
+	sudoCmd.Flags().StringVarP(&sudoPassword, "passwd", "p", "", i18n.T("flag_sudo_passwd"))
+	sudoCmd.Flags().BoolVarP(&sudoShell, "shell", "s", false, i18n.T("flag_sudo_shell"))
 }

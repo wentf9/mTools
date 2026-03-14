@@ -131,9 +131,19 @@ func Printf(format string, args ...any) {
 	fmt.Printf(format, args...)
 }
 
+// PrintInfo 打印纯净信息 (带蓝色文本修饰)
+func PrintInfo(msg string) {
+	fmt.Printf("%s%s%s\n", colorBlue, msg, colorReset)
+}
+
 // PrintInfof 打印纯净信息 (带蓝色文本修饰，但无[INFO]此类日志式前缀)
 func PrintInfof(format string, args ...any) {
 	fmt.Printf("%s%s%s\n", colorBlue, fmt.Sprintf(format, args...), colorReset)
+}
+
+// PrintSuccess 打印成功信号 (带绿色彩色文本修饰)
+func PrintSuccess(msg string) {
+	fmt.Printf("%s%s%s\n", colorGreen, msg, colorReset)
 }
 
 // PrintSuccessf 打印成功信号 (带绿色彩色文本修饰，无日志式前缀)
@@ -141,9 +151,19 @@ func PrintSuccessf(format string, args ...any) {
 	fmt.Printf("%s%s%s\n", colorGreen, fmt.Sprintf(format, args...), colorReset)
 }
 
+// PrintWarn 打印警告信息 (黄色彩色文本修饰，输出给 stderr)
+func PrintWarn(msg string) {
+	fmt.Fprintf(os.Stderr, "%s%s%s\n", colorYellow, msg, colorReset)
+}
+
 // PrintWarnf 打印警告信息 (黄色彩色文本修饰，输出给 stderr)
 func PrintWarnf(format string, args ...any) {
 	fmt.Fprintf(os.Stderr, "%s%s%s\n", colorYellow, fmt.Sprintf(format, args...), colorReset)
+}
+
+// PrintError 打印纯净错误信号 (带红色彩色文本修饰，输出给 stderr)
+func PrintError(msg string) {
+	fmt.Fprintf(os.Stderr, "%s%s%s\n", colorRed, msg, colorReset)
 }
 
 // PrintErrorf 打印纯净错误信号 (带红色彩色文本修饰，输出给 stderr)

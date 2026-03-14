@@ -96,6 +96,31 @@ xops firewall port 80 --proto tcp
 ```
 配置完成后，您的 AI Agent 即可直接查询您的主机节点并自动帮您执行管理指令。
 
+## 🌐 国际化 (i18n)
+
+xops 支持简体中文和英文两种界面语言，默认语言为中文。
+
+### 切换语言
+
+语言检测按以下优先级：`--lang` flag > `XOPS_LANG` 环境变量 > `LANG` 环境变量 > 默认中文
+
+```bash
+# 方式一：通过 --lang flag（对当前命令生效）
+xops --lang en ssh web-01
+
+# 方式二：通过环境变量（对整个会话生效）
+export XOPS_LANG=en
+xops host list
+```
+
+### 为翻译做贡献
+
+翻译文件位于 `pkg/i18n/locales/` 目录下：
+- `active.zh.yaml` — 简体中文
+- `active.en.yaml` — English
+
+如需添加新的翻译 key，请在两个文件中同时添加。翻译使用 [go-i18n](https://github.com/nicksnyder/go-i18n) 格式，支持 `{{.Var}}` 模板变量。
+
 ## 📂 配置文件
 
 工具默认将配置存储在用户家目录下的 `.xops` 文件夹中：

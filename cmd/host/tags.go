@@ -6,13 +6,14 @@ import (
 
 	"github.com/spf13/cobra"
 	"github.com/wentf9/xops-cli/cmd/utils"
+	"github.com/wentf9/xops-cli/pkg/i18n"
 	"github.com/wentf9/xops-cli/pkg/logger"
 )
 
 func NewCmdInventoryTagAdd() *cobra.Command {
 	return &cobra.Command{
 		Use:   "add [tag_name] [node1,node2...]",
-		Short: "将节点加入标签组",
+		Short: i18n.T("inventory_tag_add_short"),
 		Args:  cobra.ExactArgs(2),
 		RunE: func(cmd *cobra.Command, args []string) error {
 			tagName := strings.TrimSpace(args[0])
@@ -51,7 +52,7 @@ func NewCmdInventoryTagAdd() *cobra.Command {
 				if err := store.Save(cfg); err != nil {
 					return err
 				}
-				logger.PrintSuccessf("成功将 %d 个节点加入标签组 [%s]", updatedCount, tagName)
+				logger.PrintSuccess(i18n.Tf("tag_add_success", map[string]any{"Count": updatedCount, "Tag": tagName}))
 			}
 			return nil
 		},
@@ -61,7 +62,7 @@ func NewCmdInventoryTagAdd() *cobra.Command {
 func NewCmdInventoryTagRemove() *cobra.Command {
 	return &cobra.Command{
 		Use:   "remove [tag_name] [node1,node2...]",
-		Short: "从指定标签移除节点",
+		Short: i18n.T("inventory_tag_remove_short"),
 		Args:  cobra.ExactArgs(2),
 		RunE: func(cmd *cobra.Command, args []string) error {
 			tagName := strings.TrimSpace(args[0])
@@ -101,7 +102,7 @@ func NewCmdInventoryTagRemove() *cobra.Command {
 				if err := store.Save(cfg); err != nil {
 					return err
 				}
-				logger.PrintSuccessf("成功从 %d 个节点中移除了标签 [%s]", updatedCount, tagName)
+				logger.PrintSuccess(i18n.Tf("tag_remove_success", map[string]any{"Count": updatedCount, "Tag": tagName}))
 			}
 			return nil
 		},

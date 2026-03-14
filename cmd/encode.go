@@ -11,6 +11,7 @@ import (
 	"strings"
 
 	"github.com/spf13/cobra"
+	"github.com/wentf9/xops-cli/pkg/i18n"
 	"golang.org/x/term"
 )
 
@@ -22,8 +23,8 @@ var (
 // encodeCmd represents the exec command
 var encodeCmd = &cobra.Command{
 	Use:   "encode [command] [-d] args",
-	Short: "进行各种编解码操作",
-	Long:  `对提供的字符串进行编解码操作`,
+	Short: i18n.T("encode_short"),
+	Long:  i18n.T("encode_long"),
 	// PersistentPreRun: func(cmd *cobra.Command, args []string) {
 	// 	rootCmd.PersistentPostRun(rootCmd, args)
 	// 	if !isTerminal {
@@ -44,8 +45,8 @@ var encodeCmd = &cobra.Command{
 // urlCmd represents the exec command
 var urlCmd = &cobra.Command{
 	Use:   "url [-d] args",
-	Short: "进行urlEncode/urlDecode操作",
-	Long:  `对提供的字符串进行url编解码操作`,
+	Short: i18n.T("url_short"),
+	Long:  i18n.T("url_long"),
 	Args:  argsValidator,
 	Run: func(cmd *cobra.Command, args []string) {
 		if len(args) == 0 && stdinData != "" {
@@ -68,8 +69,8 @@ var urlCmd = &cobra.Command{
 // base64Cmd represents the exec command
 var base64Cmd = &cobra.Command{
 	Use:   "base64 [-d] args",
-	Short: "进行base64Encode/base64Decode操作",
-	Long:  `对提供的字符串进行base64编解码操作`,
+	Short: i18n.T("base64_short"),
+	Long:  i18n.T("base64_long"),
 	Args:  argsValidator,
 	Run: func(cmd *cobra.Command, args []string) {
 		urlMode, _ := cmd.Flags().GetBool("url")
@@ -111,8 +112,8 @@ var base64Cmd = &cobra.Command{
 // utf8Cmd represents the exec command
 var utf8Cmd = &cobra.Command{
 	Use:   "utf8 [-d] args",
-	Short: "进行utf-8编解码操作",
-	Long:  `对提供的字符串进行utf-8编解码操作`,
+	Short: i18n.T("utf8_short"),
+	Long:  i18n.T("utf8_long"),
 	Args:  argsValidator,
 	Run: func(cmd *cobra.Command, args []string) {
 		if len(args) == 0 && stdinData != "" {
@@ -135,8 +136,8 @@ var utf8Cmd = &cobra.Command{
 // unicodeCmd represents the exec command
 var unicodeCmd = &cobra.Command{
 	Use:   "unicode [-d] args",
-	Short: "进行Unicode编解码操作",
-	Long:  `对提供的字符串进行unicode编解码操作`,
+	Short: i18n.T("unicode_short"),
+	Long:  i18n.T("unicode_long"),
 	Args:  argsValidator,
 	Run: func(cmd *cobra.Command, args []string) {
 		if len(args) == 0 && stdinData != "" {
@@ -182,9 +183,9 @@ func init() {
 	encodeCmd.AddCommand(utf8Cmd)
 	encodeCmd.AddCommand(base64Cmd)
 
-	encodeCmd.PersistentFlags().BoolVarP(&isDecode, "decode", "d", false, "切换到解码模式")
+	encodeCmd.PersistentFlags().BoolVarP(&isDecode, "decode", "d", false, i18n.T("flag_decode"))
 
-	base64Cmd.Flags().BoolP("url", "u", false, "切换到url模式(base64串中只包含URL安全字符)")
+	base64Cmd.Flags().BoolP("url", "u", false, i18n.T("flag_base64_url"))
 }
 
 func stringToUnicode(s string) string {

@@ -10,53 +10,42 @@ import (
 
 	ping "github.com/prometheus-community/pro-bing"
 	"github.com/spf13/cobra"
+	"github.com/wentf9/xops-cli/pkg/i18n"
 	"github.com/wentf9/xops-cli/pkg/logger"
 )
 
 // pingCmd represents the ping command
 var pingCmd = &cobra.Command{
 	Use:   "ping <ip> [port]",
-	Short: "通过ICMP Ping主机或检查主机的TCP端口是否开放",
-	Long: `该命令有两种工作模式:
-1. ICMP Ping (1个参数):
-   当只提供一个IP地址或主机名时,它会发送ICMP请求来测试网络连通性,类似于系统自带的ping工具
-   示例: xops ping 8.8.8.8
-   linux系统发送icmp请求需要具有权限,需要使用以下方法才能执行:
-   修改 net.ipv4.ping_group_range 参数: sysctl net.ipv4.ping_group_range="0 2147483647"
-   设置文件功能参数: setcap cap_net_raw+eip /path/to/xops   使用sudo执行或切换至root用户执行
-
-2. TCP端口检查 (2个参数):
-   当提供IP地址/主机名和端口号时,它会尝试建立TCP连接来判断端口是否开放。
-   示例: xops ping 8.8.8.8 53`,
-	Args: cobra.RangeArgs(1, 2),
+	Short: i18n.T("ping_short"),
+	Long:  i18n.T("ping_long"),
+	Args:  cobra.RangeArgs(1, 2),
 	RunE: func(cmd *cobra.Command, args []string) error {
 		ip := args[0]
 
 		if resolve, err := net.ResolveIPAddr("ip", ip); err != nil {
 			return fmt.Errorf("提供的主机名无法解析为ip地址: %w", err)
 		} else {
-			logger.PrintInfof("主机名 [%s] 的IP地址为: [%s]", ip, resolve.String())
+			logger.PrintInfo(i18n.Tf("ping_resolve_info", map[string]any{"Host": args[0], "IP": resolve.String()}))
 			ip = resolve.String()
 		}
 
-		// 情况2: 提供了IP和端口，进行TCP端口检查
 		if len(args) == 2 {
 			port := args[1]
 			address := net.JoinHostPort(ip, port)
-			logger.PrintInfof("正在测试到 %s 的TCP连接...", address)
+			logger.PrintInfo(i18n.Tf("ping_tcp_testing", map[string]any{"Address": address}))
 
 			conn, err := net.DialTimeout("tcp", address, 5*time.Second)
 			if err != nil {
-				logger.PrintErrorf("主机 %s 的端口 %s 已关闭或被过滤: %v", ip, port, err)
-				return nil // 命令本身执行成功，所以不返回错误
+				logger.PrintError(i18n.Tf("ping_port_closed", map[string]any{"IP": ip, "Port": port, "Error": err}))
+				return nil
 			}
 			_ = conn.Close()
-			logger.PrintSuccessf("主机 %s 的端口 %s 是开放的!", ip, port)
+			logger.PrintSuccess(i18n.Tf("ping_port_open", map[string]any{"IP": ip, "Port": port}))
 			return nil
 		}
 
-		// 情况1: 只提供了IP，进行ICMP ping
-		logger.PrintInfof("正在通过ICMP Ping %s...", ip)
+		logger.PrintInfo(i18n.Tf("ping_icmp_start", map[string]any{"IP": ip}))
 		pinger, err := ping.NewPinger(ip)
 		if err != nil {
 			return fmt.Errorf("创建pinger失败: %w", err)
@@ -69,11 +58,13 @@ var pingCmd = &cobra.Command{
 		pinger.Timeout = 4 * time.Second
 
 		pinger.OnFinish = func(stats *ping.Statistics) {
-			logger.PrintInfof("\n--- %s 的 ping 统计信息 ---", stats.Addr)
-			logger.PrintInfof("%d 个包已发送, %d 个包已接收, %v%% 包丢失",
-				stats.PacketsSent, stats.PacketsRecv, stats.PacketLoss)
-			logger.PrintInfof("往返行程 最小/平均/最大/标准差 = %v/%v/%v/%v",
-				stats.MinRtt, stats.AvgRtt, stats.MaxRtt, stats.StdDevRtt)
+			logger.PrintInfo(i18n.Tf("ping_stats_header", map[string]any{"Addr": stats.Addr}))
+			logger.PrintInfo(i18n.Tf("ping_stats_packets", map[string]any{
+				"Sent": stats.PacketsSent, "Recv": stats.PacketsRecv, "Loss": stats.PacketLoss,
+			}))
+			logger.PrintInfo(i18n.Tf("ping_stats_rtt", map[string]any{
+				"Min": stats.MinRtt, "Avg": stats.AvgRtt, "Max": stats.MaxRtt, "StdDev": stats.StdDevRtt,
+			}))
 		}
 
 		return pinger.Run() // 此处会阻塞直到ping结束

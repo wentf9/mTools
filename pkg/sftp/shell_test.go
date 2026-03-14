@@ -5,9 +5,13 @@ import (
 	"context"
 	"strings"
 	"testing"
+
+	"github.com/wentf9/xops-cli/pkg/i18n"
 )
 
 func TestDispatchCommand(t *testing.T) {
+	i18n.Init("zh")
+
 	var stdout bytes.Buffer
 	var stderr bytes.Buffer
 

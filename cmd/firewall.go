@@ -11,6 +11,7 @@ import (
 	"github.com/wentf9/xops-cli/pkg/config"
 	"github.com/wentf9/xops-cli/pkg/executor"
 	"github.com/wentf9/xops-cli/pkg/firewall"
+	"github.com/wentf9/xops-cli/pkg/i18n"
 	"github.com/wentf9/xops-cli/pkg/logger"
 	"github.com/wentf9/xops-cli/pkg/ssh"
 
@@ -42,9 +43,8 @@ var fwOptions = NewFirewallOptions()
 
 var firewallCmd = &cobra.Command{
 	Use:   "firewall",
-	Short: "管理目标主机的防火墙设置",
-	Long: `支持多后端 (firewalld, ufw, iptables, nftables) 的防火墙管理工具。
-会自动探测目标主机使用的防火墙类型。`,
+	Short: i18n.T("firewall_short"),
+	Long:  i18n.T("firewall_long"),
 	Run: func(cmd *cobra.Command, args []string) {
 		_ = cmd.Help()
 	},
@@ -58,17 +58,16 @@ func init() {
 	firewallCmd.AddCommand(newFirewallRuleCmd())
 	firewallCmd.AddCommand(newFirewallReloadCmd())
 
-	// 通用参数
-	firewallCmd.PersistentFlags().StringVarP(&fwOptions.Host, "host", "H", "", "目标主机/连接别名,多个用逗号分隔")
-	firewallCmd.PersistentFlags().StringVarP(&fwOptions.HostFile, "ifile", "I", "", "主机列表文件(每行一个主机名或别名)")
-	firewallCmd.PersistentFlags().StringVarP(&fwOptions.User, "user", "u", "", "SSH用户名")
-	firewallCmd.PersistentFlags().StringVarP(&fwOptions.Password, "password", "w", "", "SSH密码")
-	firewallCmd.PersistentFlags().IntVar(&fwOptions.TaskCount, "task", 1, "并行任务数")
+	firewallCmd.PersistentFlags().StringVarP(&fwOptions.Host, "host", "H", "", i18n.T("flag_fw_host"))
+	firewallCmd.PersistentFlags().StringVarP(&fwOptions.HostFile, "ifile", "I", "", i18n.T("flag_fw_ifile"))
+	firewallCmd.PersistentFlags().StringVarP(&fwOptions.User, "user", "u", "", i18n.T("flag_fw_user"))
+	firewallCmd.PersistentFlags().StringVarP(&fwOptions.Password, "password", "w", "", i18n.T("flag_fw_password"))
+	firewallCmd.PersistentFlags().IntVar(&fwOptions.TaskCount, "task", 1, i18n.T("flag_fw_task"))
 
-	firewallCmd.PersistentFlags().StringVar(&fwOptions.Protocol, "proto", "tcp", "协议类型 (tcp/udp)")
-	firewallCmd.PersistentFlags().BoolVarP(&fwOptions.Remove, "remove", "r", false, "是否删除规则")
-	firewallCmd.PersistentFlags().BoolVar(&fwOptions.Reload, "reload", false, "操作后是否重载")
-	firewallCmd.PersistentFlags().StringVarP(&fwOptions.Zone, "zone", "z", "", "防火墙区域 (仅 firewalld)")
+	firewallCmd.PersistentFlags().StringVar(&fwOptions.Protocol, "proto", "tcp", i18n.T("flag_fw_proto"))
+	firewallCmd.PersistentFlags().BoolVarP(&fwOptions.Remove, "remove", "r", false, i18n.T("flag_fw_remove"))
+	firewallCmd.PersistentFlags().BoolVar(&fwOptions.Reload, "reload", false, i18n.T("flag_fw_reload"))
+	firewallCmd.PersistentFlags().StringVarP(&fwOptions.Zone, "zone", "z", "", i18n.T("flag_fw_zone"))
 }
 
 func (o *FirewallOptions) RunOnHosts(ctx context.Context, action func(fw firewall.Firewall) (string, error)) error {
@@ -92,13 +91,13 @@ func (o *FirewallOptions) runLocalFirewall(ctx context.Context, action func(fw f
 	}
 	out, err := action(fw)
 	if err != nil {
-		logger.PrintErrorf("[LOCAL] (%s) Error: %v\nOutput: %s", fw.Name(), err, out)
+		logger.PrintError(i18n.Tf("fw_action_failed", map[string]any{"Host": "LOCAL", "Error": err, "Output": out}))
 	} else {
-		logger.PrintSuccessf("[LOCAL] (%s) Success\n%s", fw.Name(), out)
+		logger.PrintSuccess(i18n.Tf("fw_action_success", map[string]any{"Host": "LOCAL", "FwName": fw.Name(), "Output": out}))
 	}
 	if o.Reload {
 		if _, err := fw.Reload(ctx); err != nil {
-			logger.PrintErrorf("[LOCAL] 重启防火墙失败: %v", err)
+			logger.PrintError(i18n.Tf("fw_local_reload_failed", map[string]any{"Error": err}))
 		}
 	}
 	return nil
@@ -139,7 +138,7 @@ func (o *FirewallOptions) runRemoteFirewalls(ctx context.Context, action func(fw
 
 	wp.Wait()
 	if err := configStore.Save(cfg); err != nil {
-		logger.PrintErrorf("保存配置失败: %v", err)
+		logger.PrintError(i18n.Tf("save_config_failed", map[string]any{"Error": err}))
 	}
 	return nil
 }
@@ -170,33 +169,33 @@ func (o *FirewallOptions) executeOnSingleHost(ctx context.Context, h string, pro
 		}
 
 		if nodeID == "" {
-			logger.PrintErrorf("[%s@%s:%d] 未找到该主机匹配的节点配置，请先通过 inventory 添加", u, hs, p)
+			logger.PrintError(i18n.Tf("fw_node_not_found", map[string]any{"User": u, "Host": hs, "Port": p}))
 			return
 		}
 
 		client, err := connector.Connect(ctx, nodeID)
 		if err != nil {
-			logger.PrintErrorf("[%s] 连接失败: %v", rawHost, err)
+			logger.PrintError(i18n.Tf("fw_connect_failed", map[string]any{"Host": rawHost, "Error": err}))
 			return
 		}
 
 		exec := executor.NewSSHExecutor(client)
 		fw, err := firewall.DetectFirewall(ctx, exec)
 		if err != nil {
-			logger.PrintErrorf("[%s] 探测防火墙失败: %v", rawHost, err)
+			logger.PrintError(i18n.Tf("fw_detect_failed", map[string]any{"Host": rawHost, "Error": err}))
 			return
 		}
 
 		out, err := action(fw)
 		if err != nil {
-			logger.PrintErrorf("[%s] 失败: %v\n输出: %s", rawHost, err, out)
+			logger.PrintError(i18n.Tf("fw_action_failed", map[string]any{"Host": rawHost, "Error": err, "Output": out}))
 		} else {
-			logger.PrintSuccessf("[%s] 成功 (%s)\n%s", rawHost, fw.Name(), out)
+			logger.PrintSuccess(i18n.Tf("fw_action_success", map[string]any{"Host": rawHost, "FwName": fw.Name(), "Output": out}))
 		}
 
 		if o.Reload {
 			if _, err := fw.Reload(ctx); err != nil {
-				logger.PrintErrorf("[%s] 重启防火墙失败: %v", rawHost, err)
+				logger.PrintError(i18n.Tf("fw_reload_failed", map[string]any{"Host": rawHost, "Error": err}))
 			}
 		}
 	})
@@ -205,7 +204,7 @@ func (o *FirewallOptions) executeOnSingleHost(ctx context.Context, h string, pro
 func newFirewallListCmd() *cobra.Command {
 	return &cobra.Command{
 		Use:   "list",
-		Short: "列出规则",
+		Short: i18n.T("firewall_list_short"),
 		RunE: func(cmd *cobra.Command, args []string) error {
 			return fwOptions.RunOnHosts(context.Background(), func(fw firewall.Firewall) (string, error) {
 				return fw.ListRules(context.Background())
@@ -217,7 +216,7 @@ func newFirewallListCmd() *cobra.Command {
 func newFirewallPortCmd() *cobra.Command {
 	return &cobra.Command{
 		Use:   "port <ports>",
-		Short: "管理端口规则 (例如: 80, 8080-8090)",
+		Short: i18n.T("firewall_port_short"),
 		Args:  cobra.MinimumNArgs(1),
 		RunE: func(cmd *cobra.Command, args []string) error {
 			return fwOptions.RunOnHosts(context.Background(), func(fw firewall.Firewall) (string, error) {
@@ -258,7 +257,7 @@ func newFirewallPortCmd() *cobra.Command {
 func newFirewallServiceCmd() *cobra.Command {
 	return &cobra.Command{
 		Use:   "service <services>",
-		Short: "管理服务规则 (例如: http, https)",
+		Short: i18n.T("firewall_service_short"),
 		Args:  cobra.MinimumNArgs(1),
 		RunE: func(cmd *cobra.Command, args []string) error {
 			return fwOptions.RunOnHosts(context.Background(), func(fw firewall.Firewall) (string, error) {
@@ -298,7 +297,7 @@ func newFirewallServiceCmd() *cobra.Command {
 func newFirewallRuleCmd() *cobra.Command {
 	cmd := &cobra.Command{
 		Use:   "rule [port] <source_ip>",
-		Short: "管理复杂规则 (带源 IP)",
+		Short: i18n.T("firewall_rule_short"),
 		Args:  cobra.RangeArgs(1, 2),
 		RunE: func(cmd *cobra.Command, args []string) error {
 			var portStr, sourceStr string
@@ -366,7 +365,7 @@ func newFirewallRuleCmd() *cobra.Command {
 func newFirewallReloadCmd() *cobra.Command {
 	return &cobra.Command{
 		Use:   "reload",
-		Short: "重载防火墙",
+		Short: i18n.T("firewall_reload_short"),
 		RunE: func(cmd *cobra.Command, args []string) error {
 			return fwOptions.RunOnHosts(context.Background(), func(fw firewall.Firewall) (string, error) {
 				return fw.Reload(context.Background())

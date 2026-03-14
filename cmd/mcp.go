@@ -8,6 +8,7 @@ import (
 	"syscall"
 
 	"github.com/spf13/cobra"
+	"github.com/wentf9/xops-cli/pkg/i18n"
 	"github.com/wentf9/xops-cli/pkg/logger"
 	"github.com/wentf9/xops-cli/pkg/mcpserver"
 )
@@ -15,8 +16,8 @@ import (
 func NewCmdMcp() *cobra.Command {
 	cmd := &cobra.Command{
 		Use:   "mcp",
-		Short: "启动 MCP (Model Context Protocol) 服务端",
-		Long:  `以标准输入输出 (Stdio) 启动 MCP 服务端，供 Agent 调用。开启后所有常规业务输出与日志将会被屏蔽。`,
+		Short: i18n.T("mcp_short"),
+		Long:  i18n.T("mcp_long"),
 		RunE: func(cmd *cobra.Command, args []string) error {
 			// MCP server 必须完全静默，避免污染 stdout json-rpc 流
 			logger.SetLogLevel("none")

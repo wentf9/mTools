@@ -5,6 +5,7 @@ import (
 
 	"github.com/spf13/cobra"
 	"github.com/wentf9/xops-cli/cmd/utils"
+	"github.com/wentf9/xops-cli/pkg/i18n"
 	"github.com/wentf9/xops-cli/pkg/logger"
 	"github.com/wentf9/xops-cli/pkg/models"
 )
@@ -20,7 +21,7 @@ func NewCmdInventoryEdit() *cobra.Command {
 
 	cmd := &cobra.Command{
 		Use:   "edit [node_id]",
-		Short: "修改已存储节点的信息",
+		Short: i18n.T("inventory_edit_short"),
 		Args:  cobra.ExactArgs(1),
 		RunE: func(cmd *cobra.Command, args []string) error {
 			query := args[0]
@@ -58,22 +59,22 @@ func NewCmdInventoryEdit() *cobra.Command {
 				if err := store.Save(cfg); err != nil {
 					return err
 				}
-				logger.PrintSuccessf("成功更新节点信息，当前 ID 为: %s", newName)
+				logger.PrintSuccess(i18n.Tf("node_update_success", map[string]any{"Name": newName}))
 			} else {
-				logger.PrintWarnf("未提供任何修改项")
+				logger.PrintWarn(i18n.T("node_no_changes"))
 			}
 			return nil
 		},
 	}
 
-	cmd.Flags().StringVarP(&flags.address, "address", "H", "", "修改主机 IP 或域名")
-	cmd.Flags().Uint16VarP(&flags.port, "port", "p", 0, "修改 SSH 端口")
-	cmd.Flags().StringVarP(&flags.user, "user", "u", "", "修改 SSH 用户名")
-	cmd.Flags().StringVarP(&flags.password, "password", "P", "", "修改 SSH 密码")
-	cmd.Flags().StringVarP(&flags.keyPath, "key", "k", "", "修改 SSH 私钥路径")
-	cmd.Flags().StringVarP(&flags.keyPass, "key-pass", "w", "", "修改私钥密码")
-	cmd.Flags().StringSliceVarP(&flags.alias, "alias", "a", []string{}, "修改节点别名")
-	cmd.Flags().StringVarP(&flags.jump, "jump", "j", "", "修改跳板机名称")
+	cmd.Flags().StringVarP(&flags.address, "address", "H", "", i18n.T("flag_inv_edit_address"))
+	cmd.Flags().Uint16VarP(&flags.port, "port", "p", 0, i18n.T("flag_inv_edit_port"))
+	cmd.Flags().StringVarP(&flags.user, "user", "u", "", i18n.T("flag_inv_edit_user"))
+	cmd.Flags().StringVarP(&flags.password, "password", "P", "", i18n.T("flag_inv_edit_password"))
+	cmd.Flags().StringVarP(&flags.keyPath, "key", "k", "", i18n.T("flag_inv_edit_key"))
+	cmd.Flags().StringVarP(&flags.keyPass, "key-pass", "w", "", i18n.T("flag_inv_edit_key_pass"))
+	cmd.Flags().StringSliceVarP(&flags.alias, "alias", "a", []string{}, i18n.T("flag_inv_edit_alias"))
+	cmd.Flags().StringVarP(&flags.jump, "jump", "j", "", i18n.T("flag_inv_edit_jump"))
 	return cmd
 }
 
@@ -107,7 +108,7 @@ func applyNodeUpdates(cmd *cobra.Command, host *models.Host, identity *models.Id
 func NewCmdInventoryDelete() *cobra.Command {
 	return &cobra.Command{
 		Use:   "delete [name]",
-		Short: "删除一个存储的节点",
+		Short: i18n.T("inventory_delete_short"),
 		Args:  cobra.ExactArgs(1),
 		RunE: func(cmd *cobra.Command, args []string) error {
 			query := args[0]
@@ -124,7 +125,7 @@ func NewCmdInventoryDelete() *cobra.Command {
 			if err := store.Save(cfg); err != nil {
 				return err
 			}
-			logger.PrintSuccessf("成功删除节点: %s", name)
+			logger.PrintSuccess(i18n.Tf("node_delete_success", map[string]any{"Name": name}))
 			return nil
 		},
 	}

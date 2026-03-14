@@ -12,6 +12,7 @@ import (
 	"github.com/spf13/cobra"
 	cmdutils "github.com/wentf9/xops-cli/cmd/utils"
 	"github.com/wentf9/xops-cli/pkg/config"
+	"github.com/wentf9/xops-cli/pkg/i18n"
 	"github.com/wentf9/xops-cli/pkg/logger"
 	"github.com/wentf9/xops-cli/pkg/models"
 	"github.com/wentf9/xops-cli/pkg/sftp"
@@ -44,18 +45,8 @@ func NewCmdScp() *cobra.Command {
 	o := NewScpOptions()
 	cmd := &cobra.Command{
 		Use:   "scp [[user@]host:]source [[user@]host:]dest",
-		Short: "在本地和远程主机之间传输文件",
-		Long: `在本地和远程主机之间传输文件，支持多台主机并行传输。
-支持以下场景:
-1. 从本地上传到远程: xops scp local_path user@host:remote_path
-2. 从远程下载到本地: xops scp user@host:remote_path local_path
-3. 远程到远程传输: xops scp user1@host1:path1 user2@host2:path2
-4. 批量上传到多台主机: xops scp local_path --dest remote_path -H host1,host2
-5. 按分组传输: xops scp local_path --dest remote_path -t web
-
-通过flags提供主机和用户信息时会覆盖参数提供的信息。
-如果未通过-w选项显式提供密码, 将会从终端输入或通过保存的配置文件读取。
-使用 --tag 时会忽略其他主机指定方式。`,
+		Short: i18n.T("scp_short"),
+		Long:  i18n.T("scp_long"),
 		RunE: func(cmd *cobra.Command, args []string) error {
 			o.Complete(cmd, args)
 			if err := o.Validate(); err != nil {
@@ -65,26 +56,24 @@ func NewCmdScp() *cobra.Command {
 		},
 	}
 
-	// 基础连接参数
-	cmd.Flags().StringVarP(&o.Host, "host", "H", "", "目标主机,多个主机用逗号分隔")
-	cmd.Flags().Uint16VarP(&o.Port, "port", "p", 0, "SSH端口")
-	cmd.Flags().StringVarP(&o.User, "user", "u", "", "SSH用户名")
-	cmd.Flags().StringVarP(&o.Password, "password", "P", "", "SSH密码")
-	cmd.Flags().StringVarP(&o.KeyFile, "key", "i", "", "SSH私钥文件路径")
-	cmd.Flags().StringVarP(&o.KeyPass, "key_pass", "w", "", "SSH私钥密码")
-	cmd.Flags().StringVarP(&o.JumpHost, "jump", "j", "", "跳板机地址[user@]host[:port]")
-	cmd.Flags().StringVarP(&o.Alias, "alias", "a", "", "连接别名")
+	cmd.Flags().StringVarP(&o.Host, "host", "H", "", i18n.T("flag_hosts"))
+	cmd.Flags().Uint16VarP(&o.Port, "port", "p", 0, i18n.T("flag_port"))
+	cmd.Flags().StringVarP(&o.User, "user", "u", "", i18n.T("flag_user"))
+	cmd.Flags().StringVarP(&o.Password, "password", "P", "", i18n.T("flag_password"))
+	cmd.Flags().StringVarP(&o.KeyFile, "key", "i", "", i18n.T("flag_key"))
+	cmd.Flags().StringVarP(&o.KeyPass, "key_pass", "w", "", i18n.T("flag_key_pass"))
+	cmd.Flags().StringVarP(&o.JumpHost, "jump", "j", "", i18n.T("flag_jump"))
+	cmd.Flags().StringVarP(&o.Alias, "alias", "a", "", i18n.T("flag_alias"))
 
-	// SCP 特有参数
-	cmd.Flags().StringVar(&o.Source, "src", "", "源路径 (批量模式使用)")
-	cmd.Flags().StringVar(&o.Dest, "dest", "", "目标路径 (批量模式使用)")
-	cmd.Flags().StringVarP(&o.HostFile, "ifile", "I", "", "主机列表文件路径")
-	cmd.Flags().StringVarP(&o.Tag, "tag", "t", "", "按分组(标签)传输")
-	cmd.Flags().BoolVarP(&o.Recursive, "recursive", "r", false, "递归复制目录")
-	cmd.Flags().BoolVarP(&o.Progress, "progress", "v", false, "显示传输进度")
-	cmd.Flags().BoolVarP(&o.Force, "force", "f", false, "强制覆盖远程文件")
-	cmd.Flags().IntVar(&o.TaskCount, "task", 3, "并行传输的主机数")
-	cmd.Flags().IntVar(&o.ThreadCount, "thread", 4, "单个文件传输的并发线程数")
+	cmd.Flags().StringVar(&o.Source, "src", "", i18n.T("flag_scp_src"))
+	cmd.Flags().StringVar(&o.Dest, "dest", "", i18n.T("flag_scp_dest"))
+	cmd.Flags().StringVarP(&o.HostFile, "ifile", "I", "", i18n.T("flag_ifile"))
+	cmd.Flags().StringVarP(&o.Tag, "tag", "t", "", i18n.T("flag_scp_tag"))
+	cmd.Flags().BoolVarP(&o.Recursive, "recursive", "r", false, i18n.T("flag_recursive"))
+	cmd.Flags().BoolVarP(&o.Progress, "progress", "v", false, i18n.T("flag_progress"))
+	cmd.Flags().BoolVarP(&o.Force, "force", "f", false, i18n.T("flag_force"))
+	cmd.Flags().IntVar(&o.TaskCount, "task", 3, i18n.T("flag_task"))
+	cmd.Flags().IntVar(&o.ThreadCount, "thread", 4, i18n.T("flag_thread"))
 
 	cmd.MarkFlagsMutuallyExclusive("password", "key")
 	cmd.MarkFlagsMutuallyExclusive("host", "ifile", "tag")
@@ -372,16 +361,16 @@ func (o *ScpOptions) runBatch(ctx context.Context, provider config.ConfigProvide
 func (o *ScpOptions) executeTransfer(ctx context.Context, label string, addr PathInfo, specificPassword string, provider config.ConfigProvider, connector *ssh.Connector, configStore config.Store, cfg *config.Configuration) {
 	_, sftpCli, err := o.connectSftpForPath(ctx, addr, specificPassword, provider, connector, configStore, cfg)
 	if err != nil {
-		logger.PrintErrorf("[%s] 错误: %v", label, err)
+		logger.PrintError(i18n.Tf("scp_error", map[string]any{"Label": label, "Error": err}))
 		return
 	}
 	defer func() { _ = sftpCli.Close() }()
 
 	err = sftpCli.Upload(ctx, o.Source, o.Dest, nil)
 	if err != nil {
-		logger.PrintErrorf("[%s] 传输失败: %v", label, err)
+		logger.PrintError(i18n.Tf("scp_transfer_failed", map[string]any{"Label": label, "Error": err}))
 	} else {
-		logger.PrintSuccessf("[%s] 完成", label)
+		logger.PrintSuccess(i18n.Tf("scp_done", map[string]any{"Label": label}))
 	}
 }
 
@@ -392,7 +381,7 @@ func (o *ScpOptions) connectSftpForPath(ctx context.Context, p PathInfo, specifi
 	}
 	if updated {
 		if err := configStore.Save(cfg); err != nil {
-			logger.PrintErrorf("保存配置失败: %v", err)
+			logger.PrintError(i18n.Tf("save_config_failed", map[string]any{"Error": err}))
 		}
 	}
 	client, err := connector.Connect(ctx, nodeId)
@@ -484,7 +473,7 @@ func (o *ScpOptions) createNewNode(provider config.ConfigProvider, host, user st
 	}
 
 	if password == "" && o.KeyFile == "" {
-		pass, err := cmdutils.ReadPasswordFromTerminal(fmt.Sprintf("请输入 %s@%s 的密码: ", user, host))
+		pass, err := cmdutils.ReadPasswordFromTerminal(i18n.Tf("prompt_enter_password_for", map[string]any{"User": user, "Host": host}))
 		if err != nil {
 			return "", false, err
 		}

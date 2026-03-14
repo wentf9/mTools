@@ -1,0 +1,461 @@
+# ============================================================
+# xops-cli English Translation (en)
+# ============================================================
+
+# ---- root ----
+root_short:
+  other: "xops (XOps) is a CLI toolkit for daily operations and development"
+root_long:
+  other: "xops (XOps) is a CLI toolkit\nproviding a variety of utilities to improve daily operations and development efficiency."
+version_short:
+  other: "Print the version number"
+flag_version:
+  other: "Show version information"
+flag_log_level:
+  other: "Set internal diagnostic log level (debug, info, warn, error)"
+flag_debug:
+  other: "Enable debug mode (equivalent to --log-level=debug)"
+flag_lang:
+  other: "Interface language (zh/en)"
+debug_mode_enabled:
+  other: "Debug mode enabled"
+
+# ---- version ----
+version_label:
+  other: "Version:    {{.Version}}"
+commit_label:
+  other: "Git Commit: {{.Commit}}"
+build_time_label:
+  other: "Build Time: {{.BuildTime}}"
+
+# ---- ssh ----
+ssh_short:
+  other: "Connect to a remote host via SSH"
+ssh_long:
+  other: "Connect to a remote host via SSH and open an interactive terminal.\nUsage examples:\nxops ssh user@host[:port]\nxops ssh user host [port]\nxops -h host -u user\nUser and host are required, port defaults to 22.\nWhen provided via flags, flag values override positional arguments.\nIf no password is specified via -p, it will be read from the terminal or a saved config.\nPasswords of successful connections are encrypted and stored at ~/.xops_passwords.json"
+flag_host:
+  other: "Target host / connection alias"
+flag_hosts:
+  other: "Target hosts, comma separated"
+flag_port:
+  other: "SSH port"
+flag_user:
+  other: "SSH username"
+flag_password:
+  other: "SSH password"
+flag_key:
+  other: "SSH private key file path"
+flag_key_pass:
+  other: "SSH private key passphrase"
+flag_sudo:
+  other: "Request sudo privileges"
+flag_jump:
+  other: "Jump host address [user@]host[:port]"
+flag_alias:
+  other: "Connection alias"
+flag_tag:
+  other: "Add tag (group) to node"
+prompt_enter_password:
+  other: "Enter password: "
+prompt_enter_password_for:
+  other: "Enter password for {{.User}}@{{.Host}}: "
+prompt_enter_user_password:
+  other: "Enter password for user {{.User}}: "
+
+# ---- scp ----
+scp_short:
+  other: "Transfer files between local and remote hosts"
+scp_long:
+  other: "Transfer files between local and remote hosts with parallel multi-host support.\nSupported scenarios:\n1. Upload local to remote: xops scp local_path user@host:remote_path\n2. Download remote to local: xops scp user@host:remote_path local_path\n3. Remote to remote: xops scp user1@host1:path1 user2@host2:path2\n4. Batch upload: xops scp local_path --dest remote_path -H host1,host2\n5. Group transfer: xops scp local_path --dest remote_path -t web\n\nFlag values override positional arguments.\nIf no password is specified, it will be read from the terminal or saved config.\nWhen using --tag, other host specification methods are ignored."
+flag_scp_src:
+  other: "Source path (batch mode)"
+flag_scp_dest:
+  other: "Destination path (batch mode)"
+flag_ifile:
+  other: "Host list file path"
+flag_scp_tag:
+  other: "Transfer by group (tag)"
+flag_recursive:
+  other: "Copy directories recursively"
+flag_progress:
+  other: "Show transfer progress"
+flag_force:
+  other: "Force overwrite remote files"
+flag_task:
+  other: "Number of parallel host transfers"
+flag_thread:
+  other: "Concurrent threads per file transfer"
+scp_error:
+  other: "[{{.Label}}] Error: {{.Error}}"
+scp_transfer_failed:
+  other: "[{{.Label}}] Transfer failed: {{.Error}}"
+scp_done:
+  other: "[{{.Label}}] Done"
+scp_save_config_failed:
+  other: "Failed to save config: {{.Error}}"
+
+# ---- sftp ----
+sftp_short:
+  other: "Connect to a remote host via SFTP"
+sftp_long:
+  other: "Connect to a remote host via SFTP and open an interactive terminal.\nUsage examples:\nxops sftp user@host[:port] [-P password] [--task maxTask] [--thread maxThread]\nUser and host are required, port defaults to 22.\nWhen provided via flags, flag values override positional arguments.\nIf no password is specified, it will be read from the terminal or saved config.\nPasswords of successful connections are encrypted and stored at ~/.xops_passwords.json"
+flag_sftp_task:
+  other: "Max concurrent file downloads"
+flag_sftp_thread:
+  other: "Concurrent threads per file"
+
+# ---- exec ----
+exec_short:
+  other: "Execute commands on one or more remote hosts"
+exec_long:
+  other: "Execute commands on one or more remote hosts. Supports batch execution and privilege escalation.\nUsage examples:\nxops exec -H host1,host2 -c \"uptime\"\nxops exec -t web -c \"uptime\"\nxops exec -I hosts.txt --shell script.sh\nxops exec user@host \"df -h\"\n\nFlag values override positional arguments.\nWhen using --tag, other host specification methods are ignored."
+flag_exec_sudo:
+  other: "Execute with sudo"
+flag_exec_su_pwd:
+  other: "Password for su to root"
+flag_exec_cmd:
+  other: "Command to execute"
+flag_exec_ifile:
+  other: "Host list file"
+flag_exec_tag:
+  other: "Execute by group (tag)"
+flag_exec_shell:
+  other: "Local shell script file"
+flag_exec_task:
+  other: "Number of parallel hosts"
+exec_connect_failed:
+  other: "[{{.Host}}] Connection failed: {{.Error}}"
+exec_host_error:
+  other: "[{{.Host}}] Error: {{.Error}}"
+exec_result_error:
+  other: "{{.Host}}\n------------\n{{.Output}}\nError: {{.Error}}"
+exec_result_success:
+  other: "{{.Host}}\n------------\n{{.Output}}"
+
+# ---- identity ----
+identity_short:
+  other: "Manage authentication templates"
+identity_long:
+  other: "Manage stored authentication templates (user, password, key). Templates can be reused by alias when adding hosts."
+identity_edit_short:
+  other: "Edit a stored authentication template"
+identity_list_short:
+  other: "List all stored authentication templates"
+identity_add_short:
+  other: "Add a new authentication template"
+identity_delete_short:
+  other: "Delete an authentication template"
+flag_identity_user:
+  other: "Modify username"
+flag_identity_password:
+  other: "Modify password"
+flag_identity_key:
+  other: "Modify private key path"
+flag_identity_key_pass:
+  other: "Modify private key passphrase"
+flag_identity_name:
+  other: "Authentication template alias"
+flag_identity_add_user:
+  other: "Username"
+flag_identity_add_password:
+  other: "Password"
+flag_identity_add_key:
+  other: "Private key path"
+flag_identity_add_key_pass:
+  other: "Private key passphrase"
+identity_list_header:
+  other: "Alias/Name\tUser\tAuth Type\tDetails"
+identity_update_success:
+  other: "Successfully updated authentication template: {{.Name}}"
+identity_no_changes:
+  other: "No changes provided"
+identity_no_stored:
+  other: "No stored authentication templates found."
+identity_add_success:
+  other: "Successfully added authentication template: {{.Name}}"
+identity_delete_success:
+  other: "Successfully deleted authentication template: {{.Name}}"
+config_load_error:
+  other: "Failed to load config: {{.Error}}"
+save_config_failed:
+  other: "Failed to save config: {{.Error}}"
+
+# ---- firewall ----
+firewall_short:
+  other: "Manage firewall settings on target hosts"
+firewall_long:
+  other: "Multi-backend firewall management tool (firewalld, ufw, iptables, nftables).\nAutomatically detects the firewall type on the target host."
+firewall_list_short:
+  other: "List rules"
+firewall_port_short:
+  other: "Manage port rules (e.g. 80, 8080-8090)"
+firewall_service_short:
+  other: "Manage service rules (e.g. http, https)"
+firewall_rule_short:
+  other: "Manage complex rules (with source IP)"
+firewall_reload_short:
+  other: "Reload firewall"
+flag_fw_host:
+  other: "Target host(s) / alias, comma separated"
+flag_fw_ifile:
+  other: "Host list file (one host/alias per line)"
+flag_fw_user:
+  other: "SSH username"
+flag_fw_password:
+  other: "SSH password"
+flag_fw_task:
+  other: "Number of parallel tasks"
+flag_fw_proto:
+  other: "Protocol type (tcp/udp)"
+flag_fw_remove:
+  other: "Remove rule"
+flag_fw_reload:
+  other: "Reload after operation"
+flag_fw_zone:
+  other: "Firewall zone (firewalld only)"
+fw_node_not_found:
+  other: "[{{.User}}@{{.Host}}:{{.Port}}] No matching node config found, please add via inventory first"
+fw_connect_failed:
+  other: "[{{.Host}}] Connection failed: {{.Error}}"
+fw_detect_failed:
+  other: "[{{.Host}}] Failed to detect firewall: {{.Error}}"
+fw_action_failed:
+  other: "[{{.Host}}] Failed: {{.Error}}\nOutput: {{.Output}}"
+fw_action_success:
+  other: "[{{.Host}}] Success ({{.FwName}})\n{{.Output}}"
+fw_reload_failed:
+  other: "[{{.Host}}] Failed to reload firewall: {{.Error}}"
+fw_local_reload_failed:
+  other: "[LOCAL] Failed to reload firewall: {{.Error}}"
+
+# ---- inventory (host) ----
+inventory_short:
+  other: "Manage stored hosts and nodes"
+inventory_long:
+  other: "Manage stored hosts, identities, and nodes. Supports list, add, edit, and delete operations."
+inventory_tag_short:
+  other: "Manage node tags"
+inventory_list_short:
+  other: "List all stored nodes"
+inventory_add_short:
+  other: "Add a new node"
+inventory_edit_short:
+  other: "Edit a stored node"
+inventory_delete_short:
+  other: "Delete a stored node"
+inventory_tags_short:
+  other: "List all tags with node counts"
+inventory_load_short:
+  other: "Load hosts and credentials from CSV and verify"
+inventory_load_long:
+  other: "Load hosts, usernames, and passwords from a CSV file and save to config.\nSupported headers: host, port, alias, user, password, key, keypass\nEstablishes SSH connections to verify credentials."
+inventory_tag_add_short:
+  other: "Add nodes to a tag group"
+inventory_tag_remove_short:
+  other: "Remove nodes from a tag"
+flag_inv_address:
+  other: "Host IP or domain"
+flag_inv_port:
+  other: "SSH port"
+flag_inv_user:
+  other: "SSH username"
+flag_inv_password:
+  other: "SSH password"
+flag_inv_key:
+  other: "SSH private key path"
+flag_inv_key_pass:
+  other: "SSH private key passphrase"
+flag_inv_identity:
+  other: "Use a saved authentication template alias"
+flag_inv_alias:
+  other: "Node alias (comma separated)"
+flag_inv_tags:
+  other: "Node tags (comma separated)"
+flag_inv_jump:
+  other: "Jump host name"
+flag_inv_tag_filter:
+  other: "Filter nodes by tag"
+flag_inv_template:
+  other: "Export CSV import template to file"
+flag_inv_load_tag:
+  other: "Add imported hosts to specified tag group"
+flag_inv_edit_address:
+  other: "Modify host IP or domain"
+flag_inv_edit_port:
+  other: "Modify SSH port"
+flag_inv_edit_user:
+  other: "Modify SSH username"
+flag_inv_edit_password:
+  other: "Modify SSH password"
+flag_inv_edit_key:
+  other: "Modify SSH private key path"
+flag_inv_edit_key_pass:
+  other: "Modify private key passphrase"
+flag_inv_edit_alias:
+  other: "Modify node alias"
+flag_inv_edit_jump:
+  other: "Modify jump host name"
+node_list_header:
+  other: "Name/ID\tAlias\tHost Address\tUser\tAuth Type\tJump Host\tTags"
+tags_list_header:
+  other: "Tag\tNode Count"
+node_add_success:
+  other: "Successfully added node: {{.Name}}"
+node_update_success:
+  other: "Successfully updated node, current ID: {{.Name}}"
+node_delete_success:
+  other: "Successfully deleted node: {{.Name}}"
+node_no_changes:
+  other: "No changes provided"
+node_no_stored:
+  other: "No stored nodes found."
+node_no_tag_match:
+  other: "No nodes found with tag {{.Tag}}."
+tags_no_stored:
+  other: "No tags defined."
+tag_add_success:
+  other: "Successfully added {{.Count}} node(s) to tag group [{{.Tag}}]"
+tag_remove_success:
+  other: "Successfully removed tag [{{.Tag}}] from {{.Count}} node(s)"
+template_export_success:
+  other: "Successfully exported template to: {{.Path}}"
+load_config_generate_failed:
+  other: "[{{.Host}}] Config generation failed: {{.Error}}"
+load_verify_failed:
+  other: "[{{.Host}}] Verification failed: {{.Error}}"
+load_verify_success:
+  other: "[{{.Host}}] Verified and saved"
+
+# ---- encode ----
+encode_short:
+  other: "Perform various encode/decode operations"
+encode_long:
+  other: "Encode or decode the provided string"
+url_short:
+  other: "URL encode/decode"
+url_long:
+  other: "URL encode or decode the provided string"
+base64_short:
+  other: "Base64 encode/decode"
+base64_long:
+  other: "Base64 encode or decode the provided string"
+utf8_short:
+  other: "UTF-8 encode/decode"
+utf8_long:
+  other: "UTF-8 encode or decode the provided string"
+unicode_short:
+  other: "Unicode encode/decode"
+unicode_long:
+  other: "Unicode encode or decode the provided string"
+flag_decode:
+  other: "Switch to decode mode"
+flag_base64_url:
+  other: "Use URL-safe mode (only URL-safe characters in base64 output)"
+
+# ---- ping ----
+ping_short:
+  other: "ICMP Ping a host or check if a TCP port is open"
+ping_long:
+  other: "This command has two modes:\n1. ICMP Ping (1 argument):\n   Sends ICMP requests to test network connectivity, similar to the system ping tool.\n   Example: xops ping 8.8.8.8\n   On Linux, ICMP raw sockets require elevated privileges:\n   Set sysctl net.ipv4.ping_group_range=\"0 2147483647\"\n   Or: setcap cap_net_raw+eip /path/to/xops\n   Or run with sudo.\n\n2. TCP port check (2 arguments):\n   Attempts a TCP connection to determine if the port is open.\n   Example: xops ping 8.8.8.8 53"
+ping_resolve_info:
+  other: "Host [{{.Host}}] resolves to: [{{.IP}}]"
+ping_tcp_testing:
+  other: "Testing TCP connection to {{.Address}}..."
+ping_port_closed:
+  other: "Port {{.Port}} on host {{.IP}} is closed or filtered: {{.Error}}"
+ping_port_open:
+  other: "Port {{.Port}} on host {{.IP}} is open!"
+ping_icmp_start:
+  other: "Pinging {{.IP}} via ICMP..."
+ping_stats_header:
+  other: "\n--- {{.Addr}} ping statistics ---"
+ping_stats_packets:
+  other: "{{.Sent}} packets sent, {{.Recv}} packets received, {{.Loss}}% packet loss"
+ping_stats_rtt:
+  other: "rtt min/avg/max/stddev = {{.Min}}/{{.Avg}}/{{.Max}}/{{.StdDev}}"
+
+# ---- dns ----
+dns_short:
+  other: "DNS lookup"
+dns_long:
+  other: "DNS lookup"
+dns_resolve_error:
+  other: "Host [{{.Domain}}] cannot be resolved: {{.Error}}"
+dns_resolve_info:
+  other: "Host [{{.Domain}}] resolves to: [{{.IP}}]"
+
+# ---- nc ----
+nc_short:
+  other: "Network tool providing partial nc (netcat) functionality"
+nc_long:
+  other: "Network tool providing partial nc (netcat) functionality\n\tUsage:\n\txops nc -l <port>\n\tListen on the specified port and output all request content. Non-root users on Linux cannot listen on ports below 1024.\n\txops nc <ip> <port>\n\tConnect to the specified IP and port, sending stdin content to the target. Use with pipes or redirection."
+flag_nc_listen:
+  other: "Port to listen on (non-root users on Linux cannot listen on ports below 1024)"
+flag_nc_udp:
+  other: "Use UDP protocol (default: TCP)"
+nc_listening:
+  other: "Listening on port {{.Port}}...\n"
+nc_connected:
+  other: "Connected to {{.Addr}}\n"
+nc_interactive_warning:
+  other: "Warning: You are running this in an interactive terminal, no data will be sent. Use pipes or redirection instead.\n"
+nc_new_connection:
+  other: "New connection from: {{.Addr}}\n"
+nc_request_content:
+  other: "Request content from {{.Addr}}:\n"
+nc_connection_closed:
+  other: "Connection {{.Addr}} closed\n"
+
+# ---- sudo ----
+sudo_short:
+  other: "Execute commands locally with sudo"
+sudo_long:
+  other: "Execute commands locally with sudo. Supports automatic password retrieval from config.\nExamples:\n  xops sudo \"ss -tlpn\"\n  xops sudo -s\n  xops sudo \"firewall-cmd --list-all\" -p mypassword"
+flag_sudo_passwd:
+  other: "Local sudo password"
+flag_sudo_shell:
+  other: "Enter root shell (similar to sudo -s)"
+prompt_sudo_password:
+  other: "Enter sudo password (press Enter if none):"
+sudo_exec_failed:
+  other: "Sudo execution failed: {{.Error}}"
+
+# ---- mcp ----
+mcp_short:
+  other: "Start MCP (Model Context Protocol) server"
+mcp_long:
+  other: "Start an MCP server via Stdio for Agent calls. All regular output and logs will be suppressed."
+
+# ---- loadHost ----
+loadhost_short:
+  other: "Load hosts from CSV and verify (shortcut for inventory load)"
+loadhost_long:
+  other: "Load hosts, usernames, and passwords from a CSV file and save to config.\nThis command is a shortcut for 'inventory load'."
+
+# ---- sftp shell ----
+sftp_shell_unknown_cmd:
+  other: "Unknown command: {{.Cmd}} (type help for available commands)"
+sftp_shell_cd_not_dir:
+  other: "cd: '{{.Path}}' is not a directory"
+sftp_shell_get_usage:
+  other: "Usage: get <remote_file> [local_path]"
+sftp_shell_put_usage:
+  other: "Usage: put <local_file> [remote_path]"
+sftp_shell_mkdir_usage:
+  other: "Usage: mkdir <path>"
+sftp_shell_rm_usage:
+  other: "Usage: rm <path>"
+sftp_shell_downloading:
+  other: "Downloading {{.Remote}} -> {{.Local}}"
+sftp_shell_download_failed:
+  other: "Download failed: {{.Error}}"
+sftp_shell_download_done:
+  other: "\nDownload complete"
+sftp_shell_uploading:
+  other: "Uploading {{.Local}} -> {{.Remote}}"
+sftp_shell_upload_failed:
+  other: "\nUpload failed: {{.Error}}"
+sftp_shell_upload_done:
+  other: "\nUpload complete"
+sftp_shell_help:
+  other: "\nAvailable commands:\n  cd <path>     Change remote directory\n  lcd <path>    Change local directory\n  pwd           Show remote current directory\n  lpwd          Show local current directory\n  ls [path]     List remote files\n  lls [path]    List local files\n  get <remote> [local]  Download file or directory\n  put <local> [remote]  Upload file or directory\n  mkdir <path>  Create remote directory\n  rm <path>     Remove remote file or directory\n  exit/quit     Exit\n"

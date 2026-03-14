@@ -9,6 +9,7 @@ import (
 	"github.com/spf13/cobra"
 	"github.com/wentf9/xops-cli/cmd/utils"
 	"github.com/wentf9/xops-cli/pkg/config"
+	"github.com/wentf9/xops-cli/pkg/i18n"
 	"github.com/wentf9/xops-cli/pkg/logger"
 	"github.com/wentf9/xops-cli/pkg/models"
 )
@@ -17,8 +18,8 @@ func NewCmdIdentity() *cobra.Command {
 	cmd := &cobra.Command{
 		Use:     "identity",
 		Aliases: []string{"id", "auth"},
-		Short:   "管理认证信息模板",
-		Long:    `管理存储的认证信息模板（用户、密码、私钥）。通过别名可以在添加主机时快速复用。`,
+		Short:   i18n.T("identity_short"),
+		Long:    i18n.T("identity_long"),
 		Run: func(cmd *cobra.Command, args []string) {
 			_ = cmd.Help()
 		},
@@ -42,7 +43,7 @@ func NewCmdIdentityEdit() *cobra.Command {
 
 	cmd := &cobra.Command{
 		Use:   "edit [name]",
-		Short: "修改已存储的认证信息模板",
+		Short: i18n.T("identity_edit_short"),
 		Args:  cobra.ExactArgs(1),
 		RunE: func(cmd *cobra.Command, args []string) error {
 			name := args[0]
@@ -88,19 +89,19 @@ func NewCmdIdentityEdit() *cobra.Command {
 				if err := configStore.Save(cfg); err != nil {
 					return err
 				}
-				logger.PrintSuccessf("成功更新认证模板: %s", name)
+				logger.PrintSuccess(i18n.Tf("identity_update_success", map[string]any{"Name": name}))
 			} else {
-				logger.PrintWarnf("未提供任何修改项")
+				logger.PrintWarn(i18n.T("identity_no_changes"))
 			}
 
 			return nil
 		},
 	}
 
-	cmd.Flags().StringVarP(&user, "user", "u", "", "修改用户名")
-	cmd.Flags().StringVarP(&password, "password", "p", "", "修改密码")
-	cmd.Flags().StringVarP(&keyPath, "key", "k", "", "修改私钥路径")
-	cmd.Flags().StringVarP(&keyPass, "key-pass", "w", "", "修改私钥密码")
+	cmd.Flags().StringVarP(&user, "user", "u", "", i18n.T("flag_identity_user"))
+	cmd.Flags().StringVarP(&password, "password", "p", "", i18n.T("flag_identity_password"))
+	cmd.Flags().StringVarP(&keyPath, "key", "k", "", i18n.T("flag_identity_key"))
+	cmd.Flags().StringVarP(&keyPass, "key-pass", "w", "", i18n.T("flag_identity_key_pass"))
 
 	return cmd
 }
@@ -108,13 +109,13 @@ func NewCmdIdentityEdit() *cobra.Command {
 func NewCmdIdentityList() *cobra.Command {
 	return &cobra.Command{
 		Use:   "list",
-		Short: "列出所有存储的认证信息",
+		Short: i18n.T("identity_list_short"),
 		Run: func(cmd *cobra.Command, args []string) {
 			configPath, keyPath := utils.GetConfigFilePath()
 			configStore := config.NewDefaultStore(configPath, keyPath)
 			cfg, err := configStore.Load()
 			if err != nil {
-				logger.PrintErrorf("加载配置文件失败: %v", err)
+				logger.PrintError(i18n.Tf("config_load_error", map[string]any{"Error": err}))
 				return
 			}
 
@@ -122,12 +123,12 @@ func NewCmdIdentityList() *cobra.Command {
 			identities := provider.ListIdentities()
 
 			if len(identities) == 0 {
-				logger.PrintWarnf("没有找到已存储的认证信息。")
+				logger.PrintWarn(i18n.T("identity_no_stored"))
 				return
 			}
 
 			w := tabwriter.NewWriter(os.Stdout, 0, 0, 3, ' ', 0)
-			_, _ = fmt.Fprintln(w, "别名/名称\t用户\t认证方式\t详细信息")
+			_, _ = fmt.Fprintln(w, i18n.T("identity_list_header"))
 
 			keys := make([]string, 0, len(identities))
 			for k := range identities {
@@ -168,7 +169,7 @@ func NewCmdIdentityAdd() *cobra.Command {
 
 	cmd := &cobra.Command{
 		Use:   "add",
-		Short: "添加一个新的认证信息模板",
+		Short: i18n.T("identity_add_short"),
 		RunE: func(cmd *cobra.Command, args []string) error {
 			if name == "" {
 				return fmt.Errorf("必须指定别名 (--name)")
@@ -201,7 +202,7 @@ func NewCmdIdentityAdd() *cobra.Command {
 				identity.Password = password
 				identity.AuthType = "password"
 			} else {
-				pass, err := utils.ReadPasswordFromTerminal(fmt.Sprintf("请输入用户 %s 的密码: ", user))
+				pass, err := utils.ReadPasswordFromTerminal(i18n.Tf("prompt_enter_user_password", map[string]any{"User": user}))
 				if err != nil {
 					return err
 				}
@@ -216,16 +217,16 @@ func NewCmdIdentityAdd() *cobra.Command {
 				return fmt.Errorf("保存配置文件失败: %w", err)
 			}
 
-			logger.PrintSuccessf("成功添加认证模板: %s", name)
+			logger.PrintSuccess(i18n.Tf("identity_add_success", map[string]any{"Name": name}))
 			return nil
 		},
 	}
 
-	cmd.Flags().StringVarP(&name, "name", "n", "", "认证信息别名")
-	cmd.Flags().StringVarP(&user, "user", "u", "", "用户名")
-	cmd.Flags().StringVarP(&password, "password", "p", "", "密码")
-	cmd.Flags().StringVarP(&keyPath, "key", "k", "", "私钥路径")
-	cmd.Flags().StringVarP(&keyPass, "key-pass", "w", "", "私钥密码")
+	cmd.Flags().StringVarP(&name, "name", "n", "", i18n.T("flag_identity_name"))
+	cmd.Flags().StringVarP(&user, "user", "u", "", i18n.T("flag_identity_add_user"))
+	cmd.Flags().StringVarP(&password, "password", "p", "", i18n.T("flag_identity_add_password"))
+	cmd.Flags().StringVarP(&keyPath, "key", "k", "", i18n.T("flag_identity_add_key"))
+	cmd.Flags().StringVarP(&keyPass, "key-pass", "w", "", i18n.T("flag_identity_add_key_pass"))
 
 	return cmd
 }
@@ -233,7 +234,7 @@ func NewCmdIdentityAdd() *cobra.Command {
 func NewCmdIdentityDelete() *cobra.Command {
 	return &cobra.Command{
 		Use:   "delete [name]",
-		Short: "删除一个认证信息模板",
+		Short: i18n.T("identity_delete_short"),
 		Args:  cobra.ExactArgs(1),
 		RunE: func(cmd *cobra.Command, args []string) error {
 			name := args[0]
@@ -255,7 +256,7 @@ func NewCmdIdentityDelete() *cobra.Command {
 				return err
 			}
 
-			logger.PrintSuccessf("成功删除认证模板: %s", name)
+			logger.PrintSuccess(i18n.Tf("identity_delete_success", map[string]any{"Name": name}))
 			return nil
 		},
 	}

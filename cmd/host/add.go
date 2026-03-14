@@ -5,6 +5,7 @@ import (
 
 	"github.com/spf13/cobra"
 	"github.com/wentf9/xops-cli/cmd/utils"
+	"github.com/wentf9/xops-cli/pkg/i18n"
 	"github.com/wentf9/xops-cli/pkg/logger"
 	"github.com/wentf9/xops-cli/pkg/models"
 )
@@ -25,7 +26,7 @@ func NewCmdInventoryAdd() *cobra.Command {
 
 	cmd := &cobra.Command{
 		Use:   "add",
-		Short: "添加一个新节点",
+		Short: i18n.T("inventory_add_short"),
 		RunE: func(cmd *cobra.Command, args []string) error {
 			if address == "" {
 				return fmt.Errorf("必须指定主机地址 (--address)")
@@ -60,7 +61,7 @@ func NewCmdInventoryAdd() *cobra.Command {
 				} else if password != "" {
 					identity.Password, identity.AuthType = password, "password"
 				} else {
-					pass, err := utils.ReadPasswordFromTerminal(fmt.Sprintf("请输入用户 %s 的密码: ", user))
+					pass, err := utils.ReadPasswordFromTerminal(i18n.Tf("prompt_enter_user_password", map[string]any{"User": user}))
 					if err != nil {
 						return err
 					}
@@ -94,21 +95,21 @@ func NewCmdInventoryAdd() *cobra.Command {
 				return fmt.Errorf("保存配置文件失败: %w", err)
 			}
 
-			logger.PrintSuccessf("成功添加节点: %s", name)
+			logger.PrintSuccess(i18n.Tf("node_add_success", map[string]any{"Name": name}))
 			return nil
 		},
 	}
 
-	cmd.Flags().StringVarP(&address, "address", "H", "", "主机 IP 或域名")
-	cmd.Flags().Uint16VarP(&port, "port", "p", 22, "SSH 端口")
-	cmd.Flags().StringVarP(&user, "user", "u", "", "SSH 用户名")
-	cmd.Flags().StringVarP(&password, "password", "P", "", "SSH 密码")
-	cmd.Flags().StringVarP(&keyPath, "key", "k", "", "SSH 私钥路径")
-	cmd.Flags().StringVarP(&keyPass, "key-pass", "w", "", "SSH 私钥密码")
-	cmd.Flags().StringVarP(&identityAlias, "identity", "I", "", "使用已保存的认证模板别名")
-	cmd.Flags().StringSliceVarP(&alias, "alias", "a", []string{}, "节点别名 (逗号分隔)")
-	cmd.Flags().StringSliceVarP(&tags, "tags", "t", []string{}, "节点标签 (逗号分隔)")
-	cmd.Flags().StringVarP(&jump, "jump", "j", "", "跳板机名称")
+	cmd.Flags().StringVarP(&address, "address", "H", "", i18n.T("flag_inv_address"))
+	cmd.Flags().Uint16VarP(&port, "port", "p", 22, i18n.T("flag_inv_port"))
+	cmd.Flags().StringVarP(&user, "user", "u", "", i18n.T("flag_inv_user"))
+	cmd.Flags().StringVarP(&password, "password", "P", "", i18n.T("flag_inv_password"))
+	cmd.Flags().StringVarP(&keyPath, "key", "k", "", i18n.T("flag_inv_key"))
+	cmd.Flags().StringVarP(&keyPass, "key-pass", "w", "", i18n.T("flag_inv_key_pass"))
+	cmd.Flags().StringVarP(&identityAlias, "identity", "I", "", i18n.T("flag_inv_identity"))
+	cmd.Flags().StringSliceVarP(&alias, "alias", "a", []string{}, i18n.T("flag_inv_alias"))
+	cmd.Flags().StringSliceVarP(&tags, "tags", "t", []string{}, i18n.T("flag_inv_tags"))
+	cmd.Flags().StringVarP(&jump, "jump", "j", "", i18n.T("flag_inv_jump"))
 
 	return cmd
 }

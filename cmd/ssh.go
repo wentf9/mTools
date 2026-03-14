@@ -10,6 +10,7 @@ import (
 	"github.com/spf13/cobra"
 	"github.com/wentf9/xops-cli/cmd/utils"
 	"github.com/wentf9/xops-cli/pkg/config"
+	"github.com/wentf9/xops-cli/pkg/i18n"
 	"github.com/wentf9/xops-cli/pkg/models"
 	"github.com/wentf9/xops-cli/pkg/ssh"
 )
@@ -38,17 +39,8 @@ func NewCmdSsh() *cobra.Command {
 	o := NewSshOptions()
 	cmd := &cobra.Command{
 		Use:   "ssh [user@]host[:port]",
-		Short: "通过SSH连接到指定主机",
-		Long: `通过SSH连接到指定主机并提供交互式终端。
-用法示例:
-xops ssh user@host[:port]
-xops ssh user host [port]
-xops -h host -u user
-用户和主机为必选参数,端口默认为22,一般不需要修改
-通过flags提供主机和用户信息时会忽略参数提供的信息
-如果未通过-p选项显式提供密码,将会从终端输入或通过保存的密码文件读取密码
-成功登录过的用户和主机组合的密码将会保存到密码文件中
-密码采用对称加密算法加密保存,密码文件位置为~/.xops_passwords.json`,
+		Short: i18n.T("ssh_short"),
+		Long:  i18n.T("ssh_long"),
 		RunE: func(cmd *cobra.Command, args []string) error {
 			o.Complete(cmd, args)
 			if err := o.Validate(); err != nil {
@@ -57,16 +49,16 @@ xops -h host -u user
 			return o.Run()
 		},
 	}
-	cmd.Flags().StringVarP(&o.Host, "host", "H", "", "目标主机/连接别名")
-	cmd.Flags().Uint16VarP(&o.Port, "port", "p", 0, "SSH端口")
-	cmd.Flags().StringVarP(&o.User, "user", "u", "", "SSH用户名")
-	cmd.Flags().StringVarP(&o.Password, "password", "P", "", "SSH密码")
-	cmd.Flags().StringVarP(&o.KeyFile, "key", "i", "", "SSH私钥文件路径")
-	cmd.Flags().StringVarP(&o.KeyPass, "key_pass", "w", "", "SSH私钥密码")
-	cmd.Flags().BoolVarP(&o.Sudo, "sudo", "s", false, "是否请求sudo权限")
-	cmd.Flags().StringVarP(&o.JumpHost, "jump", "j", "", "跳板机地址[user@]host[:port]")
-	cmd.Flags().StringVarP(&o.Alias, "alias", "a", "", "连接别名")
-	cmd.Flags().StringSliceVarP(&o.Tags, "tag", "t", []string{}, "为节点添加标签(分组)")
+	cmd.Flags().StringVarP(&o.Host, "host", "H", "", i18n.T("flag_host"))
+	cmd.Flags().Uint16VarP(&o.Port, "port", "p", 0, i18n.T("flag_port"))
+	cmd.Flags().StringVarP(&o.User, "user", "u", "", i18n.T("flag_user"))
+	cmd.Flags().StringVarP(&o.Password, "password", "P", "", i18n.T("flag_password"))
+	cmd.Flags().StringVarP(&o.KeyFile, "key", "i", "", i18n.T("flag_key"))
+	cmd.Flags().StringVarP(&o.KeyPass, "key_pass", "w", "", i18n.T("flag_key_pass"))
+	cmd.Flags().BoolVarP(&o.Sudo, "sudo", "s", false, i18n.T("flag_sudo"))
+	cmd.Flags().StringVarP(&o.JumpHost, "jump", "j", "", i18n.T("flag_jump"))
+	cmd.Flags().StringVarP(&o.Alias, "alias", "a", "", i18n.T("flag_alias"))
+	cmd.Flags().StringSliceVarP(&o.Tags, "tag", "t", []string{}, i18n.T("flag_tag"))
 	cmd.MarkFlagsMutuallyExclusive("password", "key")
 	return cmd
 }
@@ -232,7 +224,7 @@ func (o *SshOptions) createNewNode(provider config.ConfigProvider) (string, erro
 		User: strings.TrimSpace(o.User),
 	}
 	if o.Password == "" && o.KeyFile == "" {
-		pass, err := utils.ReadPasswordFromTerminal("请输入密码: ")
+		pass, err := utils.ReadPasswordFromTerminal(i18n.T("prompt_enter_password"))
 		if err != nil {
 			return "", err
 		}

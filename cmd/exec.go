@@ -9,6 +9,7 @@ import (
 	"github.com/spf13/cobra"
 	"github.com/wentf9/xops-cli/cmd/utils"
 	"github.com/wentf9/xops-cli/pkg/config"
+	"github.com/wentf9/xops-cli/pkg/i18n"
 	"github.com/wentf9/xops-cli/pkg/logger"
 	"github.com/wentf9/xops-cli/pkg/models"
 	"github.com/wentf9/xops-cli/pkg/ssh"
@@ -36,16 +37,8 @@ func NewCmdExec() *cobra.Command {
 	o := NewExecOptions()
 	cmd := &cobra.Command{
 		Use:   "exec [flags] [command]",
-		Short: "对一个或多个远程主机执行命令",
-		Long: `对一个或多个远程主机执行命令。支持批量执行和提权。
-用法示例:
-xops exec -H host1,host2 -c "uptime"
-xops exec -t web -c "uptime"
-xops exec -I hosts.txt --shell script.sh
-xops exec user@host "df -h"
-
-通过flags提供主机和用户信息时会覆盖参数提供的信息。
-使用 --tag 时会忽略其他主机指定方式。`,
+		Short: i18n.T("exec_short"),
+		Long:  i18n.T("exec_long"),
 		RunE: func(cmd *cobra.Command, args []string) error {
 			o.Complete(cmd, args)
 			if err := o.Validate(); err != nil {
@@ -55,26 +48,23 @@ xops exec user@host "df -h"
 		},
 	}
 
-	// 基础连接参数
-	cmd.Flags().StringVarP(&o.Host, "host", "H", "", "目标主机,多个主机用逗号分隔")
-	cmd.Flags().Uint16VarP(&o.Port, "port", "p", 0, "SSH端口")
-	cmd.Flags().StringVarP(&o.User, "user", "u", "", "SSH用户名")
-	cmd.Flags().StringVarP(&o.Password, "password", "P", "", "SSH密码")
-	cmd.Flags().StringVarP(&o.KeyFile, "key", "i", "", "SSH私钥文件路径")
-	cmd.Flags().StringVarP(&o.KeyPass, "key_pass", "w", "", "SSH私钥密码")
-	cmd.Flags().StringVarP(&o.JumpHost, "jump", "j", "", "跳板机地址[user@]host[:port]")
-	cmd.Flags().StringVarP(&o.Alias, "alias", "a", "", "连接别名")
+	cmd.Flags().StringVarP(&o.Host, "host", "H", "", i18n.T("flag_hosts"))
+	cmd.Flags().Uint16VarP(&o.Port, "port", "p", 0, i18n.T("flag_port"))
+	cmd.Flags().StringVarP(&o.User, "user", "u", "", i18n.T("flag_user"))
+	cmd.Flags().StringVarP(&o.Password, "password", "P", "", i18n.T("flag_password"))
+	cmd.Flags().StringVarP(&o.KeyFile, "key", "i", "", i18n.T("flag_key"))
+	cmd.Flags().StringVarP(&o.KeyPass, "key_pass", "w", "", i18n.T("flag_key_pass"))
+	cmd.Flags().StringVarP(&o.JumpHost, "jump", "j", "", i18n.T("flag_jump"))
+	cmd.Flags().StringVarP(&o.Alias, "alias", "a", "", i18n.T("flag_alias"))
 
-	// 提权参数
-	cmd.Flags().BoolVarP(&o.Sudo, "sudo", "s", false, "使用sudo执行")
-	cmd.Flags().StringVar(&o.SuPwd, "suPwd", "", "su切换root的密码")
+	cmd.Flags().BoolVarP(&o.Sudo, "sudo", "s", false, i18n.T("flag_exec_sudo"))
+	cmd.Flags().StringVar(&o.SuPwd, "suPwd", "", i18n.T("flag_exec_su_pwd"))
 
-	// 执行参数
-	cmd.Flags().StringVarP(&o.Command, "cmd", "c", "", "要执行的命令")
-	cmd.Flags().StringVarP(&o.HostFile, "ifile", "I", "", "主机列表文件")
-	cmd.Flags().StringVarP(&o.Tag, "tag", "t", "", "按分组(标签)执行")
-	cmd.Flags().StringVar(&o.ShellFile, "shell", "", "本地Shell脚本文件")
-	cmd.Flags().IntVar(&o.TaskCount, "task", 3, "并行执行的主机数")
+	cmd.Flags().StringVarP(&o.Command, "cmd", "c", "", i18n.T("flag_exec_cmd"))
+	cmd.Flags().StringVarP(&o.HostFile, "ifile", "I", "", i18n.T("flag_exec_ifile"))
+	cmd.Flags().StringVarP(&o.Tag, "tag", "t", "", i18n.T("flag_exec_tag"))
+	cmd.Flags().StringVar(&o.ShellFile, "shell", "", i18n.T("flag_exec_shell"))
+	cmd.Flags().IntVar(&o.TaskCount, "task", 3, i18n.T("flag_exec_task"))
 
 	cmd.MarkFlagsMutuallyExclusive("password", "key")
 	cmd.MarkFlagsMutuallyExclusive("host", "ifile", "tag")
@@ -210,7 +200,7 @@ func (o *ExecOptions) Run() error {
 		wp.Execute(func() {
 			client, err := connector.Connect(ctx, t.nodeID)
 			if err != nil {
-				logger.PrintErrorf("[%s] 连接失败: %v", t.host, err)
+				logger.PrintError(i18n.Tf("exec_connect_failed", map[string]any{"Host": t.host, "Error": err}))
 				return
 			}
 
@@ -232,16 +222,16 @@ func (o *ExecOptions) Run() error {
 			}
 
 			if execErr != nil {
-				logger.PrintErrorf("%s\n------------\n%s\n错误: %v", t.host, output, execErr)
+				logger.PrintError(i18n.Tf("exec_result_error", map[string]any{"Host": t.host, "Output": output, "Error": execErr}))
 			} else {
-				logger.PrintSuccessf("%s\n------------\n%s", t.host, output)
+				logger.PrintSuccess(i18n.Tf("exec_result_success", map[string]any{"Host": t.host, "Output": output}))
 			}
 		})
 	}
 
 	wp.Wait()
 	if err := configStore.Save(cfg); err != nil {
-		logger.PrintErrorf("保存配置失败: %v", err)
+		logger.PrintError(i18n.Tf("save_config_failed", map[string]any{"Error": err}))
 	}
 	return nil
 }
@@ -319,7 +309,7 @@ func (o *ExecOptions) buildTasksFromHosts(provider config.ConfigProvider) ([]exe
 		}
 		nodeID, _, err := o.getOrCreateNode(provider, addr)
 		if err != nil {
-			logger.PrintErrorf("[%s] 错误: %v", h.Host, err)
+			logger.PrintError(i18n.Tf("exec_host_error", map[string]any{"Host": h.Host, "Error": err}))
 			continue
 		}
 		tasks = append(tasks, execHostTask{
@@ -371,7 +361,7 @@ func (o *ExecOptions) execCreateNewNode(provider config.ConfigProvider, host, us
 		if o.Password != "" {
 			password = o.Password
 		} else if o.KeyFile == "" {
-			pass, err := utils.ReadPasswordFromTerminal(fmt.Sprintf("请输入 %s@%s 的密码: ", user, host))
+			pass, err := utils.ReadPasswordFromTerminal(i18n.Tf("prompt_enter_password_for", map[string]any{"User": user, "Host": host}))
 			if err != nil {
 				return "", err
 			}

@@ -5,14 +5,15 @@ import (
 	"sync"
 
 	"github.com/spf13/cobra"
+	"github.com/wentf9/xops-cli/pkg/i18n"
 	"github.com/wentf9/xops-cli/pkg/logger"
 )
 
 // dnsCmd represents the dns command
 var dnsCmd = &cobra.Command{
 	Use:   "dns domain1 domain2 ...",
-	Short: "dns查询",
-	Long:  `dns查询`,
+	Short: i18n.T("dns_short"),
+	Long:  i18n.T("dns_long"),
 
 	Run: func(cmd *cobra.Command, args []string) {
 		wg := sync.WaitGroup{}
@@ -21,9 +22,9 @@ var dnsCmd = &cobra.Command{
 			go func(d string) { // Pass domain as argument to goroutine to avoid loop variable capture
 				defer wg.Done()
 				if resolve, err := net.ResolveIPAddr("ip", d); err != nil {
-					logger.PrintErrorf("主机名 [%s] 无法解析为ip地址: %v", d, err)
+					logger.PrintError(i18n.Tf("dns_resolve_error", map[string]any{"Domain": d, "Error": err}))
 				} else {
-					logger.PrintInfof("主机名 [%s] 的IP地址为: [%s]", d, resolve.String())
+					logger.PrintInfo(i18n.Tf("dns_resolve_info", map[string]any{"Domain": d, "IP": resolve.String()}))
 				}
 			}(domain)
 		}

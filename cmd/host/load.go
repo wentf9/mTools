@@ -9,6 +9,7 @@ import (
 	"github.com/spf13/cobra"
 	"github.com/wentf9/xops-cli/cmd/utils"
 	"github.com/wentf9/xops-cli/pkg/config"
+	"github.com/wentf9/xops-cli/pkg/i18n"
 	"github.com/wentf9/xops-cli/pkg/logger"
 	"github.com/wentf9/xops-cli/pkg/models"
 	"github.com/wentf9/xops-cli/pkg/ssh"
@@ -21,15 +22,13 @@ var Tag string
 func NewCmdInventoryLoad() *cobra.Command {
 	cmd := &cobra.Command{
 		Use:   "load [csv_file]",
-		Short: "从CSV文件加载主机及凭据并验证保存",
-		Long: `从CSV文件中加载主机、用户名和密码并保存到配置文件中。
-支持表头识别: 主机, 端口, 别名, 用户, 密码, 私钥, 私钥密码
-会建立SSH连接验证凭据的准确性。`,
-		RunE: RunInventoryLoad,
+		Short: i18n.T("inventory_load_short"),
+		Long:  i18n.T("inventory_load_long"),
+		RunE:  RunInventoryLoad,
 	}
 
-	cmd.Flags().StringVarP(&TemplateFile, "template", "T", "", "导出CSV导入模板到指定文件")
-	cmd.Flags().StringVarP(&Tag, "tag", "t", "", "将导入的主机加入指定标签组")
+	cmd.Flags().StringVarP(&TemplateFile, "template", "T", "", i18n.T("flag_inv_template"))
+	cmd.Flags().StringVarP(&Tag, "tag", "t", "", i18n.T("flag_inv_load_tag"))
 	return cmd
 }
 
@@ -41,7 +40,7 @@ func RunInventoryLoad(cmdObj *cobra.Command, args []string) error {
 		if err != nil {
 			return fmt.Errorf("导出模板失败: %w", err)
 		}
-		logger.PrintSuccessf("成功导出模板到: %s", TemplateFile)
+		logger.PrintSuccess(i18n.Tf("template_export_success", map[string]any{"Path": TemplateFile}))
 		return nil
 	}
 
@@ -76,19 +75,19 @@ func ExecuteLoadHost(hosts []utils.HostInfo) error {
 		wp.Execute(func() {
 			nodeID, _, err := getOrCreateNode(provider, h)
 			if err != nil {
-				logger.PrintErrorf("[%s] 配置生成失败: %v", h.Host, err)
+				logger.PrintError(i18n.Tf("load_config_generate_failed", map[string]any{"Host": h.Host, "Error": err}))
 				return
 			}
 
 			// 验证连接
 			client, err := connector.Connect(ctx, nodeID)
 			if err != nil {
-				logger.PrintErrorf("[%s] 验证失败: %v", h.Host, err)
+				logger.PrintError(i18n.Tf("load_verify_failed", map[string]any{"Host": h.Host, "Error": err}))
 				return
 			}
 			_ = client.Close()
 
-			logger.PrintSuccessf("[%s] 验证通过并已保存", h.Host)
+			logger.PrintSuccess(i18n.Tf("load_verify_success", map[string]any{"Host": h.Host}))
 
 		})
 	}

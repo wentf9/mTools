@@ -10,18 +10,14 @@ import (
 
 	"github.com/spf13/cobra"
 	cmdutils "github.com/wentf9/xops-cli/cmd/utils"
+	"github.com/wentf9/xops-cli/pkg/i18n"
 	"golang.org/x/term"
 )
 
 var ncCmd = &cobra.Command{
 	Use:   "nc",
-	Short: "网络工具,提供linux中nc命令的部分功能",
-	Long: `网络工具,提供linux中nc命令的部分功能
-	用法：
-	xops nc -l <port>
-	监听指定的端口并输出所有请求内容,linux非root用户无法监听1024以内的端口
-	xops nc <ip> <port>
-	连接到指定的ip和端口,并将标准输入内容发送到目标地址,请结合管道或重定向使用`,
+	Short: i18n.T("nc_short"),
+	Long:  i18n.T("nc_long"),
 	Example: `  xops nc -l 8080
   xops nc <ip> <port>`,
 	Args: func(cmd *cobra.Command, args []string) error {
@@ -56,7 +52,7 @@ var ncCmd = &cobra.Command{
 				return fmt.Errorf("无法监听端口 %d: %w", port, err)
 			}
 			defer func() { _ = listener.Close() }()
-			_, _ = fmt.Fprintf(os.Stderr, "正在监听端口 %d...\n", port)
+			_, _ = fmt.Fprint(os.Stderr, i18n.Tf("nc_listening", map[string]any{"Port": port}))
 			conn, err := listener.Accept()
 			if err != nil {
 				return fmt.Errorf("接受连接失败: %w", err)
@@ -73,11 +69,11 @@ var ncCmd = &cobra.Command{
 		if err != nil {
 			return fmt.Errorf("failed to connect to %s: %w", addr, err)
 		}
-		_, _ = fmt.Fprintf(os.Stderr, "已连接到 %s\n", addr)
+		_, _ = fmt.Fprint(os.Stderr, i18n.Tf("nc_connected", map[string]any{"Addr": addr}))
 		defer func() { _ = conn.Close() }()
 		if term.IsTerminal(0) {
 
-			_, _ = fmt.Fprintf(os.Stderr, "警告: 你正在交互式终端中运行此命令,将不会发送数据,建议通过管道或重定向将数据传输到此命令\n")
+			_, _ = fmt.Fprint(os.Stderr, i18n.T("nc_interactive_warning"))
 			return nil
 		}
 		reader := bufio.NewReader(os.Stdin)
@@ -108,11 +104,11 @@ func handleConnection(conn net.Conn) error {
 
 	// 获取客户端地址
 	clientAddr := conn.RemoteAddr().String()
-	_, _ = fmt.Fprintf(os.Stderr, "新连接来自: %s\n", clientAddr)
+	_, _ = fmt.Fprint(os.Stderr, i18n.Tf("nc_new_connection", map[string]any{"Addr": clientAddr}))
 	writer := bufio.NewWriter(os.Stdout)
 	// 使用 bufio.Reader 读取数据（支持按行或批量读）
 	reader := bufio.NewReader(conn)
-	_, _ = fmt.Fprintf(os.Stderr, "来自 %s 的请求内容:\n", clientAddr)
+	_, _ = fmt.Fprint(os.Stderr, i18n.Tf("nc_request_content", map[string]any{"Addr": clientAddr}))
 	buffer := make([]byte, 1024*1024*10) // 10MB 缓冲区
 	for {
 		n, err := reader.Read(buffer)
@@ -127,7 +123,7 @@ func handleConnection(conn net.Conn) error {
 		if err != nil {
 			// 客户端断开或读取出错
 			if err == io.EOF {
-				_, _ = fmt.Fprintf(os.Stderr, "连接 %s 关闭\n", clientAddr)
+				_, _ = fmt.Fprint(os.Stderr, i18n.Tf("nc_connection_closed", map[string]any{"Addr": clientAddr}))
 				return nil
 			}
 			return fmt.Errorf("连接 %s 出错: %w", clientAddr, err)
@@ -137,6 +133,6 @@ func handleConnection(conn net.Conn) error {
 
 func init() {
 	rootCmd.AddCommand(ncCmd)
-	ncCmd.PersistentFlags().Uint16P("listen", "l", 0, "需要监听的端口,linux非root用户无法监听1024以内的端口")
-	ncCmd.PersistentFlags().BoolP("udp", "u", false, "使用UDP协议,默认tcp")
+	ncCmd.PersistentFlags().Uint16P("listen", "l", 0, i18n.T("flag_nc_listen"))
+	ncCmd.PersistentFlags().BoolP("udp", "u", false, i18n.T("flag_nc_udp"))
 }

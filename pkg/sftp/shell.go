@@ -11,6 +11,7 @@ import (
 	"text/tabwriter"
 
 	"github.com/schollz/progressbar/v3"
+	"github.com/wentf9/xops-cli/pkg/i18n"
 )
 
 // Shell 定义交互式 SFTP 环境
@@ -96,7 +97,7 @@ func (s *Shell) dispatchCommand(ctx context.Context, cmd string, params []string
 	case "put":
 		s.handlePut(ctx, params)
 	default:
-		_, _ = fmt.Fprintf(s.stderr, "未知命令: %s (输入 help 查看可用命令)\n", cmd)
+		_, _ = fmt.Fprintf(s.stderr, "%s\n", i18n.Tf("sftp_shell_unknown_cmd", map[string]any{"Cmd": cmd}))
 	}
 	return false, nil
 }
@@ -127,7 +128,7 @@ func (s *Shell) handleCd(args []string) {
 		return
 	}
 	if !info.IsDir() {
-		_, _ = fmt.Fprintf(s.stderr, "cd: '%s' 不是目录\n", args[0])
+		_, _ = fmt.Fprintf(s.stderr, "%s\n", i18n.Tf("sftp_shell_cd_not_dir", map[string]any{"Path": args[0]}))
 		return
 	}
 	s.cwd = target
@@ -190,7 +191,7 @@ func (s *Shell) handleLocalLs(args []string) {
 
 func (s *Shell) handleGet(ctx context.Context, args []string) {
 	if len(args) < 1 {
-		_, _ = fmt.Fprintln(s.stderr, "用法: get <远程文件> [本地路径]")
+		_, _ = fmt.Fprintln(s.stderr, i18n.T("sftp_shell_get_usage"))
 		return
 	}
 	remote := s.resolvePath(args[0])
@@ -199,22 +200,21 @@ func (s *Shell) handleGet(ctx context.Context, args []string) {
 		local = args[1]
 	}
 
-	_, _ = fmt.Fprintf(s.stdout, "下载 %s -> %s\n", remote, local)
+	_, _ = fmt.Fprintln(s.stdout, i18n.Tf("sftp_shell_downloading", map[string]any{"Remote": remote, "Local": local}))
 
-	// 创建进度条回调
-	progress := s.createProgressBar(remote) // 预估大小可能需要 Stat，这里简化处理
+	progress := s.createProgressBar(remote)
 
 	err := s.client.Download(ctx, remote, local, progress)
 	if err != nil {
-		_, _ = fmt.Fprintf(s.stderr, "下载失败: %v\n", err)
+		_, _ = fmt.Fprintf(s.stderr, "%s\n", i18n.Tf("sftp_shell_download_failed", map[string]any{"Error": err}))
 	} else {
-		_, _ = fmt.Fprintln(s.stdout, "\n下载完成")
+		_, _ = fmt.Fprintln(s.stdout, i18n.T("sftp_shell_download_done"))
 	}
 }
 
 func (s *Shell) handlePut(ctx context.Context, args []string) {
 	if len(args) < 1 {
-		_, _ = fmt.Fprintln(s.stderr, "用法: put <本地文件> [远程路径]")
+		_, _ = fmt.Fprintln(s.stderr, i18n.T("sftp_shell_put_usage"))
 		return
 	}
 	local := args[0]
@@ -223,11 +223,10 @@ func (s *Shell) handlePut(ctx context.Context, args []string) {
 	if len(args) > 1 {
 		remote = s.resolvePath(args[1])
 	} else {
-		// 默认上传到当前目录
 		remote = s.client.JoinPath(s.cwd, filepath.Base(local))
 	}
 
-	_, _ = fmt.Fprintf(s.stdout, "上传 %s -> %s\n", local, remote)
+	_, _ = fmt.Fprintln(s.stdout, i18n.Tf("sftp_shell_uploading", map[string]any{"Local": local, "Remote": remote}))
 
 	// 计算本地文件大小以显示准确的进度条
 	var totalSize int64
@@ -243,15 +242,15 @@ func (s *Shell) handlePut(ctx context.Context, args []string) {
 
 	err := s.client.Upload(ctx, local, remote, callback)
 	if err != nil {
-		_, _ = fmt.Fprintf(s.stderr, "\n上传失败: %v\n", err)
+		_, _ = fmt.Fprintf(s.stderr, "%s\n", i18n.Tf("sftp_shell_upload_failed", map[string]any{"Error": err}))
 	} else {
-		_, _ = fmt.Fprintln(s.stdout, "\n上传完成")
+		_, _ = fmt.Fprintln(s.stdout, i18n.T("sftp_shell_upload_done"))
 	}
 }
 
 func (s *Shell) handleMkdir(args []string) {
 	if len(args) < 1 {
-		_, _ = fmt.Fprintln(s.stderr, "用法: mkdir <路径>")
+		_, _ = fmt.Fprintln(s.stderr, i18n.T("sftp_shell_mkdir_usage"))
 		return
 	}
 	path := s.resolvePath(args[0])
@@ -262,7 +261,7 @@ func (s *Shell) handleMkdir(args []string) {
 
 func (s *Shell) handleRm(args []string) {
 	if len(args) < 1 {
-		_, _ = fmt.Fprintln(s.stderr, "用法: rm <路径>")
+		_, _ = fmt.Fprintln(s.stderr, i18n.T("sftp_shell_rm_usage"))
 		return
 	}
 	path := s.resolvePath(args[0])
@@ -275,21 +274,7 @@ func (s *Shell) handleRm(args []string) {
 }
 
 func (s *Shell) printHelp() {
-	help := `
-可用命令:
-  cd <path>     切换远程目录
-  lcd <path>    切换本地目录
-  pwd           显示远程当前目录
-  lpwd          显示本地当前目录
-  ls [path]     列出远程文件
-  lls [path]    列出本地文件
-  get <remote> [local]  下载文件或目录
-  put <local> [remote]  上传文件或目录
-  mkdir <path>  创建远程目录
-  rm <path>     删除远程文件或目录
-  exit/quit     退出
-`
-	_, _ = fmt.Fprintln(s.stdout, help)
+	_, _ = fmt.Fprintln(s.stdout, i18n.T("sftp_shell_help"))
 }
 
 // 简单的进度条辅助函数 (用于 Download，因为预先不知道 Total 只能用 spinner 或者先 Stat)

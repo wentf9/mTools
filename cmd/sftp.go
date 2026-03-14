@@ -11,6 +11,7 @@ import (
 	"github.com/spf13/cobra"
 	"github.com/wentf9/xops-cli/cmd/utils"
 	"github.com/wentf9/xops-cli/pkg/config"
+	"github.com/wentf9/xops-cli/pkg/i18n"
 	"github.com/wentf9/xops-cli/pkg/models"
 	"github.com/wentf9/xops-cli/pkg/sftp"
 	"github.com/wentf9/xops-cli/pkg/ssh"
@@ -32,15 +33,8 @@ func NewCmdSftp() *cobra.Command {
 	o := NewSftpOptions()
 	cmd := &cobra.Command{
 		Use:   "sftp [user@]host[:port]",
-		Short: "通过sftp连接到指定主机",
-		Long: `通过sftp连接到指定主机并提供交互式终端。
-用法示例:
-xops sftp user@host[:port] [-P password] [--task maxTask] [--thread maxThread]
-用户和主机为必选参数,端口默认为22,一般不需要修改
-通过flags提供主机和用户信息时会忽略参数提供的信息
-如果未通过-p选项显式提供密码,将会从终端输入或通过保存的密码文件读取密码
-成功登录过的用户和主机组合的密码将会保存到密码文件中
-密码采用对称加密算法加密保存,密码文件位置为~/.xops_passwords.json`,
+		Short: i18n.T("sftp_short"),
+		Long:  i18n.T("sftp_long"),
 		RunE: func(cmd *cobra.Command, args []string) error {
 			o.Complete(cmd, args)
 			if err := o.Validate(); err != nil {
@@ -49,14 +43,14 @@ xops sftp user@host[:port] [-P password] [--task maxTask] [--thread maxThread]
 			return o.Run()
 		},
 	}
-	cmd.Flags().IntVar(&o.maxTask, "task", 0, "同时下载文件数")
-	cmd.Flags().IntVar(&o.maxThread, "thread", 0, "单个文件同时下载线程")
-	cmd.Flags().StringVarP(&o.Password, "password", "P", "", "SSH密码")
-	cmd.Flags().StringVarP(&o.KeyFile, "key", "i", "", "SSH私钥文件路径")
-	cmd.Flags().StringVarP(&o.KeyPass, "key_pass", "w", "", "SSH私钥密码")
-	cmd.Flags().StringVarP(&o.JumpHost, "jump", "j", "", "跳板机地址[user@]host[:port]")
-	cmd.Flags().StringVarP(&o.Alias, "alias", "a", "", "连接别名")
-	cmd.Flags().StringSliceVarP(&o.Tags, "tag", "t", []string{}, "为节点添加标签(分组)")
+	cmd.Flags().IntVar(&o.maxTask, "task", 0, i18n.T("flag_sftp_task"))
+	cmd.Flags().IntVar(&o.maxThread, "thread", 0, i18n.T("flag_sftp_thread"))
+	cmd.Flags().StringVarP(&o.Password, "password", "P", "", i18n.T("flag_password"))
+	cmd.Flags().StringVarP(&o.KeyFile, "key", "i", "", i18n.T("flag_key"))
+	cmd.Flags().StringVarP(&o.KeyPass, "key_pass", "w", "", i18n.T("flag_key_pass"))
+	cmd.Flags().StringVarP(&o.JumpHost, "jump", "j", "", i18n.T("flag_jump"))
+	cmd.Flags().StringVarP(&o.Alias, "alias", "a", "", i18n.T("flag_alias"))
+	cmd.Flags().StringSliceVarP(&o.Tags, "tag", "t", []string{}, i18n.T("flag_tag"))
 	cmd.MarkFlagsMutuallyExclusive("password", "key")
 	return cmd
 }
@@ -144,7 +138,7 @@ func (o *SftpOptions) createNewNode(provider config.ConfigProvider) (string, err
 		User: strings.TrimSpace(o.User),
 	}
 	if o.Password == "" && o.KeyFile == "" {
-		pass, err := utils.ReadPasswordFromTerminal("请输入密码: ")
+		pass, err := utils.ReadPasswordFromTerminal(i18n.T("prompt_enter_password"))
 		if err != nil {
 			return "", err
 		}

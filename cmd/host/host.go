@@ -2,14 +2,15 @@ package host
 
 import (
 	"github.com/spf13/cobra"
+	"github.com/wentf9/xops-cli/pkg/i18n"
 )
 
 func NewCmdInventory() *cobra.Command {
 	cmd := &cobra.Command{
 		Use:     "inventory",
 		Aliases: []string{"host", "hosts", "inv"},
-		Short:   "管理存储的主机和节点信息",
-		Long:    `管理存储的主机、身份认证和节点信息。支持列出、添加、修改和删除操作。`,
+		Short:   i18n.T("inventory_short"),
+		Long:    i18n.T("inventory_long"),
 		Run: func(cmd *cobra.Command, args []string) {
 			_ = cmd.Help()
 		},
@@ -29,7 +30,7 @@ func NewCmdInventory() *cobra.Command {
 func NewCmdInventoryTag() *cobra.Command {
 	cmd := &cobra.Command{
 		Use:   "tag",
-		Short: "管理节点的标签",
+		Short: i18n.T("inventory_tag_short"),
 		Run: func(cmd *cobra.Command, args []string) {
 			_ = cmd.Help()
 		},
