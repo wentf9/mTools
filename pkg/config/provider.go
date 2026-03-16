@@ -205,3 +205,7 @@ func (cp Provider) init() {
 		cp.add(nodeID)
 	}
 }
+
+func (cp Provider) GetConfig() *Configuration {
+	return cp.cfg
+}
