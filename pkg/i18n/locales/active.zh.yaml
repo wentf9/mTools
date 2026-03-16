@@ -17,6 +17,8 @@ flag_debug:
   other: "开启调试模式 (等同于 --log-level=debug)"
 flag_lang:
   other: "界面语言 (zh/en)"
+flag_color:
+  other: "ANSI 颜色输出 (auto=自动检测管道/重定向, never=禁用, always=强制启用)"
 debug_mode_enabled:
   other: "调试模式已开启"
 

@@ -28,6 +28,10 @@ var rootCmd = &cobra.Command{
 			i18n.SetLang(lang)
 		}
 
+		if colorMode, _ := cmd.Flags().GetString("color"); colorMode != "" {
+			logger.SetColorMode(colorMode)
+		}
+
 		logLevel, _ := cmd.Flags().GetString("log-level")
 		debugFlag, _ := cmd.Flags().GetBool("debug")
 
@@ -61,6 +65,7 @@ func init() {
 	rootCmd.PersistentFlags().String("log-level", "", i18n.T("flag_log_level"))
 	rootCmd.PersistentFlags().Bool("debug", false, i18n.T("flag_debug"))
 	rootCmd.PersistentFlags().String("lang", "", i18n.T("flag_lang"))
+	rootCmd.PersistentFlags().String("color", "", i18n.T("flag_color"))
 
 	rootCmd.AddCommand(versionCmd)
 	rootCmd.AddCommand(host.NewCmdInventory())

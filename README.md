@@ -87,7 +87,7 @@ xops firewall port 80 --proto tcp
 ```json
 {
   "mcpServers": {
-    "xopss": {
+    "xops": {
       "command": "/这里填入绝对路径/xops",
       "args": ["mcp"]
     }
@@ -120,6 +120,31 @@ xops host list
 - `active.en.yaml` — English
 
 如需添加新的翻译 key，请在两个文件中同时添加。翻译使用 [go-i18n](https://github.com/nicksnyder/go-i18n) 格式，支持 `{{.Var}}` 模板变量。
+
+## 🎨 ANSI 颜色输出
+
+在管道或重定向环境中，xops 会自动禁用 ANSI 转义序列，避免将控制字符写入文件或传递给下游命令。
+
+### 控制方式
+
+- **`--color=auto`**（默认）：自动检测 stdout/stderr 是否为 TTY，非 TTY 时禁用颜色
+- **`--color=never`**：强制禁用颜色
+- **`--color=always`**：强制启用颜色（如管道场景下仍需要颜色）
+- **`NO_COLOR` 环境变量**：非空时禁用颜色（符合 [no-color.org](https://no-color.org/) 约定）
+
+优先级：`--color` flag > `NO_COLOR` 环境变量 > TTY 自动检测
+
+```bash
+# 管道场景下自动无颜色
+xops host list | less
+
+# 强制禁用颜色
+xops --color=never host list
+
+# 通过环境变量全局禁用
+export NO_COLOR=1
+xops host list
+```
 
 ## 📂 配置文件
 

@@ -17,6 +17,8 @@ flag_debug:
   other: "Enable debug mode (equivalent to --log-level=debug)"
 flag_lang:
   other: "Interface language (zh/en)"
+flag_color:
+  other: "ANSI color output (auto=detect pipe/redirect, never=disable, always=force enable)"
 debug_mode_enabled:
   other: "Debug mode enabled"
 

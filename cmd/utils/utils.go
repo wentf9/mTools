@@ -3,11 +3,11 @@ package utils
 import (
 	"fmt"
 	"net"
+	"os"
 	"os/user"
 	"path/filepath"
 	"strconv"
 	"strings"
-	"syscall"
 
 	"github.com/wentf9/xops-cli/pkg/config"
 	"golang.org/x/term"
@@ -118,7 +118,7 @@ func GetPasswordFilePath() string {
 // ReadPasswordFromTerminal 从终端安全地读取密码
 func ReadPasswordFromTerminal(prompt string) (string, error) {
 	fmt.Print(prompt)
-	password, err := term.ReadPassword(syscall.Stdin)
+	password, err := term.ReadPassword(int(os.Stdin.Fd()))
 	fmt.Println()
 	if err != nil {
 		return "", err
