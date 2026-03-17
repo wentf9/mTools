@@ -144,7 +144,7 @@ func getOrCreateNode(provider config.ConfigProvider, addr utils.HostInfo) (strin
 		identity.Password = addr.Password
 		identity.AuthType = "password"
 	} else if addr.KeyPath != "" {
-		identity.KeyPath = addr.KeyPath
+		identity.KeyPath = utils.ToAbsolutePath(addr.KeyPath)
 		identity.Passphrase = addr.Passphrase
 		identity.AuthType = "key"
 	}
@@ -169,8 +169,9 @@ func updateNodeFromHostInfo(nodeID string, provider config.ConfigProvider, addr 
 			updated = true
 		}
 	} else if addr.KeyPath != "" {
-		if identity.KeyPath != addr.KeyPath || identity.Passphrase != addr.Passphrase || identity.AuthType != "key" {
-			identity.KeyPath = addr.KeyPath
+		absKeyPath := utils.ToAbsolutePath(addr.KeyPath)
+		if identity.KeyPath != absKeyPath || identity.Passphrase != addr.Passphrase || identity.AuthType != "key" {
+			identity.KeyPath = absKeyPath
 			identity.Passphrase = addr.Passphrase
 			identity.AuthType = "key"
 			updated = true

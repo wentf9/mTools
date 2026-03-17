@@ -3,6 +3,7 @@ package ssh
 import (
 	"bytes"
 	"context"
+	"errors"
 	"fmt"
 	"io"
 	"os"
@@ -143,7 +144,15 @@ func (c *Client) Shell(ctx context.Context) error {
 	// 启动协程处理用户输入
 	go func() { _, _ = io.Copy(stdin, os.Stdin) }()
 
-	return session.Wait()
+	err = session.Wait()
+	// 忽略 ExitError（交互式 shell 的正常退出，退出码可能继承自用户执行的最后一条命令）
+	if err != nil {
+		var exitErr *ssh.ExitError
+		if errors.As(err, &exitErr) {
+			return nil
+		}
+	}
+	return err
 }
 
 func (c *Client) maybeDetectSudoMode(ctx context.Context) {

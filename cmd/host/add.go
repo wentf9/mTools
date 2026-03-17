@@ -57,7 +57,7 @@ func NewCmdInventoryAdd() *cobra.Command {
 				}
 				identity = models.Identity{User: user}
 				if keyPath != "" {
-					identity.KeyPath, identity.Passphrase, identity.AuthType = keyPath, keyPass, "key"
+					identity.KeyPath, identity.Passphrase, identity.AuthType = utils.ToAbsolutePath(keyPath), keyPass, "key"
 				} else if password != "" {
 					identity.Password, identity.AuthType = password, "password"
 				} else {

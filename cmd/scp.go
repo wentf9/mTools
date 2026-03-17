@@ -486,7 +486,7 @@ func (o *ScpOptions) createNewNode(provider config.ConfigProvider, host, user st
 		identity.Password = password
 		identity.AuthType = "password"
 	} else if o.KeyFile != "" {
-		identity.KeyPath = o.KeyFile
+		identity.KeyPath = cmdutils.ToAbsolutePath(o.KeyFile)
 		identity.Passphrase = o.KeyPass
 		identity.AuthType = "key"
 	}
@@ -515,8 +515,9 @@ func (o *ScpOptions) updateNode(nodeID string, provider config.ConfigProvider, s
 			updated = true
 		}
 	} else if o.KeyFile != "" {
-		if identity.KeyPath != o.KeyFile || identity.AuthType != "key" {
-			identity.KeyPath = o.KeyFile
+		absKeyPath := cmdutils.ToAbsolutePath(o.KeyFile)
+		if identity.KeyPath != absKeyPath || identity.AuthType != "key" {
+			identity.KeyPath = absKeyPath
 			identity.AuthType = "key"
 			updated = true
 		}
