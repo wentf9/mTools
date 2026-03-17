@@ -68,6 +68,7 @@ func (m *Model) initForm(nodeID string) Model {
 
 	m.form = huh.NewForm(
 		huh.NewGroup(
+			// 基本信息
 			huh.NewInput().
 				Title(i18n.T("tui_form_alias")).
 				Value(&state.alias).
@@ -110,8 +111,7 @@ func (m *Model) initForm(nodeID string) Model {
 					}
 					return nil
 				}),
-		),
-		huh.NewGroup(
+			// 认证信息
 			huh.NewSelect[string]().
 				Title(i18n.T("tui_form_auth_type")).
 				Options(
@@ -130,8 +130,7 @@ func (m *Model) initForm(nodeID string) Model {
 				Title(i18n.T("tui_form_key_pass")).
 				EchoMode(huh.EchoModePassword).
 				Value(&state.passphrase),
-		),
-		huh.NewGroup(
+			// 其他设置
 			huh.NewSelect[string]().
 				Title(i18n.T("tui_form_sudo_mode")).
 				Options(
@@ -147,7 +146,7 @@ func (m *Model) initForm(nodeID string) Model {
 				Title(i18n.T("tui_form_tags")).
 				Value(&state.tags),
 		),
-	).WithWidth(m.lastSize.Width).WithHeight(m.lastSize.Height - 1)
+	).WithTheme(huh.ThemeCharm()).WithWidth(m.lastSize.Width).WithHeight(m.lastSize.Height - 1)
 	m.form.Init()
 	return *m
 }

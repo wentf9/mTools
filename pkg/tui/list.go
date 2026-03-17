@@ -2,6 +2,7 @@ package tui
 
 import (
 	"fmt"
+	"io"
 	"os"
 	"os/exec"
 	"sort"
@@ -40,6 +41,59 @@ func (i *nodeItem) FilterValue() string {
 	return i.id + " " + i.name + " " + i.address + " " + i.user + " " + i.tags
 }
 
+// checkedDelegate 自定义委托器，支持勾选项的高亮显示
+type checkedDelegate struct {
+	list.DefaultDelegate
+}
+
+func (d checkedDelegate) Render(w io.Writer, m list.Model, index int, item list.Item) {
+	ni, ok := item.(*nodeItem)
+	if !ok {
+		d.DefaultDelegate.Render(w, m, index, item)
+		return
+	}
+
+	// 保存原始样式
+	origSelectedTitle := d.Styles.SelectedTitle
+	origSelectedDesc := d.Styles.SelectedDesc
+	origNormalTitle := d.Styles.NormalTitle
+	origNormalDesc := d.Styles.NormalDesc
+
+	// 如果被勾选，修改样式添加绿色左边框
+	if ni.selected {
+		checkedBorder := lipgloss.NormalBorder()
+		checkedColor := lipgloss.Color("2") // 绿色
+
+		// 修改 Normal 样式（非光标行）
+		d.Styles.NormalTitle = d.Styles.NormalTitle.
+			Border(checkedBorder, false, false, false, true).
+			BorderForeground(checkedColor).
+			Padding(0, 0, 0, 1)
+		d.Styles.NormalDesc = d.Styles.NormalDesc.
+			Border(checkedBorder, false, false, false, true).
+			BorderForeground(checkedColor).
+			Padding(0, 0, 0, 1)
+
+		// 修改 Selected 样式（光标行）- 同时显示选中色和勾选色
+		d.Styles.SelectedTitle = d.Styles.SelectedTitle.
+			Border(checkedBorder, false, false, false, true).
+			BorderForeground(checkedColor).
+			Padding(0, 0, 0, 1)
+		d.Styles.SelectedDesc = d.Styles.SelectedDesc.
+			Border(checkedBorder, false, false, false, true).
+			BorderForeground(checkedColor).
+			Padding(0, 0, 0, 1)
+	}
+
+	d.DefaultDelegate.Render(w, m, index, item)
+
+	// 恢复原始样式
+	d.Styles.SelectedTitle = origSelectedTitle
+	d.Styles.SelectedDesc = origSelectedDesc
+	d.Styles.NormalTitle = origNormalTitle
+	d.Styles.NormalDesc = origNormalDesc
+}
+
 func newListModel(provider config.ConfigProvider) list.Model {
 	nodes := provider.ListNodes()
 	var items []list.Item
@@ -67,7 +121,7 @@ func newListModel(provider config.ConfigProvider) list.Model {
 	})
 
 	// 获取默认委派器并进行自定义配置
-	delegate := list.NewDefaultDelegate()
+	delegate := checkedDelegate{DefaultDelegate: list.NewDefaultDelegate()}
 	// 设置光标所在行（Selected）的高亮样式
 	delegate.Styles.SelectedTitle = lipgloss.NewStyle().
 		Foreground(selectedColor).
