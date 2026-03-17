@@ -1,10 +1,5 @@
-.vscode/launch.json
-mtool.exe
-mtool.linux.aarch64
-mtool.linux.amd64
-.gitignore
-.vscode/settings.json
-bin
+.vscode/
+bin/
 GEMINI.md
 skills-lock.json
 .agent/
@@ -12,3 +7,4 @@ skills-lock.json
 .gemini/
 temp_tests/
 coverage.out
+CLAUDE.md

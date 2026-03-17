@@ -461,3 +461,63 @@ sftp_shell_upload_done:
   other: "\n上传完成"
 sftp_shell_help:
   other: "\n可用命令:\n  cd <path>     切换远程目录\n  lcd <path>    切换本地目录\n  pwd           显示远程当前目录\n  lpwd          显示本地当前目录\n  ls [path]     列出远程文件\n  lls [path]    列出本地文件\n  get <remote> [local]  下载文件或目录\n  put <local> [remote]  上传文件或目录\n  mkdir <path>  创建远程目录\n  rm <path>     删除远程文件或目录\n  exit/quit     退出\n"
+
+# ---- tui ----
+tui_short:
+  other: "启动终端版主机管理面板"
+tui_long:
+  other: "启动一个全屏的高级终端用户界面 (TUI)，用于浏览、过滤、连接以及管理主机配置。"
+tui_list_title:
+  other: "主机管理"
+tui_confirm_delete:
+  other: "确认删除？再次按 'd' 确认，按其他键取消。"
+tui_status_deleted:
+  other: "已删除 {{.Count}} 个节点"
+tui_status_saved:
+  other: "节点 '{{.ID}}' 已保存"
+tui_status_save_failed:
+  other: "保存失败: {{.Error}}"
+tui_help_space:
+  other: "选择"
+tui_help_all:
+  other: "全选"
+tui_help_invert:
+  other: "反选"
+tui_help_delete:
+  other: "删除"
+tui_help_edit:
+  other: "编辑"
+tui_help_new:
+  other: "新建"
+tui_form_alias:
+  other: "别名 (可选，逗号分隔)"
+tui_form_user:
+  other: "用户名"
+tui_form_address:
+  other: "主机地址"
+tui_form_port:
+  other: "端口"
+tui_form_auth_type:
+  other: "认证方式"
+tui_form_password:
+  other: "密码"
+tui_form_key_path:
+  other: "私钥路径"
+tui_form_key_pass:
+  other: "私钥密码"
+tui_form_sudo_mode:
+  other: "提权模式"
+tui_form_tags:
+  other: "标签 (逗号分隔)"
+tui_ssh_failed:
+  other: "SSH 连接失败: {{.Error}}"
+tui_press_enter:
+  other: "按 Enter 键返回主机管理..."
+tui_validation_user_required:
+  other: "用户名必填"
+tui_validation_address_required:
+  other: "地址必填"
+tui_validation_port_invalid:
+  other: "端口无效，必须为数字"
+tui_validation_alias_exists:
+  other: "别名已存在"

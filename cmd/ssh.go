@@ -4,6 +4,7 @@ import (
 	"context"
 	"errors"
 	"fmt"
+	"os"
 	"strings"
 	"time"
 
@@ -127,16 +128,20 @@ func (o *SshOptions) Run() error {
 	defer cancel()
 	client, err := connector.Connect(ctx, nodeID)
 	if err != nil {
-		return fmt.Errorf("连接失败: %w", err)
+		fmt.Printf("\n%s: %v\n", i18n.T("fw_connect_failed"), err)
+		fmt.Println(i18n.T("tui_press_enter"))
+		var b [1]byte
+		_, _ = os.Stdin.Read(b[:])
+		return fmt.Errorf("%s: %w", i18n.T("fw_connect_failed"), err)
 	}
 	defer func() { _ = client.Close() }()
 	if o.Sudo {
 		if err := client.ShellWithSudo(ctx); err != nil {
-			return fmt.Errorf("启动sudo环境失败: %w", err)
+			return fmt.Errorf("%s: %w", i18n.T("sudo_exec_failed"), err)
 		}
 	} else {
 		if err := client.Shell(ctx); err != nil {
-			return fmt.Errorf("启动交互式终端失败: %w", err)
+			return fmt.Errorf("SSH shell failed: %w", err)
 		}
 	}
 	if updated {

@@ -461,3 +461,63 @@ sftp_shell_upload_done:
   other: "\nUpload complete"
 sftp_shell_help:
   other: "\nAvailable commands:\n  cd <path>     Change remote directory\n  lcd <path>    Change local directory\n  pwd           Show remote current directory\n  lpwd          Show local current directory\n  ls [path]     List remote files\n  lls [path]    List local files\n  get <remote> [local]  Download file or directory\n  put <local> [remote]  Upload file or directory\n  mkdir <path>  Create remote directory\n  rm <path>     Remove remote file or directory\n  exit/quit     Exit\n"
+
+# ---- tui ----
+tui_short:
+  other: "Start Terminal UI Host Management Panel"
+tui_long:
+  other: "Start a full-screen advanced terminal user interface (TUI) for browsing, filtering, connecting and managing host configurations."
+tui_list_title:
+  other: "Host Management"
+tui_confirm_delete:
+  other: "Confirm delete? Press 'd' again to confirm, any other key to cancel."
+tui_status_deleted:
+  other: "Deleted {{.Count}} node(s)"
+tui_status_saved:
+  other: "Node '{{.ID}}' saved"
+tui_status_save_failed:
+  other: "Failed to save: {{.Error}}"
+tui_help_space:
+  other: "select"
+tui_help_all:
+  other: "all"
+tui_help_invert:
+  other: "invert"
+tui_help_delete:
+  other: "delete"
+tui_help_edit:
+  other: "edit"
+tui_help_new:
+  other: "new"
+tui_form_alias:
+  other: "Alias (Optional, comma separated)"
+tui_form_user:
+  other: "User"
+tui_form_address:
+  other: "Host Address"
+tui_form_port:
+  other: "Port"
+tui_form_auth_type:
+  other: "Auth Type"
+tui_form_password:
+  other: "Password"
+tui_form_key_path:
+  other: "Key File Path"
+tui_form_key_pass:
+  other: "Key Passphrase"
+tui_form_sudo_mode:
+  other: "Sudo Mode"
+tui_form_tags:
+  other: "Tags (comma separated)"
+tui_ssh_failed:
+  other: "SSH connection failed: {{.Error}}"
+tui_press_enter:
+  other: "Press Enter to return to Host Management..."
+tui_validation_user_required:
+  other: "user is required"
+tui_validation_address_required:
+  other: "address is required"
+tui_validation_port_invalid:
+  other: "invalid port, must be number"
+tui_validation_alias_exists:
+  other: "alias already exists"

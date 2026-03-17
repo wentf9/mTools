@@ -1,12 +1,15 @@
 package tui
 
 import (
+	"errors"
 	"fmt"
 	"strconv"
 	"strings"
 
 	tea "github.com/charmbracelet/bubbletea"
 	"github.com/charmbracelet/huh"
+	"github.com/wentf9/xops-cli/cmd/utils"
+	"github.com/wentf9/xops-cli/pkg/i18n"
 	"github.com/wentf9/xops-cli/pkg/models"
 )
 
@@ -26,7 +29,7 @@ type nodeFormState struct {
 	tags       string
 }
 
-func (m Model) initForm(nodeID string) Model {
+func (m *Model) initForm(nodeID string) Model {
 	state := &nodeFormState{
 		port:     "22",
 		authType: "password",
@@ -41,7 +44,7 @@ func (m Model) initForm(nodeID string) Model {
 		identity, _ := m.provider.GetIdentity(nodeID)
 
 		if len(node.Alias) > 0 {
-			state.alias = node.Alias[0]
+			state.alias = strings.Join(node.Alias, ",")
 		}
 		state.user = identity.User
 		state.address = host.Address
@@ -66,59 +69,71 @@ func (m Model) initForm(nodeID string) Model {
 	m.form = huh.NewForm(
 		huh.NewGroup(
 			huh.NewInput().
-				Title("Alias (Name of the node)").
-				Value(&state.alias),
+				Title(i18n.T("tui_form_alias")).
+				Value(&state.alias).
+				Validate(func(s string) error {
+					if s == "" {
+						return nil
+					}
+					// Check for duplicate alias
+					if !state.isEdit || s != state.alias {
+						if m.provider.Find(s) != "" {
+							return errors.New(i18n.T("tui_validation_alias_exists"))
+						}
+					}
+					return nil
+				}),
 			huh.NewInput().
-				Title("User").
+				Title(i18n.T("tui_form_user")).
 				Value(&state.user).
 				Validate(func(s string) error {
 					if strings.TrimSpace(s) == "" {
-						return fmt.Errorf("user is required")
+						return errors.New(i18n.T("tui_validation_user_required"))
 					}
 					return nil
 				}),
 			huh.NewInput().
-				Title("Host Address").
+				Title(i18n.T("tui_form_address")).
 				Value(&state.address).
 				Validate(func(s string) error {
 					if strings.TrimSpace(s) == "" {
-						return fmt.Errorf("address is required")
+						return errors.New(i18n.T("tui_validation_address_required"))
 					}
 					return nil
 				}),
 			huh.NewInput().
-				Title("Port").
+				Title(i18n.T("tui_form_port")).
 				Value(&state.port).
 				Validate(func(s string) error {
 					if _, err := strconv.Atoi(s); err != nil {
-						return fmt.Errorf("invalid port, must be number")
+						return errors.New(i18n.T("tui_validation_port_invalid"))
 					}
 					return nil
 				}),
 		),
 		huh.NewGroup(
 			huh.NewSelect[string]().
-				Title("Auth Type").
+				Title(i18n.T("tui_form_auth_type")).
 				Options(
 					huh.NewOption("Password", "password"),
 					huh.NewOption("Key File", "key"),
 				).
 				Value(&state.authType),
 			huh.NewInput().
-				Title("Password").
+				Title(i18n.T("tui_form_password")).
 				EchoMode(huh.EchoModePassword).
 				Value(&state.password),
 			huh.NewInput().
-				Title("Key File Path").
+				Title(i18n.T("tui_form_key_path")).
 				Value(&state.keyPath),
 			huh.NewInput().
-				Title("Key Passphrase").
+				Title(i18n.T("tui_form_key_pass")).
 				EchoMode(huh.EchoModePassword).
 				Value(&state.passphrase),
 		),
 		huh.NewGroup(
 			huh.NewSelect[string]().
-				Title("Sudo Mode").
+				Title(i18n.T("tui_form_sudo_mode")).
 				Options(
 					huh.NewOption("Auto", string(models.SudoModeAuto)),
 					huh.NewOption("Sudo", string(models.SudoModeSudo)),
@@ -129,21 +144,26 @@ func (m Model) initForm(nodeID string) Model {
 				).
 				Value(&state.sudoMode),
 			huh.NewInput().
-				Title("Tags (comma separated)").
+				Title(i18n.T("tui_form_tags")).
 				Value(&state.tags),
 		),
-	)
+	).WithWidth(m.lastSize.Width).WithHeight(m.lastSize.Height - 1)
 	m.form.Init()
-	return m
+	return *m
 }
 
-func (m Model) updateForm(msg tea.Msg) (Model, tea.Cmd) {
+func (m *Model) updateForm(msg tea.Msg) (Model, tea.Cmd) {
 	switch msg := msg.(type) {
+	case tea.WindowSizeMsg:
+		if m.form != nil {
+			m.form.WithWidth(msg.Width).WithHeight(msg.Height - 1)
+		}
+		return *m, nil
 	case tea.KeyMsg:
 		if msg.String() == "esc" {
 			// cancel
 			m.state = viewList
-			return m, nil
+			return *m, nil
 		}
 	}
 
@@ -156,16 +176,24 @@ func (m Model) updateForm(msg tea.Msg) (Model, tea.Cmd) {
 		m.saveForm()
 		m.state = viewList
 		m.list = newListModel(m.provider) // refresh list
-		return m, nil
+		// 应用窗口大小
+		*m, _ = m.updateList(m.lastSize)
+		return *m, nil
 	}
 
-	return m, cmd
+	return *m, cmd
 }
 
-func (m Model) saveForm() {
+func (m *Model) saveForm() {
 	s := m.formState
 
 	port, _ := strconv.Atoi(s.port)
+
+	// Standardize key path
+	absKeyPath := ""
+	if s.authType == "key" && s.keyPath != "" {
+		absKeyPath = utils.ToAbsolutePath(s.keyPath)
+	}
 
 	// Save Identity
 	identityID := fmt.Sprintf("%s@%s", s.user, s.address)
@@ -173,7 +201,7 @@ func (m Model) saveForm() {
 		User:       s.user,
 		AuthType:   s.authType,
 		Password:   s.password,
-		KeyPath:    s.keyPath,
+		KeyPath:    absKeyPath,
 		Passphrase: s.passphrase,
 	}
 	if s.authType == "password" {
@@ -193,6 +221,16 @@ func (m Model) saveForm() {
 	m.provider.AddHost(hostID, host)
 
 	// Save Node
+	var alias []string
+	if strings.TrimSpace(s.alias) != "" {
+		for _, a := range strings.Split(s.alias, ",") {
+			sa := strings.TrimSpace(a)
+			if sa != "" {
+				alias = append(alias, sa)
+			}
+		}
+	}
+
 	var tags []string
 	if strings.TrimSpace(s.tags) != "" {
 		for _, t := range strings.Split(s.tags, ",") {
@@ -209,9 +247,7 @@ func (m Model) saveForm() {
 		IdentityRef: identityID,
 		SudoMode:    models.SudoMode(s.sudoMode),
 		Tags:        tags,
-	}
-	if s.alias != "" {
-		node.Alias = []string{s.alias}
+		Alias:       alias,
 	}
 
 	// Delete old node if ID changed or just updating
@@ -220,5 +256,10 @@ func (m Model) saveForm() {
 	}
 	m.provider.AddNode(nodeID, node)
 
-	_ = m.configStore.Save(m.provider.GetConfig())
+	err := m.configStore.Save(m.provider.GetConfig())
+	if err != nil {
+		m.status = errorStyle.Render(i18n.Tf("tui_status_save_failed", map[string]any{"Error": err}))
+	} else {
+		m.status = successStyle.Render(i18n.Tf("tui_status_saved", map[string]any{"ID": nodeID}))
+	}
 }

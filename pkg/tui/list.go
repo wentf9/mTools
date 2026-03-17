@@ -10,7 +10,9 @@ import (
 	"github.com/charmbracelet/bubbles/key"
 	"github.com/charmbracelet/bubbles/list"
 	tea "github.com/charmbracelet/bubbletea"
+	"github.com/charmbracelet/lipgloss"
 	"github.com/wentf9/xops-cli/pkg/config"
+	"github.com/wentf9/xops-cli/pkg/i18n"
 )
 
 type nodeItem struct {
@@ -22,15 +24,19 @@ type nodeItem struct {
 	selected bool
 }
 
-func (i nodeItem) Title() string {
-	prefix := "[ ] "
+// Title 只返回纯文本，样式的上色逻辑全部交给 Delegate 处理，以防止乱码。
+func (i *nodeItem) Title() string {
 	if i.selected {
-		prefix = "[x] "
+		return "[x] " + i.name
 	}
-	return prefix + i.name
+	return "[ ] " + i.name
 }
-func (i nodeItem) Description() string { return fmt.Sprintf("%s@%s - [%s]", i.user, i.address, i.tags) }
-func (i nodeItem) FilterValue() string {
+
+func (i *nodeItem) Description() string {
+	return fmt.Sprintf("%s@%s - [%s]", i.user, i.address, i.tags)
+}
+
+func (i *nodeItem) FilterValue() string {
 	return i.id + " " + i.name + " " + i.address + " " + i.user + " " + i.tags
 }
 
@@ -44,10 +50,10 @@ func newListModel(provider config.ConfigProvider) list.Model {
 
 		name := id
 		if len(node.Alias) > 0 {
-			name = node.Alias[0]
+			name = strings.Join(node.Alias, ", ")
 		}
 
-		items = append(items, nodeItem{
+		items = append(items, &nodeItem{
 			id:      id,
 			name:    name,
 			address: host.Address,
@@ -57,146 +63,265 @@ func newListModel(provider config.ConfigProvider) list.Model {
 	}
 
 	sort.Slice(items, func(i, j int) bool {
-		return items[i].(nodeItem).name < items[j].(nodeItem).name
+		return items[i].(*nodeItem).name < items[j].(*nodeItem).name
 	})
 
-	l := list.New(items, list.NewDefaultDelegate(), 0, 0)
-	l.Title = "Host Management"
+	// 获取默认委派器并进行自定义配置
+	delegate := list.NewDefaultDelegate()
+	// 设置光标所在行（Selected）的高亮样式
+	delegate.Styles.SelectedTitle = lipgloss.NewStyle().
+		Foreground(selectedColor).
+		Bold(true).
+		Border(lipgloss.NormalBorder(), false, false, false, true).
+		BorderForeground(selectedColor).
+		Padding(0, 0, 0, 1)
+
+	// 描述部分设置更暗的颜色
+	delegate.Styles.SelectedDesc = delegate.Styles.SelectedTitle.
+		Foreground(lipgloss.Color("8")).
+		Bold(false)
+
+	l := list.New(items, delegate, 0, 0)
+	l.Title = i18n.T("tui_list_title")
 	l.SetShowStatusBar(true)
 	l.SetFilteringEnabled(true)
 
-	// Add custom help keys
+	// 自定义过滤逻辑，实现子字符串匹配
+	l.Filter = func(term string, targets []string) []list.Rank {
+		ranks := make([]list.Rank, 0)
+		for i, target := range targets {
+			index := strings.Index(strings.ToLower(target), strings.ToLower(term))
+			if index >= 0 {
+				matchedIndexes := make([]int, len(term))
+				for j := 0; j < len(term); j++ {
+					matchedIndexes[j] = index + j
+				}
+				ranks = append(ranks, list.Rank{
+					Index:          i,
+					MatchedIndexes: matchedIndexes,
+				})
+			}
+		}
+		return ranks
+	}
+
+	// 添加快捷键帮助
 	l.AdditionalShortHelpKeys = func() []key.Binding {
 		return []key.Binding{
-			key.NewBinding(key.WithKeys("space"), key.WithHelp("space", "select")),
-			key.NewBinding(key.WithKeys("a"), key.WithHelp("a", "all")),
-			key.NewBinding(key.WithKeys("v"), key.WithHelp("v", "invert")),
-			key.NewBinding(key.WithKeys("d"), key.WithHelp("d", "delete")),
-			key.NewBinding(key.WithKeys("e"), key.WithHelp("e", "edit")),
-			key.NewBinding(key.WithKeys("n"), key.WithHelp("n", "new")),
+			key.NewBinding(key.WithKeys("space"), key.WithHelp("space", i18n.T("tui_help_space"))),
+			key.NewBinding(key.WithKeys("a"), key.WithHelp("a", i18n.T("tui_help_all"))),
+			key.NewBinding(key.WithKeys("v"), key.WithHelp("v", i18n.T("tui_help_invert"))),
+			key.NewBinding(key.WithKeys("d"), key.WithHelp("d", i18n.T("tui_help_delete"))),
+			key.NewBinding(key.WithKeys("e"), key.WithHelp("e", i18n.T("tui_help_edit"))),
+			key.NewBinding(key.WithKeys("n"), key.WithHelp("n", i18n.T("tui_help_new"))),
 		}
 	}
 
 	return l
 }
 
-func (m Model) updateList(msg tea.Msg) (Model, tea.Cmd) {
+func (m *Model) updateList(msg tea.Msg) (Model, tea.Cmd) {
 	switch msg := msg.(type) {
 	case tea.WindowSizeMsg:
 		h, v := appStyle.GetFrameSize()
+		// 如果有状态消息，需要为底部的 "\n\n" + status 留出 3 行空间
+		if m.status != "" {
+			v += 3
+		}
 		m.list.SetSize(msg.Width-h, msg.Height-v)
-		return m, nil
+		return *m, nil
 
 	case tea.KeyMsg:
-		if m.list.SettingFilter() {
-			break
-		}
-		switch msg.String() {
-		case "enter":
-			return m.handleEnter()
-		case " ":
-			return m.handleSpace()
-		case "a":
-			return m.handleSelectAll()
-		case "v":
-			return m.handleInvertSelection()
-		case "d":
-			return m.handleDelete()
-		case "n":
-			return m.handleNew()
-		case "e":
-			return m.handleEdit()
-		case "esc", "q", "ctrl+c":
-			return m, tea.Quit
-		}
+		return m.handleKeyMsg(msg)
 	}
 
 	var cmd tea.Cmd
 	m.list, cmd = m.list.Update(msg)
-	return m, cmd
+	return *m, cmd
 }
 
-func (m Model) handleEnter() (Model, tea.Cmd) {
+func (m *Model) handleKeyMsg(msg tea.KeyMsg) (Model, tea.Cmd) {
+	if m.list.SettingFilter() {
+		var cmd tea.Cmd
+		m.list, cmd = m.list.Update(msg)
+		return *m, cmd
+	}
+
+	// 如果处于删除确认状态，除了 'd' 键以外的任何键都会取消删除
+	if m.deletePending && msg.String() != "d" {
+		m.deletePending = false
+		m.status = ""
+		// 立即恢复列表大小
+		*m, _ = m.updateList(m.lastSize)
+		// 如果按键是 'esc'，则不再继续冒泡
+		if msg.String() == "esc" {
+			return *m, nil
+		}
+		// 其他按键继续执行其原有的功能
+	}
+
+	switch msg.String() {
+	case "enter":
+		return m.handleEnter()
+	case " ":
+		return m.handleSpace()
+	case "a":
+		return m.handleSelectAll()
+	case "v":
+		return m.handleInvertSelection()
+	case "d":
+		return m.handleDelete()
+	case "n":
+		return m.handleNew()
+	case "e":
+		return m.handleEdit()
+	case "q", "ctrl+c":
+		return *m, tea.Quit
+	case "esc":
+		if m.list.FilterState() != list.Unfiltered {
+			var cmd tea.Cmd
+			m.list, cmd = m.list.Update(msg)
+			return *m, cmd
+		}
+		return *m, tea.Quit
+	}
+
+	var cmd tea.Cmd
+	m.list, cmd = m.list.Update(msg)
+	return *m, cmd
+}
+
+func (m *Model) handleEnter() (Model, tea.Cmd) {
 	selected := m.list.SelectedItem()
 	if selected != nil {
-		nodeID := selected.(nodeItem).id
-		return m, runSSH(nodeID)
+		nodeID := selected.(*nodeItem).id
+		return *m, runSSH(nodeID)
 	}
-	return m, nil
+	return *m, nil
 }
 
-func (m Model) handleSpace() (Model, tea.Cmd) {
-	idx := m.list.Index()
-	selectedItem, ok := m.list.SelectedItem().(nodeItem)
+func (m *Model) handleSpace() (Model, tea.Cmd) {
+	selectedItem, ok := m.list.SelectedItem().(*nodeItem)
 	if ok {
+		// 直接修改指针指向的值
 		selectedItem.selected = !selectedItem.selected
-		cmd := m.list.SetItem(idx, selectedItem)
-		return m, cmd
+		// 获取全量列表并重新设置，以触发列表内部的刷新
+		items := m.list.Items()
+		cmd := m.list.SetItems(items)
+		return *m, cmd
 	}
-	return m, nil
+	return *m, nil
 }
 
-func (m Model) handleSelectAll() (Model, tea.Cmd) {
-	var newItems []list.Item
-	for _, i := range m.list.Items() {
-		ni := i.(nodeItem)
-		ni.selected = true
-		newItems = append(newItems, ni)
+func (m *Model) handleSelectAll() (Model, tea.Cmd) {
+	// 获取当前可见的项（如果是过滤状态，只包含过滤结果）
+	visibleItems := m.list.VisibleItems()
+
+	// 创建一个 map 来快速查找哪些项需要被选中
+	toSelect := make(map[string]bool)
+	for _, item := range visibleItems {
+		if ni, ok := item.(*nodeItem); ok {
+			toSelect[ni.id] = true
+		}
 	}
-	cmd := m.list.SetItems(newItems)
-	return m, cmd
+
+	// 遍历所有项，更新选中状态
+	all := m.list.Items()
+	for _, item := range all {
+		ni := item.(*nodeItem)
+		if toSelect[ni.id] {
+			ni.selected = true
+		}
+	}
+	cmd := m.list.SetItems(all)
+	return *m, cmd
 }
 
-func (m Model) handleInvertSelection() (Model, tea.Cmd) {
-	var newItems []list.Item
-	for _, i := range m.list.Items() {
-		ni := i.(nodeItem)
-		ni.selected = !ni.selected
-		newItems = append(newItems, ni)
+func (m *Model) handleInvertSelection() (Model, tea.Cmd) {
+	// 获取可见项 ID 集合
+	visibleItems := m.list.VisibleItems()
+	toInvert := make(map[string]bool)
+	for _, item := range visibleItems {
+		if ni, ok := item.(*nodeItem); ok {
+			toInvert[ni.id] = true
+		}
 	}
-	cmd := m.list.SetItems(newItems)
-	return m, cmd
+
+	all := m.list.Items()
+	for _, item := range all {
+		ni := item.(*nodeItem)
+		if toInvert[ni.id] {
+			ni.selected = !ni.selected
+		}
+	}
+	cmd := m.list.SetItems(all)
+	return *m, cmd
 }
 
-func (m Model) handleDelete() (Model, tea.Cmd) {
+func (m *Model) handleDelete() (Model, tea.Cmd) {
+	if !m.deletePending {
+		m.deletePending = true
+		m.status = errorStyle.Render(i18n.T("tui_confirm_delete"))
+		// 刷新列表大小以容纳状态提示
+		*m, _ = m.updateList(m.lastSize)
+		return *m, nil
+	}
+
+	m.deletePending = false
+
+	// 只删除当前可见（过滤后）且被勾选的项
+	visibleItems := m.list.VisibleItems()
+	visibleMap := make(map[string]bool)
+	for _, item := range visibleItems {
+		if ni, ok := item.(*nodeItem); ok {
+			visibleMap[ni.id] = true
+		}
+	}
+
 	var toDelete []string
-	for _, i := range m.list.Items() {
-		if ni, ok := i.(nodeItem); ok && ni.selected {
+	all := m.list.Items()
+	for _, i := range all {
+		if ni, ok := i.(*nodeItem); ok && ni.selected && visibleMap[ni.id] {
 			toDelete = append(toDelete, ni.id)
 		}
 	}
-	// 如果没有选中的，则删除当前悬停的
+
+	// 如果没有批量选中的，则删除当前悬停的这一项
 	if len(toDelete) == 0 {
-		if sel, ok := m.list.SelectedItem().(nodeItem); ok {
+		if sel, ok := m.list.SelectedItem().(*nodeItem); ok {
 			toDelete = append(toDelete, sel.id)
 		}
 	}
+
 	if len(toDelete) > 0 {
 		for _, id := range toDelete {
 			m.provider.DeleteNode(id)
 		}
 		_ = m.configStore.Save(m.provider.GetConfig())
-		// 刷新列表
+		// 设置状态消息
+		m.status = successStyle.Render(i18n.Tf("tui_status_deleted", map[string]any{"Count": len(toDelete)}))
+		// 刷新列表模型
 		m.list = newListModel(m.provider)
+		*m, _ = m.updateList(m.lastSize)
 	}
-	return m, nil
+	return *m, nil
 }
 
-func (m Model) handleNew() (Model, tea.Cmd) {
-	m = m.initForm("")
+func (m *Model) handleNew() (Model, tea.Cmd) {
+	*m = m.initForm("")
 	m.state = viewForm
-	return m, nil
+	return *m, nil
 }
 
-func (m Model) handleEdit() (Model, tea.Cmd) {
+func (m *Model) handleEdit() (Model, tea.Cmd) {
 	selected := m.list.SelectedItem()
 	if selected != nil {
-		nodeID := selected.(nodeItem).id
-		m = m.initForm(nodeID)
+		nodeID := selected.(*nodeItem).id
+		*m = m.initForm(nodeID)
 		m.state = viewForm
-		return m, nil
+		return *m, nil
 	}
-	return m, nil
+	return *m, nil
 }
 
 type sshFinishedMsg struct{ err error }
