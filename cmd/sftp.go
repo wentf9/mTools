@@ -148,7 +148,7 @@ func (o *SftpOptions) createNewNode(provider config.ConfigProvider) (string, err
 		identity.Password = o.Password
 		identity.AuthType = "password"
 	} else if o.KeyFile != "" {
-		identity.KeyPath = o.KeyFile
+		identity.KeyPath = utils.ToAbsolutePath(o.KeyFile)
 		identity.Passphrase = o.KeyPass
 		identity.AuthType = "key"
 	}

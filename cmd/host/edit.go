@@ -89,7 +89,7 @@ func applyNodeUpdates(cmd *cobra.Command, host *models.Host, identity *models.Id
 		identity.User, updated, nameChanged = flags.user, true, true
 	}
 	if flags.keyPath != "" {
-		identity.KeyPath, identity.AuthType, identity.Password, updated = flags.keyPath, "key", "", true
+		identity.KeyPath, identity.AuthType, identity.Password, updated = utils.ToAbsolutePath(flags.keyPath), "key", "", true
 	} else if flags.password != "" {
 		identity.Password, identity.AuthType, identity.KeyPath, updated = flags.password, "password", "", true
 	}

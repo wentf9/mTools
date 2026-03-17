@@ -66,7 +66,7 @@ func NewCmdIdentityEdit() *cobra.Command {
 			}
 
 			if keyPath != "" {
-				identity.KeyPath = keyPath
+				identity.KeyPath = utils.ToAbsolutePath(keyPath)
 				identity.AuthType = "key"
 				identity.Password = "" // 切换到密钥时清空密码
 				updated = true
@@ -195,7 +195,7 @@ func NewCmdIdentityAdd() *cobra.Command {
 			}
 
 			if keyPath != "" {
-				identity.KeyPath = keyPath
+				identity.KeyPath = utils.ToAbsolutePath(keyPath)
 				identity.Passphrase = keyPass
 				identity.AuthType = "key"
 			} else if password != "" {

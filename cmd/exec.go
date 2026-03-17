@@ -383,7 +383,7 @@ func (o *ExecOptions) execCreateNewNode(provider config.ConfigProvider, host, us
 		}
 
 		if keyPath != "" {
-			identity.KeyPath = keyPath
+			identity.KeyPath = utils.ToAbsolutePath(keyPath)
 			identity.Passphrase = keyPass
 			identity.AuthType = "key"
 		}
@@ -421,8 +421,9 @@ func (o *ExecOptions) updateNodeFromHostInfo(nodeID string, provider config.Conf
 			updated = true
 		}
 	} else if addr.KeyPath != "" {
-		if identity.KeyPath != addr.KeyPath || identity.Passphrase != addr.Passphrase || identity.AuthType != "key" {
-			identity.KeyPath = addr.KeyPath
+		absKeyPath := utils.ToAbsolutePath(addr.KeyPath)
+		if identity.KeyPath != absKeyPath || identity.Passphrase != addr.Passphrase || identity.AuthType != "key" {
+			identity.KeyPath = absKeyPath
 			identity.Passphrase = addr.Passphrase
 			identity.AuthType = "key"
 			updated = true

@@ -186,7 +186,7 @@ func updateIdentityFields(identity *models.Identity, o *SshOptions) bool {
 		identity.AuthType = "password"
 		identityUpdated = true
 	} else if o.KeyFile != "" {
-		identity.KeyPath = o.KeyFile
+		identity.KeyPath = utils.ToAbsolutePath(o.KeyFile)
 		identity.AuthType = "key"
 		identityUpdated = true
 	}
@@ -234,7 +234,7 @@ func (o *SshOptions) createNewNode(provider config.ConfigProvider) (string, erro
 		identity.Password = o.Password
 		identity.AuthType = "password"
 	} else if o.KeyFile != "" {
-		identity.KeyPath = o.KeyFile
+		identity.KeyPath = utils.ToAbsolutePath(o.KeyFile)
 		identity.Passphrase = o.KeyPass
 		identity.AuthType = "key"
 	}

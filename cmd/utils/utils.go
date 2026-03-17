@@ -137,3 +137,40 @@ func IsValidCIDR(cidrStr string) bool {
 	_, _, err := net.ParseCIDR(cidrStr)
 	return err == nil
 }
+
+// ToAbsolutePath 将路径转换为绝对路径
+// 支持 ~ 展开和相对路径转绝对路径
+// 如果路径已经是绝对路径，直接返回
+func ToAbsolutePath(path string) string {
+	if path == "" {
+		return path
+	}
+
+	// 处理 ~ 开头的路径
+	if len(path) > 0 && path[0] == '~' {
+		home, err := os.UserHomeDir()
+		if err == nil {
+			// 使用 filepath.Join 确保路径分隔符正确
+			rest := path[1:]
+			if len(rest) > 0 && (rest[0] == '/' || rest[0] == '\\') {
+				rest = rest[1:]
+			}
+			if rest == "" {
+				return home
+			}
+			return filepath.Join(home, rest)
+		}
+	}
+
+	// 如果已经是绝对路径，直接返回
+	if filepath.IsAbs(path) {
+		return path
+	}
+
+	// 将相对路径转换为绝对路径
+	absPath, err := filepath.Abs(path)
+	if err != nil {
+		return path
+	}
+	return absPath
+}

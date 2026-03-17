@@ -3,6 +3,7 @@ package ssh
 import (
 	"bytes"
 	"context"
+	"errors"
 	"fmt"
 	"io"
 	"os"
@@ -199,7 +200,7 @@ func (c *Client) ShellWithSudo(ctx context.Context) error {
 		go func() { _, _ = io.Copy(os.Stdout, stdout) }()
 		go func() { _, _ = io.Copy(os.Stderr, stderr) }()
 		go func() { _, _ = io.Copy(stdin, os.Stdin) }()
-		return session.Wait()
+		return ignoreShellExitError(session.Wait())
 	}
 
 	handlePasswordHandshake(stdout, stdin, password)
@@ -208,7 +209,19 @@ func (c *Client) ShellWithSudo(ctx context.Context) error {
 	go func() { _, _ = io.Copy(os.Stderr, stderr) }()
 	go func() { _, _ = io.Copy(stdin, os.Stdin) }()
 
-	return session.Wait()
+	return ignoreShellExitError(session.Wait())
+}
+
+// ignoreShellExitError 忽略交互式 shell 的 ExitError
+// 交互式 shell 退出时可能继承用户执行的最后一条命令的退出码，这是正常行为
+func ignoreShellExitError(err error) error {
+	if err != nil {
+		var exitErr *ssh.ExitError
+		if errors.As(err, &exitErr) {
+			return nil
+		}
+	}
+	return err
 }
 
 func (c *Client) getSudoParams() (string, string) {
