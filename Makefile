@@ -50,7 +50,7 @@ build: build-cli
 
 build-cli:
 	@echo "Building CLI ($(VERSION)) for current OS..."
-	go build -ldflags "$(LDFLAGS)" -o $(BIN_DIR)/$(BINARY_NAME)$(SHELL_EXT) ./cmd/cli
+	CGO_ENABLED=0 go build -ldflags "$(LDFLAGS)" -o $(BIN_DIR)/$(BINARY_NAME)$(SHELL_EXT) ./cmd/cli
 
 # ==============================================================================
 # 交叉编译目标 (Cross Compilation)

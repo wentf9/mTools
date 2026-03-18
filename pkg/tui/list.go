@@ -168,6 +168,7 @@ func newListModel(provider config.ConfigProvider) list.Model {
 			key.NewBinding(key.WithKeys("d"), key.WithHelp("d", i18n.T("tui_help_delete"))),
 			key.NewBinding(key.WithKeys("e"), key.WithHelp("e", i18n.T("tui_help_edit"))),
 			key.NewBinding(key.WithKeys("n"), key.WithHelp("n", i18n.T("tui_help_new"))),
+			key.NewBinding(key.WithKeys("g"), key.WithHelp("g", i18n.T("tui_help_tag"))),
 		}
 	}
 
@@ -201,48 +202,61 @@ func (m *Model) handleKeyMsg(msg tea.KeyMsg) (Model, tea.Cmd) {
 		return *m, cmd
 	}
 
-	// 如果处于删除确认状态，除了 'd' 键以外的任何键都会取消删除
-	if m.deletePending && msg.String() != "d" {
-		m.deletePending = false
-		m.status = ""
-		// 立即恢复列表大小
-		*m, _ = m.updateList(m.lastSize)
-		// 如果按键是 'esc'，则不再继续冒泡
-		if msg.String() == "esc" {
-			return *m, nil
-		}
-		// 其他按键继续执行其原有的功能
+	// 处理删除确认状态
+	if m.handleDeletePending(msg) {
+		return *m, nil
 	}
 
-	switch msg.String() {
-	case "enter":
-		return m.handleEnter()
-	case " ":
-		return m.handleSpace()
-	case "a":
-		return m.handleSelectAll()
-	case "v":
-		return m.handleInvertSelection()
-	case "d":
-		return m.handleDelete()
-	case "n":
-		return m.handleNew()
-	case "e":
-		return m.handleEdit()
-	case "q", "ctrl+c":
-		return *m, tea.Quit
-	case "esc":
-		if m.list.FilterState() != list.Unfiltered {
-			var cmd tea.Cmd
-			m.list, cmd = m.list.Update(msg)
-			return *m, cmd
-		}
-		return *m, tea.Quit
+	// 处理快捷键
+	if handler, ok := m.getKeyHandler(msg.String()); ok {
+		return handler()
 	}
 
 	var cmd tea.Cmd
 	m.list, cmd = m.list.Update(msg)
 	return *m, cmd
+}
+
+// handleDeletePending 处理删除确认状态，返回 true 表示已处理
+func (m *Model) handleDeletePending(msg tea.KeyMsg) bool {
+	if !m.deletePending {
+		return false
+	}
+	if msg.String() == "d" {
+		return false
+	}
+	m.deletePending = false
+	m.status = ""
+	*m, _ = m.updateList(m.lastSize)
+	return msg.String() == "esc"
+}
+
+// getKeyHandler 获取按键处理函数
+func (m *Model) getKeyHandler(key string) (func() (Model, tea.Cmd), bool) {
+	handlers := map[string]func() (Model, tea.Cmd){
+		"enter": m.handleEnter,
+		" ":     m.handleSpace,
+		"a":     m.handleSelectAll,
+		"v":     m.handleInvertSelection,
+		"d":     m.handleDelete,
+		"n":     m.handleNew,
+		"e":     m.handleEdit,
+		"g":     m.handleTagAction,
+	}
+
+	if h, ok := handlers[key]; ok {
+		return h, true
+	}
+
+	if key == "q" || key == "ctrl+c" {
+		return func() (Model, tea.Cmd) { return *m, tea.Quit }, true
+	}
+
+	if key == "esc" && m.list.FilterState() == list.Unfiltered {
+		return func() (Model, tea.Cmd) { return *m, tea.Quit }, true
+	}
+
+	return nil, false
 }
 
 func (m *Model) handleEnter() (Model, tea.Cmd) {
@@ -375,6 +389,37 @@ func (m *Model) handleEdit() (Model, tea.Cmd) {
 		m.state = viewForm
 		return *m, nil
 	}
+	return *m, nil
+}
+
+func (m *Model) handleTagAction() (Model, tea.Cmd) {
+	// 检查是否有勾选的节点
+	visibleItems := m.list.VisibleItems()
+	visibleMap := make(map[string]bool)
+	for _, item := range visibleItems {
+		if ni, ok := item.(*nodeItem); ok {
+			visibleMap[ni.id] = true
+		}
+	}
+
+	var selectedNodes []string
+	all := m.list.Items()
+	for _, i := range all {
+		if ni, ok := i.(*nodeItem); ok && ni.selected && visibleMap[ni.id] {
+			selectedNodes = append(selectedNodes, ni.id)
+		}
+	}
+
+	// 如果没有勾选的节点，提示用户
+	if len(selectedNodes) == 0 {
+		m.status = errorStyle.Render(i18n.T("tui_no_selection"))
+		*m, _ = m.updateList(m.lastSize)
+		return *m, nil
+	}
+
+	// 初始化标签选择表单
+	*m = m.initTagSelectForm()
+	m.state = viewTagSelect
 	return *m, nil
 }
 

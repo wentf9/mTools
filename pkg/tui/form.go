@@ -262,3 +262,216 @@ func (m *Model) saveForm() {
 		m.status = successStyle.Render(i18n.Tf("tui_status_saved", map[string]any{"ID": nodeID}))
 	}
 }
+
+// getAllTags 获取所有现有标签
+func (m *Model) getAllTags() []string {
+	tagSet := make(map[string]bool)
+	for _, node := range m.provider.ListNodes() {
+		for _, tag := range node.Tags {
+			tagSet[tag] = true
+		}
+	}
+	var tags []string
+	for tag := range tagSet {
+		tags = append(tags, tag)
+	}
+	return tags
+}
+
+// getSelectedNodeIDs 获取勾选的节点 ID
+func (m *Model) getSelectedNodeIDs() []string {
+	visibleItems := m.list.VisibleItems()
+	visibleMap := make(map[string]bool)
+	for _, item := range visibleItems {
+		if ni, ok := item.(*nodeItem); ok {
+			visibleMap[ni.id] = true
+		}
+	}
+
+	var ids []string
+	all := m.list.Items()
+	for _, i := range all {
+		if ni, ok := i.(*nodeItem); ok && ni.selected && visibleMap[ni.id] {
+			ids = append(ids, ni.id)
+		}
+	}
+	return ids
+}
+
+// initTagSelectForm 初始化标签选择表单
+func (m *Model) initTagSelectForm() Model {
+	existingTags := m.getAllTags()
+	m.selectedTags = []string{}
+	m.tagMode = "add"
+	m.newTagsInput = ""
+
+	// 构建标签选项
+	var tagOpts []huh.Option[string]
+	for _, tag := range existingTags {
+		tagOpts = append(tagOpts, huh.NewOption(tag, tag))
+	}
+
+	// 如果有现有标签，使用多选；否则使用输入框
+	if len(tagOpts) > 0 {
+		m.tagForm = huh.NewForm(
+			huh.NewGroup(
+				huh.NewSelect[string]().
+					Title(i18n.T("tui_tag_action")).
+					Options(
+						huh.NewOption(i18n.T("tui_tag_add"), "add"),
+						huh.NewOption(i18n.T("tui_tag_remove"), "remove"),
+					).
+					Value(&m.tagMode),
+				huh.NewMultiSelect[string]().
+					Title(i18n.T("tui_tag_select")).
+					Options(tagOpts...).
+					Value(&m.selectedTags),
+				huh.NewInput().
+					Title(i18n.T("tui_tag_new_input")).
+					Value(&m.newTagsInput),
+			),
+		).WithTheme(huh.ThemeCharm()).WithWidth(m.lastSize.Width).WithHeight(m.lastSize.Height - 1)
+	} else {
+		// 没有现有标签，只显示输入框
+		m.tagForm = huh.NewForm(
+			huh.NewGroup(
+				huh.NewSelect[string]().
+					Title(i18n.T("tui_tag_action")).
+					Options(
+						huh.NewOption(i18n.T("tui_tag_add"), "add"),
+					).
+					Value(&m.tagMode),
+				huh.NewInput().
+					Title(i18n.T("tui_tag_input")).
+					Value(&m.newTagsInput),
+			),
+		).WithTheme(huh.ThemeCharm()).WithWidth(m.lastSize.Width).WithHeight(m.lastSize.Height - 1)
+	}
+	m.tagForm.Init()
+	return *m
+}
+
+// updateTagSelect 处理标签选择视图的更新
+func (m *Model) updateTagSelect(msg tea.Msg) (Model, tea.Cmd) {
+	switch msg := msg.(type) {
+	case tea.WindowSizeMsg:
+		if m.tagForm != nil {
+			m.tagForm.WithWidth(msg.Width).WithHeight(msg.Height - 1)
+		}
+		return *m, nil
+	case tea.KeyMsg:
+		if msg.String() == "esc" {
+			m.state = viewList
+			*m, _ = m.updateList(m.lastSize)
+			return *m, nil
+		}
+	}
+
+	form, cmd := m.tagForm.Update(msg)
+	if f, ok := form.(*huh.Form); ok {
+		m.tagForm = f
+	}
+
+	if m.tagForm.State == huh.StateCompleted {
+		m.applyTagChanges()
+		m.state = viewList
+		m.list = newListModel(m.provider)
+		*m, _ = m.updateList(m.lastSize)
+		return *m, nil
+	}
+
+	return *m, cmd
+}
+
+// mergeTags 合并选中的标签和输入的新标签
+func (m *Model) mergeTags() map[string]bool {
+	tags := make(map[string]bool)
+
+	for _, tag := range m.selectedTags {
+		if tag != "" {
+			tags[tag] = true
+		}
+	}
+
+	if m.newTagsInput != "" {
+		for _, tag := range strings.Split(m.newTagsInput, ",") {
+			tag = strings.TrimSpace(tag)
+			if tag != "" {
+				tags[tag] = true
+			}
+		}
+	}
+	return tags
+}
+
+// addTagsToNode 为节点添加标签
+func addTagsToNode(node *models.Node, tags map[string]bool) {
+	existing := make(map[string]bool)
+	for _, t := range node.Tags {
+		existing[t] = true
+	}
+	for tag := range tags {
+		if !existing[tag] {
+			node.Tags = append(node.Tags, tag)
+		}
+	}
+}
+
+// removeTagsFromNode 从节点移除标签
+func removeTagsFromNode(node *models.Node, tags map[string]bool) {
+	var newTags []string
+	for _, t := range node.Tags {
+		if !tags[t] {
+			newTags = append(newTags, t)
+		}
+	}
+	node.Tags = newTags
+}
+
+// applyTagChanges 应用标签变更
+func (m *Model) applyTagChanges() {
+	selectedNodeIDs := m.getSelectedNodeIDs()
+	if len(selectedNodeIDs) == 0 {
+		return
+	}
+
+	tagsToApply := m.mergeTags()
+	if len(tagsToApply) == 0 {
+		return
+	}
+
+	updatedCount := 0
+	for _, nodeID := range selectedNodeIDs {
+		node, ok := m.provider.GetNode(nodeID)
+		if !ok {
+			continue
+		}
+
+		if m.tagMode == "add" {
+			addTagsToNode(&node, tagsToApply)
+		} else {
+			removeTagsFromNode(&node, tagsToApply)
+		}
+
+		m.provider.AddNode(nodeID, node)
+		updatedCount++
+	}
+
+	m.updateTagStatus(updatedCount)
+}
+
+// updateTagStatus 更新标签操作状态
+func (m *Model) updateTagStatus(count int) {
+	if count == 0 {
+		return
+	}
+	if err := m.configStore.Save(m.provider.GetConfig()); err != nil {
+		m.status = errorStyle.Render(i18n.Tf("tui_status_save_failed", map[string]any{"Error": err}))
+		return
+	}
+	if m.tagMode == "add" {
+		m.status = successStyle.Render(i18n.Tf("tui_status_tag_added", map[string]any{"Count": count}))
+	} else {
+		m.status = successStyle.Render(i18n.Tf("tui_status_tag_removed", map[string]any{"Count": count}))
+	}
+}

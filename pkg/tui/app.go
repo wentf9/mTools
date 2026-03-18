@@ -14,6 +14,7 @@ type viewState int
 const (
 	viewList viewState = iota
 	viewForm
+	viewTagSelect
 )
 
 type Model struct {
@@ -22,6 +23,10 @@ type Model struct {
 	list          list.Model
 	form          *huh.Form
 	formState     *nodeFormState
+	tagForm       *huh.Form
+	tagMode       string // "add" or "remove"
+	selectedTags  []string
+	newTagsInput  string // 新标签输入
 	state         viewState
 	status        string
 	lastSize      tea.WindowSizeMsg
@@ -71,6 +76,8 @@ func (m *Model) Update(msg tea.Msg) (tea.Model, tea.Cmd) {
 		*m, cmd = m.updateList(msg)
 	case viewForm:
 		*m, cmd = m.updateForm(msg)
+	case viewTagSelect:
+		*m, cmd = m.updateTagSelect(msg)
 	}
 
 	// If we just switched from form to list, force a resize
@@ -99,6 +106,12 @@ func (m Model) View() string {
 			s = m.form.View()
 		} else {
 			s = "Form View (WIP)"
+		}
+	case viewTagSelect:
+		if m.tagForm != nil {
+			s = m.tagForm.View()
+		} else {
+			s = "Tag Select (WIP)"
 		}
 	}
 

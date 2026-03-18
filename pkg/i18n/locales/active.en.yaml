@@ -521,3 +521,23 @@ tui_validation_port_invalid:
   other: "invalid port, must be number"
 tui_validation_alias_exists:
   other: "alias already exists"
+tui_help_tag:
+  other: "tag"
+tui_no_selection:
+  other: "Please select nodes first (press space)"
+tui_tag_action:
+  other: "Select Action"
+tui_tag_add:
+  other: "Add Tags"
+tui_tag_remove:
+  other: "Remove Tags"
+tui_tag_select:
+  other: "Select Existing Tags"
+tui_tag_new_input:
+  other: "New Tags (comma separated, optional)"
+tui_tag_input:
+  other: "Enter Tags (comma separated)"
+tui_status_tag_added:
+  other: "Tags added to {{.Count}} node(s)"
+tui_status_tag_removed:
+  other: "Tags removed from {{.Count}} node(s)"

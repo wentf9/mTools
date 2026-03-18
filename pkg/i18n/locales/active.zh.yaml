@@ -521,3 +521,23 @@ tui_validation_port_invalid:
   other: "端口无效，必须为数字"
 tui_validation_alias_exists:
   other: "别名已存在"
+tui_help_tag:
+  other: "标签"
+tui_no_selection:
+  other: "请先勾选节点 (按空格键)"
+tui_tag_action:
+  other: "选择操作"
+tui_tag_add:
+  other: "添加标签"
+tui_tag_remove:
+  other: "移除标签"
+tui_tag_select:
+  other: "选择已有标签"
+tui_tag_new_input:
+  other: "新标签 (逗号分隔，可选)"
+tui_tag_input:
+  other: "输入标签 (逗号分隔)"
+tui_status_tag_added:
+  other: "已为 {{.Count}} 个节点添加标签"
+tui_status_tag_removed:
+  other: "已从 {{.Count}} 个节点移除标签"
