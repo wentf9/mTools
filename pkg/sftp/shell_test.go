@@ -6,6 +6,7 @@ import (
 	"strings"
 	"testing"
 
+	"github.com/chzyer/readline"
 	"github.com/wentf9/xops-cli/pkg/i18n"
 )
 
@@ -15,9 +16,19 @@ func TestDispatchCommand(t *testing.T) {
 	var stdout bytes.Buffer
 	var stderr bytes.Buffer
 
+	// 创建一个最小化的 readline 实例用于测试
+	rl, err := readline.NewEx(&readline.Config{
+		Stdout: &stdout,
+		Stderr: &stderr,
+	})
+	if err != nil {
+		t.Fatalf("failed to create readline: %v", err)
+	}
+	defer func() { _ = rl.Close() }()
+
 	s := &Shell{
 		cwd:    "/test/remote/dir",
-		stdout: &stdout,
+		rl:     rl,
 		stderr: &stderr,
 	}
 

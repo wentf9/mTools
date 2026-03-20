@@ -7,6 +7,7 @@ require (
 	github.com/charmbracelet/bubbletea v1.3.10
 	github.com/charmbracelet/huh v1.0.0
 	github.com/charmbracelet/lipgloss v1.1.0
+	github.com/chzyer/readline v1.5.1
 	github.com/modelcontextprotocol/go-sdk v1.4.0
 	github.com/nicksnyder/go-i18n/v2 v2.6.1
 	github.com/pkg/sftp v1.13.10

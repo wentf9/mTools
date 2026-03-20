@@ -460,7 +460,7 @@ sftp_shell_upload_failed:
 sftp_shell_upload_done:
   other: "\n上传完成"
 sftp_shell_help:
-  other: "\n可用命令:\n  cd <path>     切换远程目录\n  lcd <path>    切换本地目录\n  pwd           显示远程当前目录\n  lpwd          显示本地当前目录\n  ls [path]     列出远程文件\n  lls [path]    列出本地文件\n  get <remote> [local]  下载文件或目录\n  put <local> [remote]  上传文件或目录\n  mkdir <path>  创建远程目录\n  rm <path>     删除远程文件或目录\n  exit/quit     退出\n"
+  other: "\n可用命令:\n  cd <path>     切换远程目录\n  lcd <path>    切换本地目录\n  pwd           显示远程当前目录\n  lpwd          显示本地当前目录\n  ls [path]     列出远程文件 (简洁模式)\n  ll [path]     列出远程文件 (详细模式)\n  lls [path]    列出本地文件 (简洁模式)\n  lll [path]    列出本地文件 (详细模式)\n  get <remote> [local]  下载文件或目录\n  put <local> [remote]  上传文件或目录\n  mkdir <path>  创建远程目录\n  rm <path>     删除远程文件或目录\n  exit/quit     退出\n"
 
 # ---- tui ----
 tui_short:
