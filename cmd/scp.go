@@ -98,10 +98,10 @@ func (o *ScpOptions) Complete(cmd *cobra.Command, args []string) {
 
 func (o *ScpOptions) Validate() error {
 	if o.Source == "" {
-		return fmt.Errorf("必须指定源路径")
+		return fmt.Errorf("%s", i18n.T("scp_err_no_src"))
 	}
 	if o.Dest == "" && o.Host == "" && o.Tag == "" {
-		return fmt.Errorf("必须指定目标路径或目标主机/标签组")
+		return fmt.Errorf("%s", i18n.T("scp_err_no_dest"))
 	}
 	return nil
 }
@@ -144,7 +144,7 @@ func (o *ScpOptions) Run() error {
 	configStore := config.NewDefaultStore(configPath, keyPath)
 	cfg, err := configStore.Load()
 	if err != nil {
-		return fmt.Errorf("加载配置文件失败: %w", err)
+		return fmt.Errorf("%s: %w", i18n.T("config_load_error"), err)
 	}
 	provider := config.NewProvider(cfg)
 	connector := ssh.NewConnector(provider)
@@ -175,7 +175,7 @@ func (o *ScpOptions) Run() error {
 		return o.runUpload(ctx, o.Source, dst, provider, connector, configStore, cfg)
 	}
 
-	return fmt.Errorf("不支持的传输模式: 两端都是本地路径")
+	return fmt.Errorf("%s", i18n.T("scp_err_both_local"))
 }
 
 func (o *ScpOptions) runUpload(ctx context.Context, localPath string, dst PathInfo, provider config.ConfigProvider, connector *ssh.Connector, configStore config.Store, cfg *config.Configuration) error {
@@ -228,7 +228,7 @@ func (o *ScpOptions) runDownload(ctx context.Context, src PathInfo, localPath st
 	// 只 Stat 一次
 	stat, err := sftpCli.SFTPClient().Stat(src.Path)
 	if err != nil {
-		return fmt.Errorf("stat remote path failed: %w", err)
+		return fmt.Errorf("%s: %w", i18n.T("scp_err_stat_remote"), err)
 	}
 
 	var progress sftp.ProgressCallback
@@ -321,7 +321,7 @@ func (o *ScpOptions) runBatch(ctx context.Context, provider config.ConfigProvide
 	if o.Tag != "" {
 		nodes := provider.GetNodesByTag(o.Tag)
 		if len(nodes) == 0 {
-			return fmt.Errorf("标签组 %s 为空或不存在", o.Tag)
+			return fmt.Errorf("%s", i18n.Tf("err_tag_empty", map[string]any{"Tag": o.Tag}))
 		}
 		for nodeID := range nodes {
 			nid := nodeID // capture
@@ -413,7 +413,7 @@ func (o *ScpOptions) resolvePathInfo(path PathInfo) (string, string, uint16, err
 	}
 
 	if host == "" {
-		return "", "", 0, fmt.Errorf("主机地址不能为空")
+		return "", "", 0, fmt.Errorf("%s", i18n.T("scp_err_no_host_addr"))
 	}
 	if user == "" {
 		user = cmdutils.GetCurrentUser()
@@ -456,7 +456,7 @@ func (o *ScpOptions) createNewNode(provider config.ConfigProvider, host, user st
 	if node.ProxyJump != "" {
 		jumpHost := provider.Find(node.ProxyJump)
 		if jumpHost == "" {
-			return "", false, fmt.Errorf("跳板机 %s 信息不存在", node.ProxyJump)
+			return "", false, fmt.Errorf("%s", i18n.Tf("err_proxy_not_found", map[string]any{"Proxy": node.ProxyJump}))
 		}
 		node.ProxyJump = jumpHost
 	}

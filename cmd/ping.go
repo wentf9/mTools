@@ -24,7 +24,7 @@ func newCmdPing() *cobra.Command {
 			ip := args[0]
 
 			if resolve, err := net.ResolveIPAddr("ip", ip); err != nil {
-				return fmt.Errorf("提供的主机名无法解析为ip地址: %w", err)
+				return fmt.Errorf("%s: %w", i18n.T("ping_err_resolve"), err)
 			} else {
 				logger.PrintInfo(i18n.Tf("ping_resolve_info", map[string]any{"Host": args[0], "IP": resolve.String()}))
 				ip = resolve.String()
@@ -48,7 +48,7 @@ func newCmdPing() *cobra.Command {
 			logger.PrintInfo(i18n.Tf("ping_icmp_start", map[string]any{"IP": ip}))
 			pinger, err := ping.NewPinger(ip)
 			if err != nil {
-				return fmt.Errorf("创建pinger失败: %w", err)
+				return fmt.Errorf("%s: %w", i18n.T("ping_err_create_pinger"), err)
 			}
 
 			// 注意: 在 Linux/macOS 上，执行ICMP raw socket需要root权限。

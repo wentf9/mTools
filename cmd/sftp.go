@@ -38,7 +38,7 @@ func NewCmdSftp() *cobra.Command {
 		RunE: func(cmd *cobra.Command, args []string) error {
 			o.Complete(cmd, args)
 			if err := o.Validate(); err != nil {
-				return fmt.Errorf("参数错误: %w", err)
+				return fmt.Errorf("%s: %w", i18n.T("err_invalid_args"), err)
 			}
 			return o.Run()
 		},
@@ -59,7 +59,7 @@ func (o *SftpOptions) Run() error {
 	configStore := config.NewDefaultStore(utils.GetConfigFilePath())
 	cfg, err := configStore.Load()
 	if err != nil {
-		return fmt.Errorf("加载配置文件失败: %w", err)
+		return fmt.Errorf("%s: %w", i18n.T("config_load_error"), err)
 	}
 
 	provider := config.NewProvider(cfg)
@@ -82,7 +82,7 @@ func (o *SftpOptions) Run() error {
 	defer cancel()
 	client, err := connector.Connect(ctx, nodeID)
 	if err != nil {
-		return fmt.Errorf("连接失败: %w", err)
+		return fmt.Errorf("%s: %w", i18n.T("err_connect_failed"), err)
 	}
 	sftpClient, err := sftp.NewClient(
 		client,
@@ -90,7 +90,7 @@ func (o *SftpOptions) Run() error {
 		sftp.WithThreadsPerFile(o.maxThread),
 	)
 	if err != nil {
-		return fmt.Errorf("连接失败: %w", err)
+		return fmt.Errorf("%s: %w", i18n.T("err_connect_failed"), err)
 	}
 	defer func() { _ = sftpClient.Close() }()
 	defer func() { _ = client.Close() }()
@@ -98,14 +98,14 @@ func (o *SftpOptions) Run() error {
 	// 使用 os.Stdin, os.Stdout 绑定到当前终端
 	shell, err := sftpClient.NewShell(os.Stdin, os.Stdout, os.Stderr)
 	if err != nil {
-		return fmt.Errorf("sftp交互式环境创建失败: %w", err)
+		return fmt.Errorf("%s: %w", i18n.T("sftp_shell_create_failed"), err)
 	}
 	if err := shell.Run(context.Background()); err != nil {
-		return fmt.Errorf("sftp交互式环境启动失败: %w", err)
+		return fmt.Errorf("%s: %w", i18n.T("sftp_shell_start_failed"), err)
 	}
 	if updated {
 		if err := configStore.Save(cfg); err != nil {
-			return fmt.Errorf("保存配置文件失败: %w", err)
+			return fmt.Errorf("%s: %w", i18n.T("save_config_failed"), err)
 		}
 	}
 	return nil
@@ -123,7 +123,7 @@ func (o *SftpOptions) createNewNode(provider config.ConfigProvider) (string, err
 	if node.ProxyJump != "" {
 		jumpHost := provider.Find(node.ProxyJump)
 		if jumpHost == "" {
-			return "", fmt.Errorf("跳板机 %s 信息不存在,请先保存跳板机信息", node.ProxyJump)
+			return "", fmt.Errorf("%s", i18n.Tf("err_proxy_not_found", map[string]any{"Proxy": node.ProxyJump}))
 		}
 		node.ProxyJump = jumpHost
 	}

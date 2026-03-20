@@ -27,7 +27,7 @@ func NewCmdTui() *cobra.Command {
 			model := tui.NewModel(provider, configStore)
 			p := tea.NewProgram(&model, tea.WithAltScreen())
 			if _, err := p.Run(); err != nil {
-				return fmt.Errorf("TUI 运行失败: %w", err)
+				return fmt.Errorf("%s: %w", i18n.T("tui_run_failed"), err)
 			}
 			return nil
 		},

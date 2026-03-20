@@ -157,7 +157,7 @@ func prepareArgs(args []string, stdinData string) []string {
 func argsValidator(args []string, stdinData *string) error {
 	if term.IsTerminal(0) {
 		if len(args) < 1 {
-			return fmt.Errorf("需要至少一个参数")
+			return fmt.Errorf("%s", i18n.T("encode_err_need_arg"))
 		}
 		return nil
 	}
@@ -168,7 +168,7 @@ func argsValidator(args []string, stdinData *string) error {
 
 	*stdinData = string(input)
 	if *stdinData == "" && len(args) < 1 {
-		return fmt.Errorf("需要至少一个参数")
+		return fmt.Errorf("%s", i18n.T("encode_err_need_arg"))
 	}
 	return nil
 }

@@ -37,13 +37,13 @@ func ncArgsValidator(cmd *cobra.Command, args []string) error {
 		return nil
 	}
 	if len(args) != 2 {
-		return fmt.Errorf("需要指定ip和端口,或者使用-l参数监听端口")
+		return fmt.Errorf("%s", i18n.T("nc_err_args_missing"))
 	}
 	if net.ParseIP(args[0]) == nil {
-		return fmt.Errorf("无效的IP地址: %s", args[0])
+		return fmt.Errorf("%s", i18n.Tf("nc_err_invalid_ip", map[string]any{"IP": args[0]}))
 	}
 	if port := cmdutils.ParsePort(args[1]); port == 0 {
-		return fmt.Errorf("无效的端口号: %s", args[1])
+		return fmt.Errorf("%s", i18n.Tf("nc_err_invalid_port", map[string]any{"Port": args[1]}))
 	}
 	return nil
 }
@@ -66,18 +66,18 @@ func ncRunE(cmd *cobra.Command, args []string) error {
 func ncListenMode(port uint16, network string) error {
 	listener, err := net.Listen(network, fmt.Sprintf(":%d", port))
 	if err != nil {
-		return fmt.Errorf("无法监听端口 %d: %w", port, err)
+		return fmt.Errorf("%s: %w", i18n.Tf("nc_err_listen", map[string]any{"Port": port}), err)
 	}
 	defer func() { _ = listener.Close() }()
 
 	_, _ = fmt.Fprint(os.Stderr, i18n.Tf("nc_listening", map[string]any{"Port": port}))
 	conn, err := listener.Accept()
 	if err != nil {
-		return fmt.Errorf("接受连接失败: %w", err)
+		return fmt.Errorf("%s: %w", i18n.T("nc_err_accept"), err)
 	}
 
 	if err := handleConnection(conn); err != nil {
-		return fmt.Errorf("处理连接失败: %w", err)
+		return fmt.Errorf("%s: %w", i18n.T("nc_err_handle"), err)
 	}
 	return nil
 }
@@ -86,7 +86,7 @@ func ncConnectMode(args []string, network string) error {
 	addr := net.JoinHostPort(args[0], args[1])
 	conn, err := net.DialTimeout(network, addr, time.Second*10)
 	if err != nil {
-		return fmt.Errorf("failed to connect to %s: %w", addr, err)
+		return fmt.Errorf("%s: %w", i18n.Tf("nc_err_connect", map[string]any{"Addr": addr}), err)
 	}
 	defer func() { _ = conn.Close() }()
 
@@ -108,14 +108,14 @@ func ncSendFromStdin(conn net.Conn) error {
 		n, err := reader.Read(buffer)
 		if n > 0 {
 			if _, writeErr := conn.Write(buffer[:n]); writeErr != nil {
-				return fmt.Errorf("写入连接失败: %w", writeErr)
+				return fmt.Errorf("%s: %w", i18n.T("nc_err_write_conn"), writeErr)
 			}
 		}
 		if err != nil {
 			if err == io.EOF {
 				break
 			}
-			return fmt.Errorf("读取输入失败: %w", err)
+			return fmt.Errorf("%s: %w", i18n.T("nc_err_read_input"), err)
 		}
 	}
 	return nil
@@ -136,7 +136,7 @@ func handleConnection(conn net.Conn) error {
 		n, err := reader.Read(buffer)
 		if n > 0 {
 			if _, writeErr := writer.Write(buffer[:n]); writeErr != nil {
-				return fmt.Errorf("写入输出失败: %w", writeErr)
+				return fmt.Errorf("%s: %w", i18n.T("nc_err_write_out"), writeErr)
 			}
 			_ = writer.Flush()
 		}
@@ -145,7 +145,7 @@ func handleConnection(conn net.Conn) error {
 				_, _ = fmt.Fprint(os.Stderr, i18n.Tf("nc_connection_closed", map[string]any{"Addr": clientAddr}))
 				return nil
 			}
-			return fmt.Errorf("连接 %s 出错: %w", clientAddr, err)
+			return fmt.Errorf("%s: %w", i18n.Tf("nc_err_conn_error", map[string]any{"Addr": clientAddr}), err)
 		}
 	}
 }

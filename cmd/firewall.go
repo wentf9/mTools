@@ -82,7 +82,7 @@ func (o *FirewallOptions) RunOnHosts(ctx context.Context, action func(fw firewal
 
 func (o *FirewallOptions) runLocalFirewall(ctx context.Context, action func(fw firewall.Firewall) (string, error)) error {
 	if runtime.GOOS != "linux" {
-		return fmt.Errorf("防火墙管理功能仅支持 Linux 系统 (当前系统为 %s)", runtime.GOOS)
+		return fmt.Errorf("%s", i18n.Tf("fw_err_os_not_supported", map[string]any{"OS": runtime.GOOS}))
 	}
 	pwd := cmdutils.GetLocalSudoPassword()
 	exec := executor.NewLocalExecutor(pwd)
@@ -122,7 +122,7 @@ func (o *FirewallOptions) runRemoteFirewalls(ctx context.Context, action func(fw
 	if o.HostFile != "" {
 		data, err := os.ReadFile(o.HostFile)
 		if err != nil {
-			return fmt.Errorf("读取主机列表文件失败: %w", err)
+			return fmt.Errorf("%s: %w", i18n.T("err_read_ifile"), err)
 		}
 		for _, line := range strings.Split(string(data), "\n") {
 			line = strings.TrimSpace(line)

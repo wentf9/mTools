@@ -138,10 +138,10 @@ func (o *ExecOptions) Complete(cmd *cobra.Command, args []string) {
 
 func (o *ExecOptions) Validate() error {
 	if o.Command == "" && o.ShellFile == "" {
-		return fmt.Errorf("必须指定要执行的命令或脚本")
+		return fmt.Errorf("%s", i18n.T("exec_err_no_cmd"))
 	}
 	if o.Host == "" && o.HostFile == "" && o.Tag == "" {
-		return fmt.Errorf("必须指定目标主机或标签组")
+		return fmt.Errorf("%s", i18n.T("err_no_host"))
 	}
 	return nil
 }
@@ -159,7 +159,7 @@ func (o *ExecOptions) Run() error {
 	configStore := config.NewDefaultStore(configPath, keyPath)
 	cfg, err := configStore.Load()
 	if err != nil {
-		return fmt.Errorf("加载配置文件失败: %w", err)
+		return fmt.Errorf("%s: %w", i18n.T("config_load_error"), err)
 	}
 	provider := config.NewProvider(cfg)
 	connector := ssh.NewConnector(provider)
@@ -171,7 +171,7 @@ func (o *ExecOptions) Run() error {
 	if o.ShellFile != "" {
 		content, err := os.ReadFile(o.ShellFile)
 		if err != nil {
-			return fmt.Errorf("读取脚本文件失败: %w", err)
+			return fmt.Errorf("%s: %w", i18n.T("exec_err_read_script"), err)
 		}
 		execCmd = string(content)
 		isScript = true
@@ -266,7 +266,7 @@ func (o *ExecOptions) buildTasksFromTags(provider config.ConfigProvider) ([]exec
 	var tasks []execHostTask
 	nodes := provider.GetNodesByTag(o.Tag)
 	if len(nodes) == 0 {
-		return nil, fmt.Errorf("标签组 %s 为空或不存在", o.Tag)
+		return nil, fmt.Errorf("%s", i18n.Tf("err_tag_empty", map[string]any{"Tag": o.Tag}))
 	}
 	for nodeID := range nodes {
 		hostObj, _ := provider.GetHost(nodeID)
@@ -347,7 +347,7 @@ func (o *ExecOptions) execCreateNewNode(provider config.ConfigProvider, host, us
 	if node.ProxyJump != "" {
 		jumpHost := provider.Find(node.ProxyJump)
 		if jumpHost == "" {
-			return "", fmt.Errorf("跳板机 %s 信息不存在", node.ProxyJump)
+			return "", fmt.Errorf("%s", i18n.Tf("err_proxy_not_found", map[string]any{"Proxy": node.ProxyJump}))
 		}
 		node.ProxyJump = jumpHost
 	}

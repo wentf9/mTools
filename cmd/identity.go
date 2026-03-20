@@ -56,7 +56,7 @@ func NewCmdIdentityEdit() *cobra.Command {
 
 			identity, ok := cfg.Identities.Get(name)
 			if !ok {
-				return fmt.Errorf("认证模板 %s 不存在", name)
+				return fmt.Errorf("%s", i18n.Tf("identity_err_not_found", map[string]any{"Name": name}))
 			}
 
 			updated := false
@@ -172,7 +172,7 @@ func NewCmdIdentityAdd() *cobra.Command {
 		Short: i18n.T("identity_add_short"),
 		RunE: func(cmd *cobra.Command, args []string) error {
 			if name == "" {
-				return fmt.Errorf("必须指定别名 (--name)")
+				return fmt.Errorf("%s", i18n.T("identity_err_no_name"))
 			}
 
 			configPath, keyPathCfg := utils.GetConfigFilePath()
@@ -183,7 +183,7 @@ func NewCmdIdentityAdd() *cobra.Command {
 			}
 
 			if _, ok := cfg.Identities.Get(name); ok {
-				return fmt.Errorf("认证信息模板 %s 已存在", name)
+				return fmt.Errorf("%s", i18n.Tf("identity_err_exists", map[string]any{"Name": name}))
 			}
 
 			if user == "" {
@@ -214,7 +214,7 @@ func NewCmdIdentityAdd() *cobra.Command {
 			provider.AddIdentity(name, identity)
 
 			if err := configStore.Save(cfg); err != nil {
-				return fmt.Errorf("保存配置文件失败: %w", err)
+				return fmt.Errorf("%s: %w", i18n.T("save_config_failed"), err)
 			}
 
 			logger.PrintSuccess(i18n.Tf("identity_add_success", map[string]any{"Name": name}))
@@ -247,7 +247,7 @@ func NewCmdIdentityDelete() *cobra.Command {
 
 			provider := config.NewProvider(cfg)
 			if _, ok := cfg.Identities.Get(name); !ok {
-				return fmt.Errorf("认证模板 %s 不存在", name)
+				return fmt.Errorf("%s", i18n.Tf("identity_err_not_found", map[string]any{"Name": name}))
 			}
 
 			provider.DeleteIdentity(name)
