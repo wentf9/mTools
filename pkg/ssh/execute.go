@@ -51,6 +51,77 @@ func (c *Client) RunScriptWithSudo(ctx context.Context, scriptContent string) (s
 	}
 }
 
+// RunInteractiveWithSudo 在 PTY 环境下以提权方式执行单条交互式命令
+func (c *Client) RunInteractiveWithSudo(ctx context.Context, command string) error {
+	c.maybeDetectSudoMode(ctx)
+	if c.node.SudoMode == models.SudoModeRoot {
+		return c.RunInteractive(ctx, command)
+	}
+
+	// 对于需要提权的场景，打开交互式 shell 后在 shell 内提权再执行命令
+	session, err := c.sshClient.NewSession()
+	if err != nil {
+		return err
+	}
+	defer func() { _ = session.Close() }()
+
+	modes := ssh.TerminalModes{
+		ssh.ECHO:          1,
+		ssh.TTY_OP_ISPEED: 14400,
+		ssh.TTY_OP_OSPEED: 14400,
+	}
+	fdIn := int(os.Stdin.Fd())
+	fdOut := int(os.Stdout.Fd())
+	width, height, err := term.GetSize(fdOut)
+	if err != nil {
+		width, height = 80, 40
+	}
+	if err := session.RequestPty("xterm-256color", height, width, modes); err != nil {
+		return fmt.Errorf("request for pty failed: %w", err)
+	}
+
+	stdin, _ := session.StdinPipe()
+	stdout, _ := session.StdoutPipe()
+	stderr, _ := session.StderrPipe()
+
+	if err := session.Shell(); err != nil {
+		return fmt.Errorf("start shell failed: %w", err)
+	}
+
+	oldState, err := term.MakeRaw(fdIn)
+	if err != nil {
+		return fmt.Errorf("can not set term to Raw: %w", err)
+	}
+	defer func() { _ = term.Restore(fdIn, oldState) }()
+
+	startWindowResizeLoop(session, fdOut, width, height)
+
+	sudoCmd, password := c.getSudoParams()
+	// 使用 exec 替换掉普通用户的 shell，使得提权退出后直接关闭 SSH 会话
+	if sudoCmd != "" {
+		_, _ = stdin.Write([]byte("exec " + sudoCmd + "\n"))
+	}
+
+	if password != "" {
+		handlePasswordHandshake(stdout, stdin, password)
+	}
+
+	// 提权完成后，给 Root Shell 留出 1 秒的初始化时间，
+	// 防止 sudo 或 su 的 tcflush(清空终端缓冲区) 机制吃掉我们随后立刻发出的指令。
+	time.Sleep(1 * time.Second)
+
+	// 提权完成后发送目标命令
+	// 使用 exec bash -c 替换掉提权后的 root shell
+	wrappedCmd := fmt.Sprintf("exec bash -c '%s'\n", strings.ReplaceAll(command, "'", "'\\''"))
+	_, _ = stdin.Write([]byte(wrappedCmd))
+
+	go func() { _, _ = io.Copy(os.Stdout, stdout) }()
+	go func() { _, _ = io.Copy(os.Stderr, stderr) }()
+	go func() { _, _ = io.Copy(stdin, os.Stdin) }()
+
+	return ignoreShellExitError(session.Wait())
+}
+
 func (c *Client) runWithSudo(ctx context.Context, command string, password string, extraStdin io.Reader) (string, error) {
 	if password == "" && c.node.SudoMode == models.SudoModeSudo {
 		return "", fmt.Errorf("sudo password is required but not provided")

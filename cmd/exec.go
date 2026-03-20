@@ -18,12 +18,13 @@ import (
 
 type ExecOptions struct {
 	SshOptions
-	HostFile  string
-	ShellFile string
-	Command   string
-	Tag       string
-	TaskCount int
-	SuPwd     string
+	HostFile    string
+	ShellFile   string
+	Command     string
+	Tag         string
+	TaskCount   int
+	SuPwd       string
+	Interactive bool
 }
 
 func NewExecOptions() *ExecOptions {
@@ -65,6 +66,7 @@ func NewCmdExec() *cobra.Command {
 	cmd.Flags().StringVarP(&o.Tag, "tag", "t", "", i18n.T("flag_exec_tag"))
 	cmd.Flags().StringVar(&o.ShellFile, "shell", "", i18n.T("flag_exec_shell"))
 	cmd.Flags().IntVar(&o.TaskCount, "task", 3, i18n.T("flag_exec_task"))
+	cmd.Flags().BoolVarP(&o.Interactive, "interactive", "x", false, i18n.T("flag_exec_interactive"))
 
 	cmd.MarkFlagsMutuallyExclusive("password", "key")
 	cmd.MarkFlagsMutuallyExclusive("host", "ifile", "tag")
@@ -143,6 +145,14 @@ func (o *ExecOptions) Validate() error {
 	if o.Host == "" && o.HostFile == "" && o.Tag == "" {
 		return fmt.Errorf("%s", i18n.T("err_no_host"))
 	}
+	if o.Interactive {
+		if o.ShellFile != "" {
+			return fmt.Errorf("%s", i18n.T("exec_err_interactive_shell"))
+		}
+		if o.HostFile != "" || o.Tag != "" || strings.Contains(o.Host, ",") {
+			return fmt.Errorf("%s", i18n.T("exec_err_interactive_multi_host"))
+		}
+	}
 	return nil
 }
 
@@ -180,7 +190,6 @@ func (o *ExecOptions) Run() error {
 	}
 
 	ctx := context.Background()
-	wp := pkgutils.NewWorkerPool(uint(o.TaskCount))
 
 	var tasks []execHostTask
 	var errTask error
@@ -195,6 +204,13 @@ func (o *ExecOptions) Run() error {
 		return errTask
 	}
 
+	// 交互模式：单主机 PTY 执行
+	if o.Interactive {
+		return o.runInteractive(ctx, connector, tasks[0], execCmd, configStore, cfg)
+	}
+
+	// 批量模式：原有逻辑
+	wp := pkgutils.NewWorkerPool(uint(o.TaskCount))
 	for _, task := range tasks {
 		t := task // capture range variable
 		wp.Execute(func() {
@@ -234,6 +250,33 @@ func (o *ExecOptions) Run() error {
 		logger.PrintError(i18n.Tf("save_config_failed", map[string]any{"Error": err}))
 	}
 	return nil
+}
+
+func (o *ExecOptions) runInteractive(
+	ctx context.Context,
+	connector *ssh.Connector,
+	task execHostTask,
+	cmd string,
+	configStore config.Store,
+	cfg *config.Configuration,
+) error {
+	client, err := connector.Connect(ctx, task.nodeID)
+	if err != nil {
+		return fmt.Errorf("%s: %w", i18n.Tf("exec_connect_failed", map[string]any{"Host": task.host, "Error": err}), err)
+	}
+	defer func() { _ = client.Close() }()
+
+	var execErr error
+	if o.Sudo {
+		execErr = client.RunInteractiveWithSudo(ctx, cmd)
+	} else {
+		execErr = client.RunInteractive(ctx, cmd)
+	}
+
+	if saveErr := configStore.Save(cfg); saveErr != nil {
+		logger.PrintError(i18n.Tf("save_config_failed", map[string]any{"Error": saveErr}))
+	}
+	return execErr
 }
 
 func (o *ExecOptions) getOrCreateNode(provider config.ConfigProvider, addr utils.HostInfo) (string, bool, error) {

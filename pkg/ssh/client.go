@@ -155,6 +155,57 @@ func (c *Client) Shell(ctx context.Context) error {
 	return err
 }
 
+// RunInteractive 在 PTY 环境下执行单条命令，支持交互式/流式命令 (如 tail -f, vim, top)
+func (c *Client) RunInteractive(ctx context.Context, cmd string) error {
+	session, err := c.sshClient.NewSession()
+	if err != nil {
+		return err
+	}
+	defer func() { _ = session.Close() }()
+
+	modes := ssh.TerminalModes{
+		ssh.ECHO:          1,
+		ssh.TTY_OP_ISPEED: 14400,
+		ssh.TTY_OP_OSPEED: 14400,
+	}
+	fdIn := int(os.Stdin.Fd())
+	fdOut := int(os.Stdout.Fd())
+	width, height, err := term.GetSize(fdOut)
+	if err != nil {
+		width, height = 80, 40
+	}
+	if err := session.RequestPty("xterm-256color", height, width, modes); err != nil {
+		return fmt.Errorf("request for pty failed: %w", err)
+	}
+
+	stdin, _ := session.StdinPipe()
+	stdout, _ := session.StdoutPipe()
+	stderr, _ := session.StderrPipe()
+
+	if err := session.Shell(); err != nil {
+		return fmt.Errorf("start shell failed: %w", err)
+	}
+
+	oldState, err := term.MakeRaw(fdIn)
+	if err != nil {
+		return fmt.Errorf("can not set term to Raw: %w", err)
+	}
+	defer func() { _ = term.Restore(fdIn, oldState) }()
+
+	startWindowResizeLoop(session, fdOut, width, height)
+
+	// 使用交互式 Shell 获取完整的终端控制权 (支持基于 TTY 的程序如 top/vim 接收按键信号)
+	// 使用 exec 替换当前交互式 Shell，并在完成后自动结束 SSH 会话
+	wrappedCmd := fmt.Sprintf("exec bash -c '%s'\n", strings.ReplaceAll(cmd, "'", "'\\''"))
+	_, _ = stdin.Write([]byte(wrappedCmd))
+
+	go func() { _, _ = io.Copy(os.Stdout, stdout) }()
+	go func() { _, _ = io.Copy(os.Stderr, stderr) }()
+	go func() { _, _ = io.Copy(stdin, os.Stdin) }()
+
+	return ignoreShellExitError(session.Wait())
+}
+
 func (c *Client) maybeDetectSudoMode(ctx context.Context) {
 	// 如果已经有确定的 SudoMode，且不是 "auto" 或空，则不再探测
 	if c.node.SudoMode != "" && c.node.SudoMode != models.SudoModeAuto && c.node.SudoMode != models.SudoModeNone {

@@ -647,6 +647,12 @@ exec_err_no_cmd:
   other: "Command or script to execute must be specified"
 exec_err_read_script:
   other: "Failed to read script file"
+flag_exec_interactive:
+  other: "Interactive mode (supports tail -f, vim, top, etc. Single host only)"
+exec_err_interactive_multi_host:
+  other: "Interactive mode only supports a single host"
+exec_err_interactive_shell:
+  other: "Interactive mode does not support script files"
 
 # ---- encode additions ----
 encode_err_need_arg:

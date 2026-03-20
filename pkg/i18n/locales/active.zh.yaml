@@ -647,6 +647,12 @@ exec_err_no_cmd:
   other: "必须指定要执行的命令或脚本"
 exec_err_read_script:
   other: "读取脚本文件失败"
+flag_exec_interactive:
+  other: "交互模式(支持 tail -f、vim、top 等需要终端的命令，仅限单主机)"
+exec_err_interactive_multi_host:
+  other: "交互模式下仅支持指定单个主机"
+exec_err_interactive_shell:
+  other: "交互模式下不支持执行脚本文件"
 
 # ---- encode additions ----
 encode_err_need_arg:
