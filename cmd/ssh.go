@@ -45,7 +45,7 @@ func NewCmdSsh() *cobra.Command {
 		RunE: func(cmd *cobra.Command, args []string) error {
 			o.Complete(cmd, args)
 			if err := o.Validate(); err != nil {
-				return fmt.Errorf("参数错误: %w", err)
+				return err
 			}
 			return o.Run()
 		},
@@ -70,14 +70,14 @@ func (o *SshOptions) Complete(cmd *cobra.Command, args []string) {
 
 func (o *SshOptions) Validate() error {
 	if len(o.args) > 1 {
-		return fmt.Errorf("期望一个参数，但提供了 %d 个", len(o.args))
+		return errors.New(i18n.Tf("ssh_err_expected_one_arg", map[string]any{"Count": len(o.args)}))
 	}
 	if len(o.args) == 0 && o.Host == "" {
-		return fmt.Errorf("未提供主机地址")
+		return errors.New(i18n.T("ssh_err_no_host"))
 	} else if len(o.args) == 1 {
 		u, h, p := utils.ParseAddr(o.args[0])
 		if h == "" && o.Host == "" {
-			return fmt.Errorf("无效的主机地址")
+			return errors.New(i18n.T("ssh_err_invalid_host"))
 		}
 		if o.Host == "" {
 			o.Host = h
@@ -96,7 +96,7 @@ func (o *SshOptions) Validate() error {
 		o.Port = 22
 	}
 	if strings.Contains(o.Alias, "@") || strings.Contains(o.Alias, ":") {
-		return errors.New("别名中不可含有<@>或<:>符号")
+		return errors.New(i18n.T("ssh_err_alias_invalid"))
 	}
 	return nil
 }
@@ -105,7 +105,7 @@ func (o *SshOptions) Run() error {
 	configStore := config.NewDefaultStore(utils.GetConfigFilePath())
 	cfg, err := configStore.Load()
 	if err != nil {
-		return fmt.Errorf("加载配置文件失败: %w", err)
+		return fmt.Errorf("%s: %w", i18n.T("ssh_err_load_config"), err)
 	}
 
 	provider := config.NewProvider(cfg)
@@ -141,12 +141,12 @@ func (o *SshOptions) Run() error {
 		}
 	} else {
 		if err := client.Shell(ctx); err != nil {
-			return fmt.Errorf("SSH shell failed: %w", err)
+			return fmt.Errorf("%s: %w", i18n.T("ssh_err_shell"), err)
 		}
 	}
 	if updated {
 		if err := configStore.Save(cfg); err != nil {
-			return fmt.Errorf("保存配置文件失败: %w", err)
+			return fmt.Errorf("%s: %w", i18n.T("ssh_err_save_config"), err)
 		}
 	}
 	return nil
@@ -214,7 +214,7 @@ func (o *SshOptions) createNewNode(provider config.ConfigProvider) (string, erro
 	if node.ProxyJump != "" {
 		jumpHost := provider.Find(node.ProxyJump)
 		if jumpHost == "" {
-			return "", fmt.Errorf("跳板机 %s 信息不存在,请先保存跳板机信息", node.ProxyJump)
+			return "", errors.New(i18n.Tf("ssh_err_jump_not_found", map[string]any{"Host": node.ProxyJump}))
 		}
 		node.ProxyJump = jumpHost
 	}
@@ -266,8 +266,4 @@ func update(nodeID string, o *SshOptions, provider config.ConfigProvider) bool {
 		provider.AddIdentity(node.IdentityRef, identity)
 	}
 	return nodeUpdated || identityUpdated
-}
-
-func init() {
-	rootCmd.AddCommand(NewCmdSsh())
 }

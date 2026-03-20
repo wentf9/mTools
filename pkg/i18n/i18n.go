@@ -15,10 +15,11 @@ import (
 var localeFS embed.FS
 
 var (
-	bundle    *i18n.Bundle
-	localizer *i18n.Localizer
-	curLang   string
-	once      sync.Once
+	bundle      *i18n.Bundle
+	localizer   *i18n.Localizer
+	curLang     string
+	once        sync.Once
+	pendingLang string
 )
 
 func ensureInit() {
@@ -37,12 +38,17 @@ func Init(lang string) {
 	_, _ = bundle.LoadMessageFileFS(localeFS, "locales/active.en.yaml")
 
 	localizer = i18n.NewLocalizer(bundle, curLang)
+
+	// 标记 once 为已完成，防止 ensureInit() 再次调用 Init("")
+	once.Do(func() {})
 }
 
 // T 根据 messageID 返回当前语言的翻译文本。
 // 找不到时 fallback 到 messageID 本身。
 func T(id string) string {
 	ensureInit()
+	// 应用待切换的语言（解决 --help 时序问题）
+	applyPendingLang()
 	msg, err := localizer.Localize(&i18n.LocalizeConfig{MessageID: id})
 	if err != nil || msg == "" {
 		return id
@@ -75,6 +81,22 @@ func SetLang(lang string) {
 	}
 	curLang = normalizeLang(lang)
 	localizer = i18n.NewLocalizer(bundle, curLang)
+}
+
+// SetPendingLang 设置待切换的语言（在 main 中提前调用）。
+// 该函数用于在命令构造前设置语言，解决 --help 时 init() 先于语言设置的问题。
+func SetPendingLang(lang string) {
+	if lang != "" {
+		pendingLang = normalizeLang(lang)
+	}
+}
+
+// applyPendingLang 应用待切换的语言
+func applyPendingLang() {
+	if pendingLang != "" && pendingLang != curLang {
+		curLang = pendingLang
+		localizer = i18n.NewLocalizer(bundle, curLang)
+	}
 }
 
 func detectLang(explicit string) string {

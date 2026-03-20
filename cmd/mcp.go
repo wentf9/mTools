@@ -46,7 +46,3 @@ func NewCmdMcp() *cobra.Command {
 	cmd.SilenceErrors = true
 	return cmd
 }
-
-func init() {
-	rootCmd.AddCommand(NewCmdMcp())
-}

@@ -261,7 +261,3 @@ func NewCmdIdentityDelete() *cobra.Command {
 		},
 	}
 }
-
-func init() {
-	rootCmd.AddCommand(NewCmdIdentity())
-}

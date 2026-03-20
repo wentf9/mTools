@@ -15,149 +15,146 @@ import (
 	"golang.org/x/term"
 )
 
-var (
+type encodeOpts struct {
 	isDecode  bool
 	stdinData string
-)
-
-// encodeCmd represents the exec command
-var encodeCmd = &cobra.Command{
-	Use:   "encode [command] [-d] args",
-	Short: i18n.T("encode_short"),
-	Long:  i18n.T("encode_long"),
-	// PersistentPreRun: func(cmd *cobra.Command, args []string) {
-	// 	rootCmd.PersistentPostRun(rootCmd, args)
-	// 	if !isTerminal {
-	// 		input, err := io.ReadAll(os.Stdin)
-	// 		if err != nil {
-	// 			fmt.Fprintf(os.Stderr, "从管道或重定向中读取参数失败: %v\n", err)
-	// 			return
-	// 		}
-	// 		clear(args)
-	// 		args = append(args, string(input))
-	// 	}
-	// },
-	Run: func(cmd *cobra.Command, args []string) {
-		_ = cmd.Help()
-	},
 }
 
-// urlCmd represents the exec command
-var urlCmd = &cobra.Command{
-	Use:   "url [-d] args",
-	Short: i18n.T("url_short"),
-	Long:  i18n.T("url_long"),
-	Args:  argsValidator,
-	Run: func(cmd *cobra.Command, args []string) {
-		if len(args) == 0 && stdinData != "" {
-			args = []string{stdinData}
-		}
-		for _, str := range args {
-			if isDecode {
-				if out, err := url.QueryUnescape(str); err != nil {
-					fmt.Fprintln(os.Stderr, err)
-				} else {
-					fmt.Println(out)
-				}
-			} else {
-				fmt.Println(url.QueryEscape(str))
-			}
-		}
-	},
+func newCmdEncode() *cobra.Command {
+	opts := &encodeOpts{}
+
+	cmd := &cobra.Command{
+		Use:   "encode [command] [-d] args",
+		Short: i18n.T("encode_short"),
+		Long:  i18n.T("encode_long"),
+		Run: func(cmd *cobra.Command, args []string) {
+			_ = cmd.Help()
+		},
+	}
+
+	cmd.AddCommand(newEncodeUrlCmd(opts))
+	cmd.AddCommand(newEncodeUnicodeCmd(opts))
+	cmd.AddCommand(newEncodeUtf8Cmd(opts))
+	cmd.AddCommand(newEncodeBase64Cmd(opts))
+
+	cmd.PersistentFlags().BoolVarP(&opts.isDecode, "decode", "d", false, i18n.T("flag_decode"))
+
+	return cmd
 }
 
-// base64Cmd represents the exec command
-var base64Cmd = &cobra.Command{
-	Use:   "base64 [-d] args",
-	Short: i18n.T("base64_short"),
-	Long:  i18n.T("base64_long"),
-	Args:  argsValidator,
-	Run: func(cmd *cobra.Command, args []string) {
-		urlMode, _ := cmd.Flags().GetBool("url")
-		if len(args) == 0 && stdinData != "" {
-			args = []string{stdinData}
-		}
-		if urlMode {
-			if isDecode {
-				for _, str := range args {
-					if out, err := base64.URLEncoding.DecodeString(str); err != nil {
+func newEncodeUrlCmd(opts *encodeOpts) *cobra.Command {
+	return &cobra.Command{
+		Use:   "url [-d] args",
+		Short: i18n.T("url_short"),
+		Long:  i18n.T("url_long"),
+		Args:  func(cmd *cobra.Command, args []string) error { return argsValidator(args, &opts.stdinData) },
+		Run: func(cmd *cobra.Command, args []string) {
+			args = prepareArgs(args, opts.stdinData)
+			for _, str := range args {
+				if opts.isDecode {
+					if out, err := url.QueryUnescape(str); err != nil {
 						fmt.Fprintln(os.Stderr, err)
 					} else {
-						fmt.Println(string(out))
+						fmt.Println(out)
 					}
-				}
-			} else {
-				for _, str := range args {
-					fmt.Println(base64.URLEncoding.EncodeToString([]byte(str)))
+				} else {
+					fmt.Println(url.QueryEscape(str))
 				}
 			}
-		} else {
-			if isDecode {
-				for _, str := range args {
-					if out, err := base64.StdEncoding.DecodeString(str); err != nil {
+		},
+	}
+}
+
+func newEncodeBase64Cmd(opts *encodeOpts) *cobra.Command {
+	cmd := &cobra.Command{
+		Use:   "base64 [-d] args",
+		Short: i18n.T("base64_short"),
+		Long:  i18n.T("base64_long"),
+		Args:  func(cmd *cobra.Command, args []string) error { return argsValidator(args, &opts.stdinData) },
+		Run: func(cmd *cobra.Command, args []string) {
+			urlMode, _ := cmd.Flags().GetBool("url")
+			args = prepareArgs(args, opts.stdinData)
+			if urlMode {
+				runBase64(args, opts.isDecode, base64.URLEncoding)
+			} else {
+				runBase64(args, opts.isDecode, base64.StdEncoding)
+			}
+		},
+	}
+	cmd.Flags().BoolP("url", "u", false, i18n.T("flag_base64_url"))
+	return cmd
+}
+
+func runBase64(args []string, isDecode bool, enc *base64.Encoding) {
+	if isDecode {
+		for _, str := range args {
+			if out, err := enc.DecodeString(str); err != nil {
+				fmt.Fprintln(os.Stderr, err)
+			} else {
+				fmt.Println(string(out))
+			}
+		}
+	} else {
+		for _, str := range args {
+			fmt.Println(enc.EncodeToString([]byte(str)))
+		}
+	}
+}
+
+func newEncodeUtf8Cmd(opts *encodeOpts) *cobra.Command {
+	return &cobra.Command{
+		Use:   "utf8 [-d] args",
+		Short: i18n.T("utf8_short"),
+		Long:  i18n.T("utf8_long"),
+		Args:  func(cmd *cobra.Command, args []string) error { return argsValidator(args, &opts.stdinData) },
+		Run: func(cmd *cobra.Command, args []string) {
+			args = prepareArgs(args, opts.stdinData)
+			for _, str := range args {
+				if opts.isDecode {
+					if out, err := utf8ToString(str); err != nil {
 						fmt.Fprintln(os.Stderr, err)
 					} else {
-						fmt.Println(string(out))
+						fmt.Println(out)
 					}
-				}
-			} else {
-				for _, str := range args {
-					fmt.Println(base64.StdEncoding.EncodeToString([]byte(str)))
-				}
-			}
-		}
-	},
-}
-
-// utf8Cmd represents the exec command
-var utf8Cmd = &cobra.Command{
-	Use:   "utf8 [-d] args",
-	Short: i18n.T("utf8_short"),
-	Long:  i18n.T("utf8_long"),
-	Args:  argsValidator,
-	Run: func(cmd *cobra.Command, args []string) {
-		if len(args) == 0 && stdinData != "" {
-			args = []string{stdinData}
-		}
-		for _, str := range args {
-			if isDecode {
-				if out, err := utf8ToString(str); err != nil {
-					fmt.Fprintln(os.Stderr, err)
 				} else {
-					fmt.Println(out)
+					fmt.Println(stringToUTF8(str))
 				}
-			} else {
-				fmt.Println(stringToUTF8(str))
 			}
-		}
-	},
+		},
+	}
 }
 
-// unicodeCmd represents the exec command
-var unicodeCmd = &cobra.Command{
-	Use:   "unicode [-d] args",
-	Short: i18n.T("unicode_short"),
-	Long:  i18n.T("unicode_long"),
-	Args:  argsValidator,
-	Run: func(cmd *cobra.Command, args []string) {
-		if len(args) == 0 && stdinData != "" {
-			args = []string{stdinData}
-		}
-		for _, str := range args {
-			if isDecode {
-				if out, err := unicodeToString(str); err != nil {
-					fmt.Fprintln(os.Stderr, err)
+func newEncodeUnicodeCmd(opts *encodeOpts) *cobra.Command {
+	return &cobra.Command{
+		Use:   "unicode [-d] args",
+		Short: i18n.T("unicode_short"),
+		Long:  i18n.T("unicode_long"),
+		Args:  func(cmd *cobra.Command, args []string) error { return argsValidator(args, &opts.stdinData) },
+		Run: func(cmd *cobra.Command, args []string) {
+			args = prepareArgs(args, opts.stdinData)
+			for _, str := range args {
+				if opts.isDecode {
+					if out, err := unicodeToString(str); err != nil {
+						fmt.Fprintln(os.Stderr, err)
+					} else {
+						fmt.Println(out)
+					}
 				} else {
-					fmt.Println(out)
+					fmt.Println(stringToUnicode(str))
 				}
-			} else {
-				fmt.Println(stringToUnicode(str))
 			}
-		}
-	},
+		},
+	}
 }
 
-func argsValidator(cmd *cobra.Command, args []string) error {
+func prepareArgs(args []string, stdinData string) []string {
+	if len(args) == 0 && stdinData != "" {
+		return []string{stdinData}
+	}
+	return args
+}
+
+func argsValidator(args []string, stdinData *string) error {
 	if term.IsTerminal(0) {
 		if len(args) < 1 {
 			return fmt.Errorf("需要至少一个参数")
@@ -169,23 +166,11 @@ func argsValidator(cmd *cobra.Command, args []string) error {
 		return fmt.Errorf("从管道或重定向中读取参数失败: %w", err)
 	}
 
-	stdinData = string(input)
-	if stdinData == "" && len(args) < 1 {
+	*stdinData = string(input)
+	if *stdinData == "" && len(args) < 1 {
 		return fmt.Errorf("需要至少一个参数")
 	}
 	return nil
-}
-
-func init() {
-	rootCmd.AddCommand(encodeCmd)
-	encodeCmd.AddCommand(urlCmd)
-	encodeCmd.AddCommand(unicodeCmd)
-	encodeCmd.AddCommand(utf8Cmd)
-	encodeCmd.AddCommand(base64Cmd)
-
-	encodeCmd.PersistentFlags().BoolVarP(&isDecode, "decode", "d", false, i18n.T("flag_decode"))
-
-	base64Cmd.Flags().BoolP("url", "u", false, i18n.T("flag_base64_url"))
 }
 
 func stringToUnicode(s string) string {

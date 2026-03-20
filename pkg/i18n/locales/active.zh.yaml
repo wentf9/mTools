@@ -541,3 +541,25 @@ tui_status_tag_added:
   other: "已为 {{.Count}} 个节点添加标签"
 tui_status_tag_removed:
   other: "已从 {{.Count}} 个节点移除标签"
+
+# ---- ssh errors ----
+ssh_err_args:
+  other: "参数错误: {{.Error}}"
+ssh_err_expected_one_arg:
+  other: "期望一个参数，但提供了 {{.Count}} 个"
+ssh_err_no_host:
+  other: "未提供主机地址"
+ssh_err_invalid_host:
+  other: "无效的主机地址"
+ssh_err_alias_invalid:
+  other: "别名中不可含有<@>或<:>符号"
+ssh_err_jump_not_found:
+  other: "跳板机 {{.Host}} 信息不存在,请先保存跳板机信息"
+ssh_err_load_config:
+  other: "加载配置文件失败: {{.Error}}"
+ssh_err_save_config:
+  other: "保存配置文件失败: {{.Error}}"
+ssh_err_connect:
+  other: "连接失败: {{.Error}}"
+ssh_err_shell:
+  other: "SSH shell 失败: {{.Error}}"

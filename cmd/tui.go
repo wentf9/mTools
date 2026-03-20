@@ -34,7 +34,3 @@ func NewCmdTui() *cobra.Command {
 	}
 	return cmd
 }
-
-func init() {
-	rootCmd.AddCommand(NewCmdTui())
-}

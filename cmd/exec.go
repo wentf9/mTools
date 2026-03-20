@@ -459,7 +459,3 @@ func (o *ExecOptions) updateNodeFromHostInfo(nodeID string, provider config.Conf
 
 	return updated
 }
-
-func init() {
-	rootCmd.AddCommand(NewCmdExec())
-}

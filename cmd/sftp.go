@@ -157,7 +157,3 @@ func (o *SftpOptions) createNewNode(provider config.ConfigProvider) (string, err
 	provider.AddNode(nodeID, node)
 	return nodeID, nil
 }
-
-func init() {
-	rootCmd.AddCommand(NewCmdSftp())
-}

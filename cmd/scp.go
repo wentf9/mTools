@@ -536,7 +536,3 @@ func (o *ScpOptions) updateNode(nodeID string, provider config.ConfigProvider, s
 
 	return updated
 }
-
-func init() {
-	rootCmd.AddCommand(NewCmdScp())
-}

@@ -39,35 +39,36 @@ func NewFirewallOptions() *FirewallOptions {
 	}
 }
 
-var fwOptions = NewFirewallOptions()
+func newCmdFirewall() *cobra.Command {
+	fwOptions := NewFirewallOptions()
 
-var firewallCmd = &cobra.Command{
-	Use:   "firewall",
-	Short: i18n.T("firewall_short"),
-	Long:  i18n.T("firewall_long"),
-	Run: func(cmd *cobra.Command, args []string) {
-		_ = cmd.Help()
-	},
-}
+	cmd := &cobra.Command{
+		Use:   "firewall",
+		Short: i18n.T("firewall_short"),
+		Long:  i18n.T("firewall_long"),
+		Run: func(cmd *cobra.Command, args []string) {
+			_ = cmd.Help()
+		},
+	}
 
-func init() {
-	rootCmd.AddCommand(firewallCmd)
-	firewallCmd.AddCommand(newFirewallListCmd())
-	firewallCmd.AddCommand(newFirewallPortCmd())
-	firewallCmd.AddCommand(newFirewallServiceCmd())
-	firewallCmd.AddCommand(newFirewallRuleCmd())
-	firewallCmd.AddCommand(newFirewallReloadCmd())
+	cmd.AddCommand(newFirewallListCmd(fwOptions))
+	cmd.AddCommand(newFirewallPortCmd(fwOptions))
+	cmd.AddCommand(newFirewallServiceCmd(fwOptions))
+	cmd.AddCommand(newFirewallRuleCmd(fwOptions))
+	cmd.AddCommand(newFirewallReloadCmd(fwOptions))
 
-	firewallCmd.PersistentFlags().StringVarP(&fwOptions.Host, "host", "H", "", i18n.T("flag_fw_host"))
-	firewallCmd.PersistentFlags().StringVarP(&fwOptions.HostFile, "ifile", "I", "", i18n.T("flag_fw_ifile"))
-	firewallCmd.PersistentFlags().StringVarP(&fwOptions.User, "user", "u", "", i18n.T("flag_fw_user"))
-	firewallCmd.PersistentFlags().StringVarP(&fwOptions.Password, "password", "w", "", i18n.T("flag_fw_password"))
-	firewallCmd.PersistentFlags().IntVar(&fwOptions.TaskCount, "task", 1, i18n.T("flag_fw_task"))
+	cmd.PersistentFlags().StringVarP(&fwOptions.Host, "host", "H", "", i18n.T("flag_fw_host"))
+	cmd.PersistentFlags().StringVarP(&fwOptions.HostFile, "ifile", "I", "", i18n.T("flag_fw_ifile"))
+	cmd.PersistentFlags().StringVarP(&fwOptions.User, "user", "u", "", i18n.T("flag_fw_user"))
+	cmd.PersistentFlags().StringVarP(&fwOptions.Password, "password", "w", "", i18n.T("flag_fw_password"))
+	cmd.PersistentFlags().IntVar(&fwOptions.TaskCount, "task", 1, i18n.T("flag_fw_task"))
 
-	firewallCmd.PersistentFlags().StringVar(&fwOptions.Protocol, "proto", "tcp", i18n.T("flag_fw_proto"))
-	firewallCmd.PersistentFlags().BoolVarP(&fwOptions.Remove, "remove", "r", false, i18n.T("flag_fw_remove"))
-	firewallCmd.PersistentFlags().BoolVar(&fwOptions.Reload, "reload", false, i18n.T("flag_fw_reload"))
-	firewallCmd.PersistentFlags().StringVarP(&fwOptions.Zone, "zone", "z", "", i18n.T("flag_fw_zone"))
+	cmd.PersistentFlags().StringVar(&fwOptions.Protocol, "proto", "tcp", i18n.T("flag_fw_proto"))
+	cmd.PersistentFlags().BoolVarP(&fwOptions.Remove, "remove", "r", false, i18n.T("flag_fw_remove"))
+	cmd.PersistentFlags().BoolVar(&fwOptions.Reload, "reload", false, i18n.T("flag_fw_reload"))
+	cmd.PersistentFlags().StringVarP(&fwOptions.Zone, "zone", "z", "", i18n.T("flag_fw_zone"))
+
+	return cmd
 }
 
 func (o *FirewallOptions) RunOnHosts(ctx context.Context, action func(fw firewall.Firewall) (string, error)) error {
@@ -201,7 +202,7 @@ func (o *FirewallOptions) executeOnSingleHost(ctx context.Context, h string, pro
 	})
 }
 
-func newFirewallListCmd() *cobra.Command {
+func newFirewallListCmd(fwOptions *FirewallOptions) *cobra.Command {
 	return &cobra.Command{
 		Use:   "list",
 		Short: i18n.T("firewall_list_short"),
@@ -213,7 +214,7 @@ func newFirewallListCmd() *cobra.Command {
 	}
 }
 
-func newFirewallPortCmd() *cobra.Command {
+func newFirewallPortCmd(fwOptions *FirewallOptions) *cobra.Command {
 	return &cobra.Command{
 		Use:   "port <ports>",
 		Short: i18n.T("firewall_port_short"),
@@ -254,7 +255,7 @@ func newFirewallPortCmd() *cobra.Command {
 	}
 }
 
-func newFirewallServiceCmd() *cobra.Command {
+func newFirewallServiceCmd(fwOptions *FirewallOptions) *cobra.Command {
 	return &cobra.Command{
 		Use:   "service <services>",
 		Short: i18n.T("firewall_service_short"),
@@ -294,7 +295,7 @@ func newFirewallServiceCmd() *cobra.Command {
 	}
 }
 
-func newFirewallRuleCmd() *cobra.Command {
+func newFirewallRuleCmd(fwOptions *FirewallOptions) *cobra.Command {
 	cmd := &cobra.Command{
 		Use:   "rule [port] <source_ip>",
 		Short: i18n.T("firewall_rule_short"),
@@ -362,7 +363,7 @@ func newFirewallRuleCmd() *cobra.Command {
 	return cmd
 }
 
-func newFirewallReloadCmd() *cobra.Command {
+func newFirewallReloadCmd(fwOptions *FirewallOptions) *cobra.Command {
 	return &cobra.Command{
 		Use:   "reload",
 		Short: i18n.T("firewall_reload_short"),
