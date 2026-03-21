@@ -5,6 +5,7 @@ import (
 	"os"
 	"strings"
 	"sync"
+	"sync/atomic"
 
 	"github.com/nicksnyder/go-i18n/v2/i18n"
 	"golang.org/x/text/language"
@@ -18,17 +19,24 @@ var (
 	bundle      *i18n.Bundle
 	localizer   *i18n.Localizer
 	curLang     string
-	once        sync.Once
+	initialized atomic.Uint32
+	mu          sync.Mutex
 	pendingLang string
 )
 
 func ensureInit() {
-	once.Do(func() { Init("") })
+	if initialized.Load() == 1 {
+		return
+	}
+	Init("")
 }
 
 // Init 初始化 i18n，解析语言偏好并加载翻译文件。
 // 传入空字符串时自动从环境变量检测。
 func Init(lang string) {
+	mu.Lock()
+	defer mu.Unlock()
+
 	curLang = detectLang(lang)
 
 	bundle = i18n.NewBundle(language.Chinese)
@@ -39,8 +47,7 @@ func Init(lang string) {
 
 	localizer = i18n.NewLocalizer(bundle, curLang)
 
-	// 标记 once 为已完成，防止 ensureInit() 再次调用 Init("")
-	once.Do(func() {})
+	initialized.Store(1)
 }
 
 // T 根据 messageID 返回当前语言的翻译文本。
